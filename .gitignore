@@ -1,0 +1,25 @@
+# Gradle / byggefiler
+.gradle/
+build/
+/app/build/
+.kotlin/
+
+# Lokale innstillinger (sti til Android SDK osv.)
+local.properties
+
+# Android Studio
+.idea/
+*.iml
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Ferdigbygde apper og signering
+*.apk
+*.aab
+*.jks
+*.keystore
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,6 @@
+<resources>
+    <!-- "Rigg"-appikon: rått og minimalistisk. Mørk grafitt bunn, varm rust-aksent på stangen. -->
+    <color name="ic_launcher_background">#1A1A1A</color>
+    <color name="rigg_foreground">#F2F0EA</color>
+    <color name="rigg_accent">#D9622B</color>
+</resources>

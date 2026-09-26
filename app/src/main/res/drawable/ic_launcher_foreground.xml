@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  "Rigg"-logo: et minimalistisk powerrack sett forfra, med en vektstang på krokene.
+  Tegnet i 108x108-canvas. Launcheren viser bare de midterste 72 enhetene, og alt viktig må
+  ligge innenfor den sikre sonen (sirkel med radius 33 rundt 54,54). Ytterste punkt her er ca. 29.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Stolper, toppbjelke og føtter -->
+    <path
+        android:strokeColor="@color/rigg_foreground"
+        android:strokeWidth="5.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M42,75 L42,34 L66,34 L66,75 M36.5,75 L47.5,75 M60.5,75 L71.5,75" />
+
+    <!-- Vektstangen i krokene, med skiver i endene (rust-aksent) -->
+    <path
+        android:strokeColor="@color/rigg_accent"
+        android:strokeWidth="4.5"
+        android:strokeLineCap="round"
+        android:pathData="M34,50 L74,50" />
+    <path
+        android:strokeColor="@color/rigg_accent"
+        android:strokeWidth="8"
+        android:strokeLineCap="round"
+        android:pathData="M35,43.5 L35,56.5 M73,43.5 L73,56.5" />
+</vector>

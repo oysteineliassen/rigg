@@ -1,0 +1,6 @@
+# Lagre tekstfiler med LF i git, så endringer (patcher) fungerer likt på Windows og Linux.
+* text=auto
+*.bat text eol=crlf
+gradlew text eol=lf
+*.png binary
+*.jar binary
