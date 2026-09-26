@@ -18,6 +18,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Tune
@@ -75,7 +76,9 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class Tab(val label: String) { SETUP("Oppsett"), PLAN("Program"), PROGRESS("Fremgang"), SETTINGS("Innstillinger") }
+private enum class Tab(val label: String) {
+    SETUP("Oppsett"), PLAN("Program"), EXERCISES("Øvelser"), PROGRESS("Fremgang"), SETTINGS("Innstillinger")
+}
 
 private fun formatDuration(totalSeconds: Int): String {
     val m = totalSeconds / 60
@@ -88,7 +91,7 @@ private fun formatDuration(totalSeconds: Int): String {
  * Bevisst ikke en pekt til én bestemt video: med ~90 øvelser i biblioteket kan vi ikke kvalitetssikre
  * og vedlikeholde en spesifikk lenke for hver, og et søk slutter aldri å virke selv om enkeltvideoer forsvinner.
  */
-private fun openExerciseVideo(context: android.content.Context, exercise: Exercise) {
+fun openExerciseVideo(context: android.content.Context, exercise: Exercise) {
     val query = Uri.encode("${exercise.name} øvelse riktig teknikk")
     val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/results?search_query=$query"))
     runCatching { context.startActivity(intent) }
@@ -133,13 +136,14 @@ private fun App(
                                 when (t) {
                                     Tab.SETUP -> Icons.Filled.Tune
                                     Tab.PLAN -> Icons.Filled.FitnessCenter
+                                    Tab.EXERCISES -> Icons.AutoMirrored.Filled.List
                                     Tab.PROGRESS -> Icons.AutoMirrored.Filled.ShowChart
                                     Tab.SETTINGS -> Icons.Filled.Settings
                                 },
                                 contentDescription = t.label,
                             )
                         },
-                        label = { Text(t.label) },
+                        label = { Text(t.label, maxLines = 1) },
                     )
                 }
             }
@@ -149,6 +153,7 @@ private fun App(
             when (tab) {
                 Tab.SETUP -> SetupScreen(vm, goToPlan = { tab = Tab.PLAN }, goToSettings = { tab = Tab.SETTINGS })
                 Tab.PLAN -> PlanScreen(vm, goToSetup = { tab = Tab.SETUP }, requestNotificationPermission = requestNotificationPermission)
+                Tab.EXERCISES -> ExerciseLibraryScreen(vm)
                 Tab.PROGRESS -> ProgressScreen(vm)
                 Tab.SETTINGS -> SettingsScreen(vm, requestNotificationPermission, exportData, importData)
             }
