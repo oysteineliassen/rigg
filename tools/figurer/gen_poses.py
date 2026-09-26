@@ -1048,33 +1048,37 @@ put("DEAD_BUG", "KJERNE", [T, dead_bug(ext_arm, tab_leg, tab_arm, ext_leg), dead
     keys=[(700, "arm og motsatt bein ut"), (250, "hold"), (650, "tilbake"), (200, "pause"), (700, "andre arm og bein ut"),
           (250, "hold"), (650, "tilbake"), (200, "pause")])
 
-# Russian twist sett forfra: sittende, overkroppen lent litt bakover og knærne opp foran brystet. Beina og armene
-# ligger foran overkroppen (luftkant). Overkroppen vris, så manualen føres ned ved hofta på hver side.
+# Russian twist sett forfra: sittende, knærne opp foran brystet og overkroppen lent litt bakover. Det er overkroppen
+# som vris og lener seg mot siden; armene holder formen (bøyde, hendene samlet foran brystet) og følger bare med.
 def twist(side_):
-    pel, neck_y = (0.5, 0.935), 0.64
-    shift = side_ * 0.045
-    sl = (0.415 + shift + (0.03 if side_ < 0 else 0), neck_y + 0.01 * abs(side_))
-    sr = (0.585 + shift - (0.03 if side_ > 0 else 0), neck_y + 0.01 * abs(side_))
-    knees, feet = ((0.455, 0.72), (0.545, 0.72)), ((0.425, 0.845), (0.575, 0.845))
-    if side_:
-        hands = (0.5 + side_ * 0.2, 0.89)
-        el = rnd(((sl[0] + hands[0]) / 2 - 0.02 * side_, (sl[1] + hands[1]) / 2))
-        er = rnd(((sr[0] + hands[0]) / 2 + 0.02 * side_, (sr[1] + hands[1]) / 2))
+    pel = (0.5, 0.935)
+    torso = -90 + 26 * side_
+    neck = at(pel, torso, 0.295)
+    ny = neck[1]
+    if side_ == 0:
+        sl, sr = (neck[0] - 0.085, ny), (neck[0] + 0.085, ny)
+        hands = (0.5, 0.76)
+        el, er = (0.43, 0.745), (0.57, 0.745)
     else:
-        hands = (0.5, 0.735)
-        el, er = (0.405, 0.73), (0.595, 0.73)
+        # Vridd: skulderen bak ses nær nakken, skulderen foran kommer over mot midten. Hendene følger brystet til siden.
+        back, fwd = (neck[0] + 0.035 * side_, ny + 0.012), (neck[0] - 0.05 * side_, ny - 0.005)
+        sl, sr = (fwd, back) if side_ > 0 else (back, fwd)
+        hands = (neck[0] + 0.12 * side_, 0.83)
+        el = rnd((sl[0] + 0.25 * (hands[0] - sl[0]) - 0.05 * side_, (sl[1] + hands[1]) / 2 + 0.02))
+        er = rnd((sr[0] + 0.25 * (hands[0] - sr[0]) - 0.05 * side_, (sr[1] + hands[1]) / 2 + 0.02))
+    knees, feet = ((0.455, 0.72), (0.545, 0.72)), ((0.425, 0.845), (0.575, 0.845))
     fr = front(pel, [("j", knees[0], feet[0]), ("j", knees[1], feet[1])],
                [("j", el, hands), ("j", er, rnd((hands[0] + 0.004, hands[1])))],
-               shoulders=(sl, sr), head=(0.5 + shift * 0.8, neck_y - 0.09), L=dict(LEN, torso=0.295))
+               torso=torso, shoulders=(sl, sr), head=at(neck, torso - 6 * side_, 0.09), L=dict(LEN, torso=0.295))
     fr["dots"] = [rnd((hands[0] + 0.002, hands[1] + 0.005))]
     return fr
 
 
 put("SEATED_TWIST", "KJERNE", [twist(0), twist(-1), twist(-1), twist(0), twist(1), twist(1), twist(0)],
     "Russian twist sett forfra: sittende med knærne opp foran brystet og overkroppen lent litt bakover. Overkroppen "
-    "vris, så manualen føres ned ved hofta på den ene siden, så den andre.",
-    keys=[(550, "vri mot venstre"), (200, "manualen ned ved hofta"), (500, "tilbake"), (550, "vri mot høyre"),
-          (200, "manualen ned ved hofta"), (500, "tilbake")], front=[0, 1, 5, 6, 8, 9, 11, 12])
+    "vris og lener seg mot den ene siden så manualen kommer ned ved hofta, så mot den andre.",
+    keys=[(600, "vri mot venstre"), (200, "manualen ned ved hofta"), (550, "tilbake"), (600, "vri mot høyre"),
+          (200, "manualen ned ved hofta"), (550, "tilbake")], front=[0, 1, 5, 6, 8, 9, 11, 12])
 
 # Kroppssag: planke på underarmene, kroppen skyves bakover og frem ved å vippe i skulderen. Føttene glir.
 BS_E, BS_H = (0.2, FLOOR_Y), (0.2 - LEN["farm"], FLOOR_Y)
@@ -1117,7 +1121,11 @@ def high_knees(which, mid=False):
     else:
         up_leg = ("a", -8, 88)
         hip = (HK_X + 0.015, 0.585)
-    arm_f, arm_b = ("a", 70, -35), ("a", 115, 70)
+    # Armene pumper i takt med knærne: armen på motsatt side går frem og opp (hånden mot haka), den andre
+    # bak med albuen. Midt i byttet passerer begge armene langs siden.
+    arm_f, arm_b = ("a", 38, -78), ("a", 138, 72)
+    if mid:
+        arm_f = arm_b = ("a", 92, 10)
     if which == 0:  # bein 2 oppe, arm 1 frem
         return side(hip, -80, [stance, up_leg], [arm_f, arm_b])
     return side(hip, -80, [up_leg, stance], [arm_b, arm_f])
