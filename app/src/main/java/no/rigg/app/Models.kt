@@ -9,6 +9,7 @@ enum class Equipment(val label: String) {
     RESISTANCE_BANDS("Strikk"),
     PULL_UP_BAR("Tverrligger"),
     BENCH("Benk"),
+    PLYO_BOX("Hoppekasse"),
     BARBELL("Stang og skiver"),
     CHAIR("Solid stol/sofa"),
     TABLE("Solid bord"),

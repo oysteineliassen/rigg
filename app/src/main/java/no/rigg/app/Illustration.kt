@@ -45,7 +45,7 @@ enum class IllustrationType {
     PIKE, OVERHEAD_PRESS_1ARM, LATERAL_RAISE_BAND, TRICEPS_EXT, THRUSTER, ROW, INVERTED_ROW, SEATED_ROW,
     PULLUP_HANG, PULLDOWN, CURL, CURL_BAND, DEAD_HANG, PULLUP_BAND, SQUAT, WALL_SIT, LUNGE, BULGARIAN,
     STEP_UP, LUNGE_DB, BULGARIAN_DB, GOBLET_SQUAT, FRONT_SQUAT, BB_SQUAT, BAND_SQUAT, PISTOL_BOX,
-    HIP_HINGE, GLUTE_BRIDGE, CALF_RAISE, SUPERMAN, CALF_RAISE_DB, GLUTE_BRIDGE_1LEG, HIP_THRUST,
+    BOX_JUMP, HIP_HINGE, GLUTE_BRIDGE, CALF_RAISE, SUPERMAN, CALF_RAISE_DB, GLUTE_BRIDGE_1LEG, HIP_THRUST,
     KB_SWING, GOOD_MORNING, PULL_THROUGH, SINGLE_LEG_RDL, PLANK, SIDE_PLANK, MOUNTAIN_CLIMBER, BIRD_DOG,
     DEAD_BUG, HOLLOW_HOLD, LEG_RAISE, HANGING_RAISE, SEATED_TWIST, HANGING_LEG_RAISE, CARDIO_RUN,
     JUMP, CARRY, JUMP_ROPE,
@@ -979,6 +979,32 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
             ),
         ),
     ),
+    IllustrationType.BOX_JUMP to Pose(
+        // Bokshopp: fra knebøy foran kassen.
+        head = p(0.32f, 0.5f),
+        lines = listOf(
+            p(0.24f, 0.96f) to p(0.33f, 0.83f), // legg
+            p(0.33f, 0.83f) to p(0.19f, 0.76f), // lår, nede i knebøy
+            p(0.19f, 0.76f) to p(0.28f, 0.58f), // overkropp lent frem
+            p(0.28f, 0.58f) to p(0.14f, 0.67f), // armene svinger bak
+        ),
+        props = listOf(
+            p(0.52f, 0.72f) to p(0.95f, 0.72f), // kasse
+            p(0.52f, 0.72f) to p(0.52f, 0.97f),
+            p(0.95f, 0.72f) to p(0.95f, 0.97f),
+        ),
+        front = setOf(3),
+        // I luften over kassen, armene frem, klar til å lande.
+        end = Frame(
+            head = p(0.7f, 0.085f),
+            lines = listOf(
+                p(0.62f, 0.545f) to p(0.71f, 0.415f),
+                p(0.71f, 0.415f) to p(0.57f, 0.345f),
+                p(0.57f, 0.345f) to p(0.66f, 0.165f),
+                p(0.66f, 0.165f) to p(0.84f, 0.2f),
+            ),
+        ),
+    ),
 
     // ------------------------------------------------------------ HOFTE
     IllustrationType.HIP_HINGE to Pose(
@@ -1596,6 +1622,7 @@ fun illustrationFor(exercise: Exercise): IllustrationType = when (exercise.id) {
     "mountain_climber" -> IllustrationType.MOUNTAIN_CLIMBER
     "jump_rope" -> IllustrationType.JUMP_ROPE
     "jump_squat", "burpee" -> IllustrationType.JUMP
+    "box_jump" -> IllustrationType.BOX_JUMP
     "high_knees" -> IllustrationType.CARDIO_RUN
     else -> when (exercise.pattern) {
         Pattern.PUSH -> IllustrationType.PUSHUP
