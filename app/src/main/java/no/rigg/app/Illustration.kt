@@ -64,6 +64,11 @@ private data class Pose(
     /** Linjer (armer) som ligger foran kroppen: tegnes sist, med en luftkant som skiller dem fra det bak. */
     val front: Set<Int> = emptySet(),
     /**
+     * For bevegelser som ikke bare går frem og tilbake (f.eks. bokshopp): en rekke nøkkelstillinger som
+     * spilles i rekkefølge fra posen over og rundt igjen. Brukes i stedet for [end].
+     */
+    val sequence: List<Key> = emptyList(),
+    /**
      * Den andre ytterstillingen i bevegelsen, for animasjon. Må ha like mange linjer og prikker,
      * i samme rekkefølge, som posen over. Punkter som deles mellom linjer (ledd) må deles her også,
      * ellers faller figuren fra hverandre underveis. null = figuren står stille.
@@ -78,6 +83,9 @@ private data class Frame(
     /** Bare hvis utstyret beveger seg (f.eks. en strikk som følger hånden). Ellers står rekvisittene stille. */
     val props: List<Pair<Offset, Offset>> = emptyList(),
 )
+
+/** Én nøkkelstilling i en sekvens: [ms] er tiden det tar å bevege seg fra forrige stilling til denne. */
+private data class Key(val ms: Int, val frame: Frame)
 
 /** Én repetisjon (ned og opp igjen) i millisekunder. */
 private const val REP_MS = 2200
@@ -980,29 +988,203 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
         ),
     ),
     IllustrationType.BOX_JUMP to Pose(
-        // Bokshopp: fra knebøy foran kassen.
-        head = p(0.32f, 0.5f),
+        // Bokshopp: knebøy foran kassen. Animeres som en sekvens, se sequence.
+        head = p(0.452f, 0.554f),
         lines = listOf(
-            p(0.24f, 0.96f) to p(0.33f, 0.83f), // legg
-            p(0.33f, 0.83f) to p(0.19f, 0.76f), // lår, nede i knebøy
-            p(0.19f, 0.76f) to p(0.28f, 0.58f), // overkropp lent frem
-            p(0.28f, 0.58f) to p(0.14f, 0.67f), // armene svinger bak
+            p(0.34f, 0.96f) to p(0.437f, 0.833f), // fremre legg
+            p(0.437f, 0.833f) to p(0.28f, 0.8f), // fremre lår
+            p(0.28f, 0.8f) to p(0.395f, 0.636f), // overkropp
+            p(0.395f, 0.636f) to p(0.248f, 0.721f), // arm
+            p(0.28f, 0.8f) to p(0.437f, 0.833f), // bakre lår (dekker det fremre når beina står samlet)
+            p(0.437f, 0.833f) to p(0.34f, 0.96f), // bakre legg
         ),
         props = listOf(
-            p(0.52f, 0.72f) to p(0.95f, 0.72f), // kasse
-            p(0.52f, 0.72f) to p(0.52f, 0.97f),
-            p(0.95f, 0.72f) to p(0.95f, 0.97f),
+            p(0.52f, 0.76f) to p(0.95f, 0.76f), // kasse
+            p(0.52f, 0.76f) to p(0.52f, 0.97f),
+            p(0.95f, 0.76f) to p(0.95f, 0.97f),
         ),
         front = setOf(3),
-        // I luften over kassen, armene frem, klar til å lande.
-        end = Frame(
-            head = p(0.7f, 0.085f),
-            lines = listOf(
-                p(0.62f, 0.545f) to p(0.71f, 0.415f),
-                p(0.71f, 0.415f) to p(0.57f, 0.345f),
-                p(0.57f, 0.345f) to p(0.66f, 0.165f),
-                p(0.66f, 0.165f) to p(0.84f, 0.2f),
-            ),
+        sequence = listOf(
+            // sats
+            Key(300, Frame(
+                head = p(0.493f, 0.156f),
+                lines = listOf(
+                    p(0.42f, 0.76f) to p(0.464f, 0.606f),
+                    p(0.464f, 0.606f) to p(0.43f, 0.45f),
+                    p(0.43f, 0.45f) to p(0.472f, 0.254f),
+                    p(0.472f, 0.254f) to p(0.639f, 0.284f),
+                    p(0.43f, 0.45f) to p(0.464f, 0.606f),
+                    p(0.464f, 0.606f) to p(0.42f, 0.76f),
+                ),
+            )),
+            // knærne opp over kanten
+            Key(250, Frame(
+                head = p(0.662f, 0.158f),
+                lines = listOf(
+                    p(0.62f, 0.6f) to p(0.717f, 0.473f),
+                    p(0.717f, 0.473f) to p(0.56f, 0.44f),
+                    p(0.56f, 0.44f) to p(0.628f, 0.252f),
+                    p(0.628f, 0.252f) to p(0.798f, 0.252f),
+                    p(0.56f, 0.44f) to p(0.717f, 0.473f),
+                    p(0.717f, 0.473f) to p(0.62f, 0.6f),
+                ),
+            )),
+            // myk landing
+            Key(250, Frame(
+                head = p(0.812f, 0.314f),
+                lines = listOf(
+                    p(0.7f, 0.725f) to p(0.796f, 0.597f),
+                    p(0.796f, 0.597f) to p(0.64f, 0.56f),
+                    p(0.64f, 0.56f) to p(0.755f, 0.396f),
+                    p(0.755f, 0.396f) to p(0.915f, 0.454f),
+                    p(0.64f, 0.56f) to p(0.796f, 0.597f),
+                    p(0.796f, 0.597f) to p(0.7f, 0.725f),
+                ),
+            )),
+            // reiser seg
+            Key(400, Frame(
+                head = p(0.7f, 0.12f),
+                lines = listOf(
+                    p(0.7f, 0.725f) to p(0.743f, 0.571f),
+                    p(0.743f, 0.571f) to p(0.69f, 0.42f),
+                    p(0.69f, 0.42f) to p(0.697f, 0.22f),
+                    p(0.697f, 0.22f) to p(0.712f, 0.389f),
+                    p(0.69f, 0.42f) to p(0.743f, 0.571f),
+                    p(0.743f, 0.571f) to p(0.7f, 0.725f),
+                ),
+            )),
+            // står
+            Key(300, Frame(
+                head = p(0.7f, 0.12f),
+                lines = listOf(
+                    p(0.7f, 0.725f) to p(0.743f, 0.571f),
+                    p(0.743f, 0.571f) to p(0.69f, 0.42f),
+                    p(0.69f, 0.42f) to p(0.697f, 0.22f),
+                    p(0.697f, 0.22f) to p(0.712f, 0.389f),
+                    p(0.69f, 0.42f) to p(0.743f, 0.571f),
+                    p(0.743f, 0.571f) to p(0.7f, 0.725f),
+                ),
+            )),
+            // bakre fot bakover over kanten
+            Key(300, Frame(
+                head = p(0.666f, 0.161f),
+                lines = listOf(
+                    p(0.7f, 0.725f) to p(0.752f, 0.574f),
+                    p(0.752f, 0.574f) to p(0.64f, 0.46f),
+                    p(0.64f, 0.46f) to p(0.657f, 0.261f),
+                    p(0.657f, 0.261f) to p(0.742f, 0.408f),
+                    p(0.64f, 0.46f) to p(0.598f, 0.614f),
+                    p(0.598f, 0.614f) to p(0.44f, 0.64f),
+                ),
+            )),
+            // senker seg
+            Key(250, Frame(
+                head = p(0.582f, 0.325f),
+                lines = listOf(
+                    p(0.7f, 0.725f) to p(0.681f, 0.566f),
+                    p(0.681f, 0.566f) to p(0.53f, 0.62f),
+                    p(0.53f, 0.62f) to p(0.565f, 0.423f),
+                    p(0.565f, 0.423f) to p(0.674f, 0.553f),
+                    p(0.53f, 0.62f) to p(0.46f, 0.764f),
+                    p(0.46f, 0.764f) to p(0.34f, 0.87f),
+                ),
+            )),
+            // bakre fot i gulvet
+            Key(250, Frame(
+                head = p(0.522f, 0.385f),
+                lines = listOf(
+                    p(0.7f, 0.725f) to p(0.606f, 0.596f),
+                    p(0.606f, 0.596f) to p(0.47f, 0.68f),
+                    p(0.47f, 0.68f) to p(0.505f, 0.483f),
+                    p(0.505f, 0.483f) to p(0.59f, 0.63f),
+                    p(0.47f, 0.68f) to p(0.412f, 0.829f),
+                    p(0.412f, 0.829f) to p(0.32f, 0.96f),
+                ),
+            )),
+            // fremre fot løftes
+            Key(200, Frame(
+                head = p(0.492f, 0.373f),
+                lines = listOf(
+                    p(0.68f, 0.65f) to p(0.555f, 0.55f),
+                    p(0.555f, 0.55f) to p(0.45f, 0.67f),
+                    p(0.45f, 0.67f) to p(0.478f, 0.472f),
+                    p(0.478f, 0.472f) to p(0.55f, 0.626f),
+                    p(0.45f, 0.67f) to p(0.402f, 0.823f),
+                    p(0.402f, 0.823f) to p(0.32f, 0.96f),
+                ),
+            )),
+            // føres bakover
+            Key(200, Frame(
+                head = p(0.436f, 0.361f),
+                lines = listOf(
+                    p(0.56f, 0.64f) to p(0.466f, 0.51f),
+                    p(0.466f, 0.51f) to p(0.41f, 0.66f),
+                    p(0.41f, 0.66f) to p(0.427f, 0.461f),
+                    p(0.427f, 0.461f) to p(0.485f, 0.621f),
+                    p(0.41f, 0.66f) to p(0.396f, 0.819f),
+                    p(0.396f, 0.819f) to p(0.32f, 0.96f),
+                ),
+            )),
+            // forbi kanten
+            Key(200, Frame(
+                head = p(0.361f, 0.35f),
+                lines = listOf(
+                    p(0.4f, 0.7f) to p(0.469f, 0.556f),
+                    p(0.469f, 0.556f) to p(0.34f, 0.65f),
+                    p(0.34f, 0.65f) to p(0.354f, 0.45f),
+                    p(0.354f, 0.45f) to p(0.384f, 0.617f),
+                    p(0.34f, 0.65f) to p(0.368f, 0.807f),
+                    p(0.368f, 0.807f) to p(0.32f, 0.96f),
+                ),
+            )),
+            // begge føtter i gulvet
+            Key(250, Frame(
+                head = p(0.35f, 0.36f),
+                lines = listOf(
+                    p(0.34f, 0.96f) to p(0.396f, 0.81f),
+                    p(0.396f, 0.81f) to p(0.34f, 0.66f),
+                    p(0.34f, 0.66f) to p(0.347f, 0.46f),
+                    p(0.347f, 0.46f) to p(0.362f, 0.629f),
+                    p(0.34f, 0.66f) to p(0.385f, 0.814f),
+                    p(0.385f, 0.814f) to p(0.32f, 0.96f),
+                ),
+            )),
+            // står
+            Key(300, Frame(
+                head = p(0.34f, 0.345f),
+                lines = listOf(
+                    p(0.34f, 0.96f) to p(0.363f, 0.802f),
+                    p(0.363f, 0.802f) to p(0.33f, 0.645f),
+                    p(0.33f, 0.645f) to p(0.337f, 0.445f),
+                    p(0.337f, 0.445f) to p(0.352f, 0.614f),
+                    p(0.33f, 0.645f) to p(0.353f, 0.803f),
+                    p(0.353f, 0.803f) to p(0.32f, 0.96f),
+                ),
+            )),
+            // ned i knebøy
+            Key(450, Frame(
+                head = p(0.452f, 0.554f),
+                lines = listOf(
+                    p(0.34f, 0.96f) to p(0.437f, 0.833f),
+                    p(0.437f, 0.833f) to p(0.28f, 0.8f),
+                    p(0.28f, 0.8f) to p(0.395f, 0.636f),
+                    p(0.395f, 0.636f) to p(0.248f, 0.721f),
+                    p(0.28f, 0.8f) to p(0.437f, 0.833f),
+                    p(0.437f, 0.833f) to p(0.34f, 0.96f),
+                ),
+            )),
+            // klar
+            Key(300, Frame(
+                head = p(0.452f, 0.554f),
+                lines = listOf(
+                    p(0.34f, 0.96f) to p(0.437f, 0.833f),
+                    p(0.437f, 0.833f) to p(0.28f, 0.8f),
+                    p(0.28f, 0.8f) to p(0.395f, 0.636f),
+                    p(0.395f, 0.636f) to p(0.248f, 0.721f),
+                    p(0.28f, 0.8f) to p(0.437f, 0.833f),
+                    p(0.437f, 0.833f) to p(0.34f, 0.96f),
+                ),
+            )),
         ),
     ),
 
@@ -1783,6 +1965,35 @@ private fun solvePose(pose: Pose, end: Frame, k: Float): Solved {
     return Solved(head, lines, dots, props)
 }
 
+private fun Pose.withFrame(f: Frame): Pose = copy(
+    head = f.head,
+    lines = f.lines,
+    dots = if (f.dots.size == dots.size) f.dots else dots,
+    props = if (f.props.size == props.size) f.props else props,
+)
+
+/** Finner hvor i sekvensen [timeMs] er, og løser figuren mellom de to nærmeste nøkkelstillingene. */
+private fun solveSequence(pose: Pose, keys: List<Key>, timeMs: Float): Solved {
+    var start = 0f
+    var from = Frame(pose.head, pose.lines, pose.dots, pose.props)
+    for ((index, key) in keys.withIndex()) {
+        val end = start + key.ms
+        if (timeMs < end || index == keys.lastIndex) {
+            val u = ((timeMs - start) / key.ms.coerceAtLeast(1)).coerceIn(0f, 1f)
+            val eased = u * u * (3 - 2 * u) // myk start og stopp i hvert steg
+            val fromPose = pose.withFrame(from)
+            return if (from == key.frame || eased <= 0f) {
+                Solved(fromPose.head, fromPose.lines, fromPose.dots, fromPose.props)
+            } else {
+                solvePose(fromPose, key.frame, eased)
+            }
+        }
+        start = end
+        from = key.frame
+    }
+    return Solved(pose.head, pose.lines, pose.dots, pose.props)
+}
+
 /**
  * Tegner strekfiguren for en øvelse. Med [animate] = true beveger figuren seg rolig frem og tilbake
  * mellom de to ytterstillingene (bare for poser som har en sluttposisjon). Brukes i detaljvisningen;
@@ -1799,12 +2010,16 @@ fun ExerciseIllustration(
     val pose = poseFor(illustrationFor(exercise))
     // Sperre: passer ikke sluttposisjonen til posen (feil antall linjer), står figuren heller stille.
     val end = pose.end?.takeIf { it.lines.size == pose.lines.size && pose.lines.isNotEmpty() }
-    val phase = if (animate && end != null) {
+    val sequence = pose.sequence.takeIf { keys ->
+        keys.isNotEmpty() && pose.lines.isNotEmpty() && keys.all { it.frame.lines.size == pose.lines.size }
+    }
+    val cycleMs = sequence?.sumOf { it.ms } ?: REP_MS
+    val phase = if (animate && (end != null || sequence != null)) {
         val transition = rememberInfiniteTransition(label = "ovelse")
         val t by transition.animateFloat(
             initialValue = 0f,
             targetValue = 1f,
-            animationSpec = infiniteRepeatable(tween(REP_MS, easing = LinearEasing), RepeatMode.Restart),
+            animationSpec = infiniteRepeatable(tween(cycleMs, easing = LinearEasing), RepeatMode.Restart),
             label = "fase",
         )
         t
@@ -1813,10 +2028,10 @@ fun ExerciseIllustration(
     }
     // 0 -> 1 -> 0 med myk oppbremsing i begge ytterstillinger, som en rolig repetisjon.
     val k = ((1 - cos(2 * PI * phase)) / 2).toFloat()
-    val solved = if (end != null && k > 0f) {
-        solvePose(pose, end, k)
-    } else {
-        Solved(pose.head, pose.lines, pose.dots, pose.props)
+    val solved = when {
+        sequence != null && phase > 0f -> solveSequence(pose, sequence, phase * cycleMs)
+        end != null && k > 0f -> solvePose(pose, end, k)
+        else -> Solved(pose.head, pose.lines, pose.dots, pose.props)
     }
     val head = solved.head
     val lines = solved.lines
