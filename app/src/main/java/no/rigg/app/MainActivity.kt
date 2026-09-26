@@ -77,7 +77,7 @@ class MainActivity : ComponentActivity() {
 }
 
 private enum class Tab(val label: String) {
-    SETUP("Oppsett"), PLAN("Program"), EXERCISES("Øvelser"), PROGRESS("Fremgang"), SETTINGS("Innstillinger")
+    SETUP("Oppsett"), PLAN("Program"), EXERCISES("Øvelser"), PROGRESS("Fremgang"), SETTINGS("Mer")
 }
 
 private fun formatDuration(totalSeconds: Int): String {
@@ -840,6 +840,8 @@ private fun SettingsScreen(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
+        Text("Innstillinger", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+
         ReminderSection(vm, requestNotificationPermission)
 
         HorizontalDivider()

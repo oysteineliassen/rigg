@@ -77,7 +77,7 @@ For tidsbaserte øvelser skriver du reps som for eksempel "30-45 sek".
 
     /** Kaller valgt modell via API og returnerer rå tekst. */
     suspend fun ask(settings: AiSettings, prompt: String): String = withContext(Dispatchers.IO) {
-        require(settings.apiKey.isNotBlank()) { "Mangler API-nøkkel. Legg den inn under Innstillinger." }
+        require(settings.apiKey.isNotBlank()) { "Mangler API-nøkkel. Legg den inn under Mer (nederst til høyre)." }
         when (settings.provider) {
             Provider.ANTHROPIC -> askAnthropic(settings, prompt)
             Provider.OPENAI -> askOpenAi(settings, prompt)

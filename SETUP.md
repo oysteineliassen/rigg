@@ -16,7 +16,7 @@ Da blir endringen en egen commit som du kan se i Git-fanen, og angre med `git re
 Har du endret noe selv, commit det først (Git > Commit), så holdes endringene adskilt.
 
 ## AI
-- **Med API-nøkkel:** Fanen «AI» > velg leverandør, lim inn nøkkel. Nøkkelen lagres kun lokalt.
+- **Med API-nøkkel:** Fanen «Mer» > AI > velg leverandør, lim inn nøkkel. Nøkkelen lagres kun lokalt.
   - Claude: console.anthropic.com > API keys
   - ChatGPT: platform.openai.com > API keys
 - **Uten nøkkel:** Fanen «Oppsett» > «Kopier prompt til chat», lim inn i chatten du er logget inn på,
