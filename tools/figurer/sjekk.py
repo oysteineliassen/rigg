@@ -42,15 +42,23 @@ for name, pose in poses.items():
     if errors and errors[-1].startswith(name):
         continue
 
+    # Ledd: punkter som ligger oppå hverandre regnes som samme ledd. Da må de også henge sammen i neste stilling,
+    # ellers hopper figuren. Gjelder både frem-og-tilbake og hvert steg i en sekvens.
+    steps = [(pose, pose["end"])] if pose["end"] else []
+    if pose["seq"]:
+        chain = [pose] + [fr for fr, _ in pose["seq"]]
+        steps += list(zip(chain, chain[1:]))
+    for a_fr, b_fr in steps:
+        a_pts = [q for l in a_fr["lines"] for q in l]
+        b_pts = [q for l in b_fr["lines"] for q in l]
+        bad = next((a_pts[i] for i in range(len(a_pts)) for j in range(i + 1, len(a_pts))
+                    if math.dist(a_pts[i], a_pts[j]) < 1e-6 and math.dist(b_pts[i], b_pts[j]) >= 1e-6), None)
+        if bad:
+            errors.append(f"{name}: to ledd ved {bad} ligger oppå hverandre, men skilles i neste stilling")
+            break
+
     e = pose["end"]
     if e:
-        # Ledd som deles i start må deles i slutt.
-        a_pts = [q for l in pose["lines"] for q in l]
-        b_pts = [q for l in e["lines"] for q in l]
-        for i in range(len(a_pts)):
-            for j in range(i + 1, len(a_pts)):
-                if (math.dist(a_pts[i], a_pts[j]) < 1e-6) != (math.dist(b_pts[i], b_pts[j]) < 1e-6):
-                    errors.append(f"{name}: leddet ved {a_pts[i]} henger sammen i bare én av stillingene")
 
         # Bøyer knær/albuer mellom to faste punkter samme vei i begge stillinger?
         A, B = pose["lines"], e["lines"]

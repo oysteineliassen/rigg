@@ -11,7 +11,7 @@ import sys
 
 from PIL import Image, ImageDraw
 
-from figurer import load, cycle_ms, solve_at, draw, font
+from figurer import load, cycle_ms, solve_at, alpha_at, draw, font
 
 poses, REP_MS = load()
 args = sys.argv[1:]
@@ -31,7 +31,7 @@ if stripe:
         for c in range(n):
             t = int(total * c / n)
             y = r * (size + 20)
-            out.paste(draw(poses[name], solve_at(poses[name], t, REP_MS), size), (c * (size + 4), y + 18))
+            out.paste(draw(poses[name], solve_at(poses[name], t, REP_MS), size, alpha_at(poses[name], t, REP_MS)), (c * (size + 4), y + 18))
             d.text((c * (size + 4) + 4, y + 2), f"{name} {t} ms", fill=(0, 0, 0), font=font(11))
     out.save("stripe.png")
     print("stripe.png")
@@ -51,7 +51,7 @@ for i in range(int(total / 1000 * fps)):
     d = ImageDraw.Draw(sheet)
     for j, name in enumerate(names):
         x, y = pad + (j % cols) * (size + pad), pad + (j // cols) * (size + pad + label_h)
-        sheet.paste(draw(poses[name], solve_at(poses[name], t, REP_MS), size), (x, y))
+        sheet.paste(draw(poses[name], solve_at(poses[name], t, REP_MS), size, alpha_at(poses[name], t, REP_MS)), (x, y))
         if grid:
             d.text((x + 2, y + size + 2), name[:22], fill=(60, 60, 60), font=font(11))
     frames.append(sheet.convert("P", palette=Image.ADAPTIVE, colors=32))

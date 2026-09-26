@@ -48,6 +48,16 @@ og `illustrationFor()`. De skrives over neste gang `gen_poses.py` kjøres.
 - Hjelpefunksjonen `joint()` regner ut hvor kneet eller albuen skal være når du oppgir hofte og fot
   (eller skulder og hånd). Den brukes så lemmene holder lengden.
 
+## Skjelettet
+
+De nyeste figurene er bygd med `side()` (sett fra siden) og `front()` (sett forfra) i `gen_poses.py`. Du oppgir
+hofte, vinkel på overkroppen og hvert lem, så regnes leddene ut med faste lengder (`LEN`). Et lem kan oppgis
+med vinkler, `("a", 60, 100)`, eller med et fast endepunkt, `("p", (0.5, 0.955), 0)`. Da ligger for eksempel
+foten fast i gulvet, og kneet bøyer seg mot vinkelen i siste tall.
+
+Bevegelser som ikke bare går frem og tilbake lages som en sekvens: `put(navn, ..., [stillbilde, nøkkel1, nøkkel2, ...],
+keys=[(ms, "etikett"), ...])`. En nøkkel med `alpha=0` toner figuren ut, som på gående utfall.
+
 ## Ny øvelse som skal ha figur
 
 Legg øvelses-id-en inn i `MAP` nederst i `gen_poses.py`, enten koblet til en eksisterende figur eller til en ny

@@ -569,6 +569,8 @@ def fig2(foot1, hip, foot2, torso, arm, up1=False):
     def step(p, ang, ln):
         r = math.radians(ang)
         return (round(p[0] + ln * math.cos(r), 3), round(p[1] + ln * math.sin(r), 3))
+    if foot2 == foot1:  # beina samlet: en anelse fra hverandre, ellers regnes de som samme ledd når de skilles
+        foot2 = (round(foot1[0] - 0.004, 3), foot1[1])
     k1, k2 = knee_fwd(hip, foot1, up1), knee_fwd(hip, foot2)
     sh = step(hip, torso, 0.2)
     hand = step(sh, arm, 0.17)
@@ -606,6 +608,537 @@ P["BOX_JUMP"]["seq"] = [
     (BJ["F2b"], 200, "fremre fot løftes"), (BJ["F3"], 200, "føres bakover"), (BJ["F4"], 200, "forbi kanten"), (BJ["F5"], 250, "begge føtter i gulvet"),
     (BJ["G"], 300, "står"), (BJ["A"], 450, "ned i knebøy"), (BJ["A"], 300, "klar"),
 ]
+
+# ======================================================================== SKJELETT (nyere figurer)
+# Figurene under er bygd av et skjelett med faste lengder, så lemmene holder lengden og leddene alltid henger
+# sammen. Vinkler er i grader i bildets retninger: 0 = mot høyre, 90 = ned, -90 = opp, 180 = mot venstre.
+# Et lem (arm eller bein) oppgis enten med vinkler eller med et fast endepunkt:
+#   ("a", vinkel1, vinkel2)  overarm/lår og underarm/legg
+#   ("p", endepunkt, hint)   endepunktet står fast (hånd i gulvet, fot på bakken); leddet legges mot hint-vinkelen
+#   ("j", ledd, endepunkt)   begge punktene oppgitt direkte
+LEN = dict(shin=0.19, thigh=0.19, torso=0.25, uarm=0.14, farm=0.12, neck=0.1)
+
+
+def rnd(p):
+    return (round(p[0], 3), round(p[1], 3))
+
+
+def at(p, a, ln):
+    r = math.radians(a)
+    return rnd((p[0] + ln * math.cos(r), p[1] + ln * math.sin(r)))
+
+
+def ang(a, b):
+    return math.degrees(math.atan2(b[1] - a[1], b[0] - a[0]))
+
+
+def limb(base, spec, l1, l2):
+    kind = spec[0]
+    if kind == "a":
+        j = at(base, spec[1], l1)
+        return j, at(j, spec[2], l2)
+    if kind == "j":
+        return rnd(spec[1]), rnd(spec[2])
+    end, hint = rnd(spec[1]), spec[2]
+    a, b = joint(base, end, l1, l2, 1), joint(base, end, l1, l2, -1)
+    hx, hy = math.cos(math.radians(hint)), math.sin(math.radians(hint))
+    mx, my = (base[0] + end[0]) / 2, (base[1] + end[1]) / 2
+    score = lambda q: (q[0] - mx) * hx + (q[1] - my) * hy
+    return rnd(a if score(a) >= score(b) else b), end
+
+
+def apart(pts, used):
+    """Punkter som tilfeldigvis ligger oppå et annet ledd flyttes en anelse, ellers tror animasjonen de er samme ledd."""
+    out = []
+    for p in pts:
+        while p in used:
+            p = (round(p[0] + 0.003, 3), p[1])
+        used.add(p)
+        out.append(p)
+    return out
+
+
+def up_from(foot, shin_a, thigh_a, s=1.0):
+    """Hofta regnet ut fra en fot som står fast: vinkel fot->kne og kne->hofte."""
+    return at(at(foot, shin_a, LEN["shin"] * s), thigh_a, LEN["thigh"] * s)
+
+
+def side(hip, torso, legs, arms, s=1.0, neck=0.0, head=None, dots=(), props=(), alpha=1.0, L=None):
+    """Figur sett fra siden. legs/arms: lister med 1 eller 2 lem-spesifikasjoner (None = utelatt).
+    Linjerekkefølge: bein 1 (fot, kne, hofte), overkropp, arm 1, bein 2, arm 2. Arm 1 er linje 3 og 4."""
+    L = {k: v * s for k, v in (L or LEN).items()}
+    hip = rnd(hip)
+    sh = at(hip, torso, L["torso"])
+    used = {hip, sh}
+    k0, f0 = limb(hip, legs[0], L["thigh"], L["shin"])
+    k0, f0 = apart([k0, f0], used)
+    lines = [(f0, k0), (k0, hip), (hip, sh)]
+    e0, h0 = apart(list(limb(sh, arms[0], L["uarm"], L["farm"])), used)
+    lines += [(sh, e0), (e0, h0)]
+    pts = dict(hip=hip, sh=sh, knee=k0, foot=f0, elbow=e0, hand=h0)
+    if len(legs) > 1 and legs[1]:
+        k1, f1 = apart(list(limb(hip, legs[1], L["thigh"], L["shin"])), used)
+        lines += [(hip, k1), (k1, f1)]
+        pts.update(knee2=k1, foot2=f1)
+    if len(arms) > 1 and arms[1]:
+        e1, h1 = apart(list(limb(sh, arms[1], L["uarm"], L["farm"])), used)
+        lines += [(sh, e1), (e1, h1)]
+        pts.update(elbow2=e1, hand2=h1)
+    hd = rnd(head) if head else at(sh, torso + neck, L["neck"])
+    return dict(head=hd, lines=lines, dots=[rnd(d) for d in dots], props=list(props), alpha=alpha, pts=pts)
+
+
+def front(pel, legs, arms, torso=-90.0, s=1.0, hw=0.05, sw=0.085, shoulders=None, head=None, dots=(), props=(),
+          alpha=1.0, L=None):
+    """Figur sett forfra. legs/arms: [venstre, høyre]. shoulders kan overstyres (f.eks. når overkroppen vris)."""
+    L = {k: v * s for k, v in (L or LEN).items()}
+    pel = rnd(pel)
+    neck = at(pel, torso, L["torso"])
+    hl, hr = at(pel, torso - 90, hw), at(pel, torso + 90, hw)
+    sl, sr = (rnd(shoulders[0]), rnd(shoulders[1])) if shoulders else (at(neck, torso - 90, sw), at(neck, torso + 90, sw))
+    used = {pel, neck, hl, hr, sl, sr}
+    kl, fl = apart(list(limb(hl, legs[0], L["thigh"], L["shin"])), used)
+    el, al = apart(list(limb(sl, arms[0], L["uarm"], L["farm"])), used)
+    kr, fr = apart(list(limb(hr, legs[1], L["thigh"], L["shin"])), used)
+    er, ar = apart(list(limb(sr, arms[1], L["uarm"], L["farm"])), used)
+    lines = [(fl, kl), (kl, hl), (hl, pel), (pel, neck), (neck, sl), (sl, el), (el, al),
+             (pel, hr), (hr, kr), (kr, fr), (neck, sr), (sr, er), (er, ar)]
+    hd = rnd(head) if head else at(neck, torso, L["neck"])
+    pts = dict(pel=pel, neck=neck, sl=sl, sr=sr, hand_l=al, hand_r=ar, foot_l=fl, foot_r=fr, elbow_l=el, elbow_r=er)
+    return dict(head=hd, lines=lines, dots=[rnd(d) for d in dots], props=list(props), alpha=alpha, pts=pts)
+
+
+def arms_front(neck, arms, sw=0.1, head=None, s=1.0, dots=(), props=()):
+    """Bare skuldre og armer sett forfra (armhevinger forfra: resten av kroppen er skjult bak hodet)."""
+    L = {k: v * s for k, v in LEN.items()}
+    neck = rnd(neck)
+    sl, sr = rnd((neck[0] - sw, neck[1])), rnd((neck[0] + sw, neck[1]))
+    used = {neck, sl, sr}
+    el, al = apart(list(limb(sl, arms[0], L["uarm"], L["farm"])), used)
+    er, ar = apart(list(limb(sr, arms[1], L["uarm"], L["farm"])), used)
+    lines = [(al, el), (el, sl), (sl, neck), (neck, sr), (sr, er), (er, ar)]
+    return dict(head=rnd(head), lines=lines, dots=list(dots), props=list(props), alpha=1.0, pts={})
+
+
+def put(name, section, frames, note, keys=None, props=(), ground=True, front=(), labels=None):
+    """Registrerer en pose. frames[0] er stillbildet. Med keys=[(ms, etikett), ...] spilles frames[1:] som sekvens;
+    uten keys og med to frames er frames[1] sluttstillingen (frem og tilbake). Én frame = står stille."""
+    a = frames[0]
+    n = len(a["lines"])
+    for fr in frames[1:]:
+        assert len(fr["lines"]) == n, f"{name}: ulikt antall linjer"
+    lines = [(p, q, (labels or {}).get(i)) for i, (p, q) in enumerate(a["lines"])]
+    P[name] = dict(section=section, head=a["head"], lines=lines, props=list(props) + a["props"], dots=a["dots"],
+                   ground=ground, end=None, note=note, front=set(front))
+    if keys:
+        assert len(keys) == len(frames) - 1, f"{name}: {len(keys)} tider for {len(frames) - 1} nøkkelbilder"
+        P[name]["seq"] = [(dict(head=fr["head"], lines=fr["lines"], dots=fr["dots"],
+                                props=(list(props) + fr["props"]) if fr["props"] else [], alpha=fr["alpha"]), ms, lab)
+                          for fr, (ms, lab) in zip(frames[1:], keys)]
+    elif len(frames) == 2:
+        b = frames[1]
+        P[name]["end"] = dict(head=b["head"], lines=b["lines"], dots=b["dots"],
+                              props=(list(props) + b["props"]) if b["props"] else [], note=None)
+
+
+def box(x0, x1, top):
+    """Benk/kasse som utstyr: topp og to bein."""
+    return [((x0, top), (x1, top), "benk"), ((x0 + 0.02, top), (x0 + 0.02, 0.97), None), ((x1 - 0.02, top), (x1 - 0.02, 0.97), None)]
+
+
+def on_line(a, b, d):
+    """Punktet d fra a mot b."""
+    return at(a, ang(a, b), d)
+
+
+FLOOR_Y = 0.955  # midt i streken for noe som ligger/står på gulvet
+ARM = LEN["uarm"] + LEN["farm"]
+BODY = LEN["torso"] + LEN["thigh"] + LEN["shin"]  # skulder til fot, strak kropp
+
+
+# ---------------------------------------------------------------- ARMHEVINGER (hodet til venstre)
+def pushup_frame(H, F, S, bent_hint=-45, **kw):
+    """Strak kropp fra skulder S til føtter F, hendene i H."""
+    hip = on_line(S, F, LEN["torso"])
+    return side(hip, ang(hip, S), [("p", F, -90)], [("p", H, bent_hint)], neck=-12, **kw)
+
+
+def plank_shoulder(F, y, H=None):
+    """Skulderen på høyden y, med strak kropp til føttene F (kroppen er BODY lang)."""
+    dx = math.sqrt(max(BODY ** 2 - (F[1] - y) ** 2, 0))
+    return rnd((F[0] - dx, y))
+
+
+H = (0.22, FLOOR_Y)
+F = rnd((H[0] + math.sqrt(BODY ** 2 - ARM ** 2), FLOOR_Y))
+top, bot = plank_shoulder(F, FLOOR_Y - ARM * 0.97), plank_shoulder(F, 0.87)
+put("PUSHUP", "PRESS", [pushup_frame(H, F, top), pushup_frame(H, F, bot)],
+    "Armhevinger: strak kropp fra hæl til hode, hender og tær i gulvet. A = oppe, B = brystet ned mot gulvet.")
+
+# Med hendene hevet (på benk/kasse): kroppen står brattere.
+BENCH_TOP = 0.77
+Hi = (0.36, round(BENCH_TOP - 0.026 - 0.035, 3))
+Fi = rnd((Hi[0] + math.sqrt(BODY ** 2 - (FLOOR_Y - (Hi[1] - ARM)) ** 2), FLOOR_Y))
+put("PUSHUP_INCLINE", "PRESS",
+    [pushup_frame(Hi, Fi, plank_shoulder(Fi, Hi[1] - ARM * 0.97)), pushup_frame(Hi, Fi, plank_shoulder(Fi, Hi[1] - 0.075))],
+    "Armhevinger med hendene på en benk: lettere variant, kroppen på skrå oppover.", props=box(0.22, 0.46, BENCH_TOP))
+
+# Med føttene hevet: hodet lavere enn føttene.
+Fd = (0.84, round(BENCH_TOP - 0.026 - 0.035, 3))
+Hd = (0.2, FLOOR_Y)
+put("PUSHUP_DECLINE", "PRESS",
+    [pushup_frame(Hd, Fd, plank_shoulder(Fd, FLOOR_Y - ARM * 0.97)), pushup_frame(Hd, Fd, plank_shoulder(Fd, 0.87))],
+    "Armhevinger med føttene på en benk: tyngre variant, hodet lavere enn føttene.", props=box(0.72, 0.97, BENCH_TOP))
+
+
+# Med strikk over ryggen: strikken går fra hånden over øvre del av ryggen. Punktet på ryggen følger kroppen.
+def band_back(fr):
+    p = fr["pts"]
+    a = ang(p["sh"], p["hip"])
+    over_sh = at(p["sh"], a - 90, 0.062)       # rett over skulderen
+    over_back = at(on_line(p["sh"], p["hip"], 0.14), a - 90, 0.062)
+    fr["props"] = [(p["hand"], over_sh, "strikk fra hånden opp over skulderen"), (over_sh, over_back, "og over ryggen")]
+    return fr
+
+
+put("PUSHUP_BAND", "PRESS", [band_back(pushup_frame(H, F, top)), band_back(pushup_frame(H, F, bot))],
+    "Armhevinger med strikk over ryggen: strikken holdes i hendene og går over skulderbladene.", front=[3, 4])
+
+# Diamant, sett forfra: hendene samlet under brystet, albuene går ut når brystet senkes.
+ARMS_F = 1.12  # armene forfra: litt lengre så de når gulvet med skuldrene i riktig høyde
+la = ARM * ARMS_F
+Hl, Hr = (0.465, FLOOR_Y), (0.535, FLOOR_Y)
+y_top = round(FLOOR_Y - math.sqrt(la ** 2 - 0.065 ** 2), 3)
+put("PUSHUP_DIAMOND", "PRESS", [
+    arms_front((0.5, y_top), [("p", Hl, 180), ("p", Hr, 0)], sw=0.1, head=(0.5, y_top + 0.03), s=ARMS_F),
+    arms_front((0.5, 0.845), [("p", Hl, 200), ("p", Hr, -20)], sw=0.1, head=(0.5, 0.855), s=ARMS_F),
+], "Diamant-armhevinger sett forfra: hendene samlet under brystet (tommel og pekefinger danner en diamant). "
+   "Albuene går ut og bak når brystet senkes.", ground=True)
+
+# Bueskytter, sett forfra: vekten flyttes til én arm som bøyes, den andre armen er strak ut til siden.
+Al, Ar = (0.24, FLOOR_Y), (0.76, FLOOR_Y)
+y_arch = round(FLOOR_Y - math.sqrt(la ** 2 - 0.16 ** 2), 3)
+mid = arms_front((0.5, y_arch), [("p", Al, 180), ("p", Ar, 0)], sw=0.1, head=(0.5, y_arch - 0.06), s=ARMS_F)
+left = arms_front((0.36, 0.85), [("p", Al, 200), ("p", Ar, -60)], sw=0.1, head=(0.34, 0.8), s=ARMS_F)
+right = arms_front((0.64, 0.85), [("p", Al, 240), ("p", Ar, -20)], sw=0.1, head=(0.66, 0.8), s=ARMS_F)
+put("PUSHUP_ARCHER", "PRESS", [mid, left, mid, mid, right, mid, mid],
+    "Bueskytter-armhevinger sett forfra: ned mot den ene hånden med den andre armen strak, så til den andre siden.",
+    keys=[(700, "ned mot venstre hånd"), (600, "opp"), (150, "kort pause"), (700, "ned mot høyre hånd"), (600, "opp"),
+          (150, "kort pause")])
+
+# Pike: hoftene høyt, hodet ned mot gulvet foran hendene.
+Fp, Hp = (0.26, FLOOR_Y), (0.68, FLOOR_Y)
+D = Hp[0] - Fp[0]
+legs_l, arm_l = LEN["thigh"] + LEN["shin"], LEN["torso"] + ARM
+a_ = (legs_l ** 2 - arm_l ** 2 + D ** 2) / (2 * D)
+hip_top = rnd((Fp[0] + a_, FLOOR_Y - math.sqrt(legs_l ** 2 - a_ ** 2)))
+pike_top = side(hip_top, ang(hip_top, Hp), [("p", Fp, 0)], [("p", Hp, 180)], neck=-5)
+hip_bot = rnd((hip_top[0] + 0.03, hip_top[1] + 0.02))
+pike_bot = side(hip_bot, 45, [("p", Fp, 0)], [("p", Hp, -150)], neck=-5)
+put("PIKE", "PRESS", [pike_top, pike_bot],
+    "Pike-armhevinger: hoftene høyt i en omvendt V, strake bein. Albuene bøyes bakover og hodet går ned mot gulvet "
+    "rett foran hendene. Hender og føtter står i ro.")
+
+
+# ---------------------------------------------------------------- STÅENDE ARMØVELSER (vendt mot høyre)
+def stand(arm, hip=(0.46, 0.575), dots=(), props=(), neck=0.0, legs=None):
+    """Stående, beina litt fra hverandre (fremre fot først, så båndet under foten henger på den)."""
+    legs = legs or [("p", (hip[0] + 0.035, FLOOR_Y), 0), ("p", (hip[0] - 0.035, FLOOR_Y), 0)]
+    return side(hip, -90, legs, [arm], neck=neck, dots=dots, props=props)
+
+
+# Triceps-fransk: manualen holdt med begge hender over hodet, sett fra siden. Albuene peker opp og står i ro.
+TRI_S = 0.9  # litt mindre figur, så manualen får plass over hodet
+TRI_L = {k: v * TRI_S for k, v in dict(LEN, uarm=0.165, farm=0.14).items()}  # armene litt lengre, så albuen synes
+tri_hip = (0.47, round(FLOOR_Y - (LEN["thigh"] + LEN["shin"]) * TRI_S, 3))
+
+
+def tri(fore):
+    return side(tri_hip, -90, [("p", (0.5, FLOOR_Y), 0), ("p", (0.44, FLOOR_Y), 0)], [("a", -101, fore)],
+                neck=18, L=TRI_L)
+
+
+tri_top, tri_bot = tri(-84), tri(106)  # >180 grader fra toppen, så underarmen går bak hodet og ikke foran
+tri_top["dots"] = [tri_top["pts"]["hand"]]
+tri_bot["dots"] = [tri_bot["pts"]["hand"]]
+put("TRICEPS_EXT", "PRESS", [tri_top, tri_bot],
+    "Triceps-fransk sett fra siden: manualen holdt over hodet med albuene pekende opp. Underarmen senkes bak hodet "
+    "og strekkes opp igjen. Armen ligger bak hodet i tegningen, så hodet skjuler underarmen nederst.")
+
+# Curl: overarmen inntil siden, bare underarmen beveger seg.
+curl_up = stand(("a", 86, -52))
+curl_dn = stand(("a", 86, 84))
+for fr in (curl_up, curl_dn):
+    fr["dots"] = [fr["pts"]["hand"]]
+put("CURL", "TREKK", [curl_up, curl_dn],
+    "Bicepscurl: albuen inntil siden, underarmen løftes. A = oppe, B = armen strakt ned.", front=[3, 4])
+cb_up, cb_dn = stand(("a", 86, -52)), stand(("a", 86, 84))
+for fr in (cb_up, cb_dn):
+    fr["props"] = [(fr["pts"]["hand"], fr["pts"]["foot"], "strikk fra hånden ned under foten")]
+put("CURL_BAND", "TREKK", [cb_up, cb_dn], "Bicepscurl med strikk: strikken går fra hånden ned under foten.", front=[3, 4])
+
+# ---------------------------------------------------------------- HENG I STANG (sett forfra)
+BAR_Y = 0.13
+BAR = [((0.14, BAR_Y), (0.86, BAR_Y), "tverrligger")]
+HANG_S = 0.9
+
+
+def hang(neck_y, hands, bend=False, feet_dx=0.055, s=HANG_S, elbows_down=False):
+    """elbows_down: chin-up i toppen. Albuene peker frem mot oss, så overarmen ser kort ut forfra."""
+    L = {k: v * s for k, v in LEN.items()}
+    pel = (0.5, neck_y + L["torso"])
+    fy = pel[1] + L["thigh"] + L["shin"]
+    hl, hr = hands
+    arms = [("p", hl, 150 if bend else 180), ("p", hr, 30 if bend else 0)]
+    if elbows_down:
+        el, er = (0.44, neck_y + 0.065), (0.56, neck_y + 0.065)
+        arms = [("j", el, hl), ("j", er, hr)]
+    return front(pel, [("p", (0.5 - feet_dx, fy), 180), ("p", (0.5 + feet_dx, fy), 0)], arms, s=s, hw=0.045, sw=0.075)
+
+
+wide = [(0.33, BAR_Y), (0.67, BAR_Y)]
+narrow = [(0.4, BAR_Y), (0.6, BAR_Y)]
+put("PULLUP_HANG", "TREKK", [hang(0.34, wide), hang(0.17, wide, bend=True)],
+    "Pull-up sett forfra: kroppen midt mellom armene. Fra strake armer til haken over stanga, albuene ut og ned.",
+    props=BAR, ground=False)
+put("CHINUP", "TREKK", [hang(0.34, narrow), hang(0.17, narrow, bend=True, elbows_down=True)],
+    "Chin-up sett forfra: smalere grep med håndflatene mot deg, albuene ned foran kroppen.", props=BAR, ground=False)
+put("DEAD_HANG", "TREKK", [hang(0.34, wide)], "Hang i tverrligger: strake armer, står stille.", props=BAR, ground=False)
+pb_a, pb_b = hang(0.34, wide), hang(0.17, wide, bend=True)
+for fr in (pb_a, pb_b):
+    p = fr["pts"]
+    fr["props"] = [((0.47, BAR_Y), p["foot_l"], "strikk fra stanga ned under føttene"), ((0.53, BAR_Y), p["foot_r"], None)]
+put("PULLUP_BAND", "TREKK", [pb_a, pb_b], "Assistert pull-up: strikken henger fra stanga og ned under føttene.",
+    props=BAR, ground=False)
+
+
+# ---------------------------------------------------------------- KNEBØY (vendt mot høyre, én fot står i ro)
+SQ_F = (0.5, FLOOR_Y)
+
+
+def squat(depth, arm_fn, dots_fn=None, props_fn=None):
+    """depth 0 = stående, 1 = nederst. arm_fn(torso) gir armen; dots_fn/props_fn(pts) gir vekter og utstyr."""
+    shin = -90 + 28 * depth
+    thigh = -90 - 98 * depth  # fra kne til hofte: rett opp -> bakover og litt opp
+    torso = -90 + 34 * depth
+    hip = up_from(SQ_F, shin, thigh)
+    fr = side(hip, torso, [("p", SQ_F, 0)], [arm_fn(torso)])
+    if dots_fn:
+        fr["dots"] = [rnd(d) for d in dots_fn(fr["pts"])]
+    if props_fn:
+        fr["props"] = props_fn(fr["pts"])
+    return fr
+
+
+# Kroppsvekt: armene henger i toppen og løftes frem for balanse på vei ned.
+put("SQUAT", "BEIN", [squat(1, lambda t: ("a", 0, 0)), squat(0, lambda t: ("a", 92, 92))],
+    "Knebøy med kroppsvekt: A = nederst med armene frem for balanse, B = stående med armene langs siden.", front=[3, 4])
+# Goblet: én manual holdt inntil brystet med begge hender, albuene ned.
+gob = lambda t: ("a", t + 165, t + 30)
+gob_dot = lambda p: [at(p["hand"], 60, 0.02)]
+put("GOBLET_SQUAT", "BEIN", [squat(1, gob, gob_dot), squat(0, gob, gob_dot)],
+    "Goblet-knebøy: én manual holdt inntil brystet med albuene pekende ned.", front=[3, 4])
+# Frontknebøy: manualene hviler på skuldrene, albuene høyt frem.
+rack = lambda t: ("a", t + 100, t - 75)
+rack_dot = lambda p: [at(p["hand"], 40, 0.06)]
+put("FRONT_SQUAT", "BEIN", [squat(1, rack, rack_dot), squat(0, rack, rack_dot)],
+    "Frontknebøy: manualene hviler oppå skuldrene, albuene høyt og pekende frem.", front=[3, 4])
+# Stang på ryggen: armen har samme form hele veien, så stanga flytter seg uten å vippe.
+bb_arm = lambda t: ("a", 125, -75)
+bb_bar = lambda p: [rnd((p["hand"][0] - 0.2, p["hand"][1])), rnd((p["hand"][0] + 0.2, p["hand"][1]))]
+put("BB_SQUAT", "BEIN",
+    [squat(1, bb_arm, bb_bar, lambda p: [(rnd((p["hand"][0] - 0.2, p["hand"][1])), rnd((p["hand"][0] + 0.2, p["hand"][1])), "stanga")]),
+     squat(0, bb_arm, bb_bar, lambda p: [(rnd((p["hand"][0] - 0.2, p["hand"][1])), rnd((p["hand"][0] + 0.2, p["hand"][1])), None)])],
+    "Knebøy med stang: stanga ligger på øvre del av ryggen, med skiver i hver ende.", front=[3, 4])
+band_sq = lambda p: [(p["hand"], p["foot"], "strikk fra hendene ved skuldrene ned under føttene")]
+put("BAND_SQUAT", "BEIN", [squat(1, rack, None, band_sq), squat(0, rack, None, band_sq)],
+    "Knebøy med strikk: strikken går fra hendene ved skuldrene ned under føttene.", front=[3, 4])
+
+# Thruster: frontknebøy og rett videre til press over hodet.
+press_up = lambda t: ("a", -84, -88)
+thr = [squat(1, rack, rack_dot), squat(0.05, rack, rack_dot), squat(0, press_up, lambda p: [p["hand"]]),
+       squat(0, press_up, lambda p: [p["hand"]]), squat(0.05, rack, rack_dot), squat(1, rack, rack_dot),
+       squat(1, rack, rack_dot)]
+put("THRUSTER", "PRESS", thr,
+    "Thruster: manualene på skuldrene i knebøyen, opp og rett videre til press over hodet, ned igjen.",
+    keys=[(450, "opp fra knebøyen"), (300, "presser over hodet"), (200, "strake armer"), (350, "ned til skuldrene"),
+          (450, "ned i knebøy"), (200, "nederst")], front=[3, 4])
+
+
+# Hoppknebøy: knebøy med armene bak, eksplosivt opp med armene frem, landing og ned igjen.
+def jump_frame(depth, arm, lift=0.0, toes=False):
+    fr = squat(depth, lambda t: arm)
+    if lift or toes:  # løft hele figuren (i lufta); tærne ned
+        dy = -lift
+        fr = dict(fr, head=rnd((fr["head"][0], fr["head"][1] + dy)),
+                  lines=[(rnd((a[0], a[1] + dy)), rnd((b[0], b[1] + dy))) for a, b in fr["lines"]])
+    return fr
+
+
+put("JUMP", "KONDISJON", [
+    jump_frame(1, ("a", 150, 140)),
+    jump_frame(0.05, ("a", -30, -40)),
+    jump_frame(0, ("a", -40, -45), lift=0.08),
+    jump_frame(0, ("a", -40, -45), lift=0.08),
+    jump_frame(0.35, ("a", 10, 0)),
+    jump_frame(1, ("a", 150, 140)),
+    jump_frame(1, ("a", 150, 140)),
+], "Hoppknebøy: ned i knebøy med armene bak, eksplosivt opp med armene frem og opp, myk landing.",
+    keys=[(260, "eksplosivt opp"), (200, "i lufta"), (100, "toppen"), (240, "lander"), (380, "ned i knebøy"),
+          (250, "klar")], front=[3, 4])
+
+
+# ---------------------------------------------------------------- GÅENDE UTFALL OG SIDEUTFALL
+def lunge_frame(hip, front_leg, back_leg, alpha=1.0):
+    return side(hip, -88, [front_leg, back_leg], [("a", 92, 92)], alpha=alpha)
+
+
+x0, step = 0.2, 0.29
+S0 = lunge_frame((x0, 0.575), ("p", (x0 + 0.004, FLOOR_Y), 0), ("p", (x0, FLOOR_Y), 0))
+L1 = lunge_frame((x0 + step * 0.52, 0.765), ("p", (x0 + step, FLOOR_Y), -30), ("p", (x0, FLOOR_Y), 80))
+M1 = lunge_frame((x0 + step, 0.585), ("p", (x0 + step, FLOOR_Y), 0), ("a", 55, 105))
+L2 = lunge_frame((x0 + step * 1.52, 0.765), ("p", (x0 + step, FLOOR_Y), 80), ("p", (x0 + 2 * step, FLOOR_Y), -30))
+M2 = lunge_frame((x0 + 2 * step, 0.575), ("p", (x0 + 2 * step - 0.004, FLOOR_Y), 0), ("p", (x0 + 2 * step, FLOOR_Y), 0))
+fade = lambda fr: dict(fr, alpha=0.0)
+put("WALKING_LUNGE", "BEIN", [L1, L1, M1, L2, L2, M2, M2, fade(M2), fade(S0), S0, L1],
+    "Gående utfall: steg frem ned i utfall, opp og videre med det andre beinet. Toner ut og starter forfra.",
+    keys=[(150, "nederst"), (550, "opp, bakre bein svinger frem"), (550, "ned i neste utfall"),
+          (150, "nederst"), (650, "opp, samler beina"), (250, "står"), (300, "toner ut"), (40, "tilbake til start"),
+          (300, "toner inn"), (650, "steg frem og ned")])
+
+
+def side_lunge(pel_x, pel_y, lean=0.0):
+    pel = (pel_x, pel_y)
+    chest = (pel_x + lean * 0.3, pel_y - 0.16)
+    return front(pel, [("p", (0.3, FLOOR_Y), 180), ("p", (0.7, FLOOR_Y), 0)],
+                 [("p", chest, 150), ("p", rnd((chest[0] + 0.004, chest[1])), 30)], torso=-90 + lean * 20)
+
+
+C = side_lunge(0.5, 0.6)
+LL, LR = side_lunge(0.36, 0.74, -0.4), side_lunge(0.64, 0.74, 0.4)
+put("LATERAL_LUNGE", "BEIN", [LL, C, C, LR, C, C, LL],
+    "Sideutfall sett forfra: bred stilling, vekten over til den ene siden med bøyd kne mens det andre beinet er strakt.",
+    keys=[(550, "tilbake"), (150, "pause"), (650, "ned mot høyre"), (550, "tilbake"), (150, "pause"), (650, "ned mot venstre")])
+
+
+# ---------------------------------------------------------------- KJERNE
+# Sideplanke på albuen, sett forfra (hodet til venstre).
+Sp_S, Sp_F = (0.2, round(FLOOR_Y - LEN["uarm"], 3)), None
+Sp_F = rnd((Sp_S[0] + math.sqrt(BODY ** 2 - (FLOOR_Y - Sp_S[1]) ** 2), FLOOR_Y))
+sp_hip = on_line(Sp_S, Sp_F, LEN["torso"])
+put("SIDE_PLANK", "KJERNE", [side(sp_hip, ang(sp_hip, Sp_S), [("p", Sp_F, -90)],
+                                  [("j", (0.2, FLOOR_Y), (0.2 - LEN["farm"], FLOOR_Y)), ("a", -90, -90)], neck=20)],
+    "Sideplanke: underarmen i gulvet med albuen rett under skulderen, strak kropp. Den andre armen peker opp.")
+
+# Dead bug: på ryggen, armene rett opp og knærne i 90 grader. Motsatt arm og bein strekkes ut, vekselvis.
+DB_HIP = (0.57, 0.935)
+
+
+def dead_bug(arm0, leg0, arm1, leg1):
+    return side(DB_HIP, 180, [leg0, leg1], [arm0, arm1], head=(0.215, 0.9))
+
+
+tab_leg, tab_arm = ("a", -90, 0), ("a", -90, -90)
+ext_leg, ext_arm = ("a", -9, -9), ("a", 191, 191)
+T = dead_bug(tab_arm, tab_leg, tab_arm, tab_leg)
+put("DEAD_BUG", "KJERNE", [T, dead_bug(ext_arm, tab_leg, tab_arm, ext_leg), dead_bug(ext_arm, tab_leg, tab_arm, ext_leg), T,
+                           T, dead_bug(tab_arm, ext_leg, ext_arm, tab_leg), dead_bug(tab_arm, ext_leg, ext_arm, tab_leg), T, T],
+    "Dead bug: på ryggen med armene rett opp og knærne bøyd i 90 grader. Én arm og motsatt bein strekkes ut mot gulvet, "
+    "så bytter det.",
+    keys=[(700, "arm og motsatt bein ut"), (250, "hold"), (650, "tilbake"), (200, "pause"), (700, "andre arm og bein ut"),
+          (250, "hold"), (650, "tilbake"), (200, "pause")])
+
+# Russian twist sett forfra: sittende med knærne opp, overkroppen vris så manualen går fra side til side.
+TW_L = dict(LEN, torso=0.25)
+
+
+def twist(side_):
+    pel = (0.5, 0.93)
+    neck_y = 0.66
+    rot = side_ * 0.035
+    sl, sr = (0.415 + rot, neck_y + 0.012 * side_), (0.585 + rot, neck_y - 0.012 * side_)
+    hands = (0.5 + side_ * 0.22, 0.86) if side_ else (0.5, 0.8)
+    fr = front(pel, [("a", -118, 100), ("a", -62, 80)],
+               [("p", hands, 110 if side_ >= 0 else 150), ("p", rnd((hands[0] + 0.004, hands[1])), 30 if side_ <= 0 else 70)],
+               shoulders=(sl, sr), head=(0.5 + rot * 1.6, neck_y - 0.09), L=TW_L)
+    fr["dots"] = [rnd((hands[0], hands[1] - 0.01))]
+    return fr
+
+
+put("SEATED_TWIST", "KJERNE", [twist(0), twist(-1), twist(-1), twist(0), twist(1), twist(1), twist(0)],
+    "Russian twist sett forfra: sittende med knærne opp og overkroppen lent litt bakover. Manualen føres fra side "
+    "til side ved at overkroppen vris.",
+    keys=[(500, "vri mot venstre"), (150, "manualen ned ved hofta"), (450, "tilbake"), (500, "vri mot høyre"),
+          (150, "manualen ned ved hofta"), (450, "tilbake")])
+
+# Kroppssag: planke på underarmene, kroppen skyves bakover og frem ved å vippe i skulderen. Føttene glir.
+BS_E, BS_H = (0.2, FLOOR_Y), (0.2 - LEN["farm"], FLOOR_Y)
+
+
+def body_saw(upper_ang):
+    S = at(BS_E, upper_ang, LEN["uarm"])
+    Fb = rnd((S[0] + math.sqrt(BODY ** 2 - (FLOOR_Y - S[1]) ** 2), FLOOR_Y))
+    hip = on_line(S, Fb, LEN["torso"])
+    return side(hip, ang(hip, S), [("p", Fb, -90)], [("j", BS_E, BS_H)], neck=-10)
+
+
+put("BODY_SAW", "KJERNE", [body_saw(-100), body_saw(-40)],
+    "Kroppssag: planke på underarmene med føttene på noe som glir. Kroppen skyves bakover og frem fra skuldrene.")
+
+# Superman: på magen, armer, bryst og bein løftes samtidig og holdes. Hofta blir liggende.
+SM_HIP = (0.56, 0.935)
+
+
+def superman(lift):
+    return side(SM_HIP, 180 + 17 * lift, [("a", -15 * lift, -15 * lift)], [("a", 180 + 26 * lift, 180 + 26 * lift)],
+                neck=12)
+
+
+put("SUPERMAN", "HOFTE", [superman(1), superman(1), superman(0), superman(0), superman(1)],
+    "Superman: på magen med armene strakt frem. Armer, bryst og bein løftes fra gulvet og holdes, hofta ligger.",
+    keys=[(600, "holder"), (550, "senker"), (400, "hviler"), (550, "løfter")])
+
+
+# ---------------------------------------------------------------- KONDISJON
+# Høye knær: oppreist, knærne vekselvis opp til hoftehøyde, armene pumper motsatt.
+HK_X = 0.46
+
+
+def high_knees(which, mid=False):
+    stance = ("p", (HK_X, FLOOR_Y), 0)
+    if mid:
+        up_leg = ("p", (HK_X + 0.05, FLOOR_Y - 0.03), 0)
+        hip = (HK_X + 0.015, 0.585)
+    else:
+        up_leg = ("a", -8, 88)
+        hip = (HK_X + 0.015, 0.585)
+    arm_f, arm_b = ("a", 70, -35), ("a", 115, 70)
+    if which == 0:  # bein 2 oppe, arm 1 frem
+        return side(hip, -80, [stance, up_leg], [arm_f, arm_b])
+    return side(hip, -80, [up_leg, stance], [arm_b, arm_f])
+
+
+put("CARDIO_RUN", "KONDISJON",
+    [high_knees(0), high_knees(1, mid=True), high_knees(1), high_knees(0, mid=True), high_knees(0)],
+    "Høye knær: oppreist overkropp, knærne vekselvis opp til hoftehøyde og armene i motsatt takt.",
+    keys=[(160, "bytter"), (160, "andre kne opp"), (160, "bytter"), (160, "første kne opp")], front=[3, 4])
+
+# Burpee: ned med hendene i gulvet, hopp bakover til planke, inn igjen, opp og hopp med armene over hodet.
+BU_F, BU_H = (0.6, FLOOR_Y), (0.74, FLOOR_Y)
+bu_stand = side((BU_F[0], 0.575), -90, [("p", BU_F, 0)], [("a", 92, 92)])
+bu_hip = (0.47, 0.8)
+bu_squat = side(bu_hip, -24, [("p", BU_F, -45)], [("p", BU_H, 0)], neck=25)
+bu_S = rnd((BU_H[0], FLOOR_Y - ARM))
+bu_Fp = rnd((bu_S[0] - math.sqrt(BODY ** 2 - ARM ** 2), FLOOR_Y))
+bu_hip_p = on_line(bu_S, bu_Fp, LEN["torso"])
+bu_plank = side(bu_hip_p, ang(bu_hip_p, bu_S), [("p", bu_Fp, -90)], [("p", BU_H, 180)], neck=12)
+bu_reach = side((BU_F[0], 0.57), -90, [("p", BU_F, 0)], [("a", -60, -70)])
+bu_air = side((BU_F[0], 0.505), -90, [("a", 92, 94)], [("a", -55, -60)])
+put("BURPEE", "KONDISJON", [bu_plank, bu_plank, bu_squat, bu_reach, bu_air, bu_stand, bu_stand, bu_squat, bu_plank],
+    "Burpee: ned i knebøy med hendene i gulvet, hopp bakover til planke, hopp inn igjen, opp og hopp med armene over hodet.",
+    keys=[(250, "planke"), (280, "hopper inn igjen"), (320, "reiser seg"), (220, "hopper"), (280, "lander"), (300, "står"),
+          (400, "ned med hendene i gulvet"), (280, "hopper bakover til planke")], front=[3, 4])
+
 
 # ======================================================================== Kotlin
 SECTION_TITLES = {"PRESS": "PRESS", "TREKK": "TREKK", "BEIN": "BEIN", "HOFTE": "HOFTE", "KJERNE": "KJERNE",
@@ -674,14 +1207,23 @@ for name, d in sorted(P.items(), key=lambda kv: ORDER.index(kv[1]["section"])):
         out.append("        ),")
     if d.get("seq"):
         out.append("        sequence = listOf(")
-        for (fh, fl), ms, label in d["seq"]:
+        for fr, ms, label in d["seq"]:
+            if isinstance(fr, tuple):
+                fr = dict(head=fr[0], lines=fr[1])
             out.append(f"            // {label}")
             out.append(f"            Key({ms}, Frame(")
-            out.append(f"                head = {pp(fh)},")
+            out.append(f"                head = {pp(fr['head'])},")
             out.append("                lines = listOf(")
-            out += seg_lines(fl, "                    ")
+            out += seg_lines(fr["lines"], "                    ")
             out.append("                ),")
-            out.append("            )),")
+            if fr.get("dots"):
+                out.append(f"                dots = listOf({', '.join(pp(x) for x in fr['dots'])}),")
+            if fr.get("props"):
+                out.append("                props = listOf(")
+                out += seg_lines(fr["props"], "                    ")
+                out.append("                ),")
+            alpha = fr.get("alpha", 1.0)
+            out.append("            )" + (f", alpha = {f(alpha)})," if alpha != 1.0 else "),"))
         out.append("        ),")
     out.append("    ),")
 out.append(")")
@@ -701,13 +1243,20 @@ MAP = {
     ("db_triceps_ext",): "TRICEPS_EXT",
     ("thruster_db",): "THRUSTER",
     ("band_press", "pallof_press", "band_face_pull"): "FORWARD_PRESS",
+    ("pushup",): "PUSHUP",
+    ("pushup_incline",): "PUSHUP_INCLINE",
+    ("pushup_decline",): "PUSHUP_DECLINE",
+    ("pushup_diamond",): "PUSHUP_DIAMOND",
+    ("pushup_archer",): "PUSHUP_ARCHER",
+    ("pushup_band",): "PUSHUP_BAND",
     ("pike_pushup",): "PIKE",
     ("dips_chair",): "DIP",
     ("band_triceps_pushdown",): "PUSHDOWN",
     ("db_lateral_raise",): "LATERAL_RAISE",
     ("band_lateral_raise",): "LATERAL_RAISE_BAND",
     # Trekk
-    ("pullup", "chinup", "negative_pullup"): "PULLUP_HANG",
+    ("pullup", "negative_pullup"): "PULLUP_HANG",
+    ("chinup",): "CHINUP",
     ("pullup_band_assist",): "PULLUP_BAND",
     ("dead_hang",): "DEAD_HANG",
     ("band_pulldown",): "PULLDOWN",
@@ -718,6 +1267,7 @@ MAP = {
     ("band_curl",): "CURL_BAND",
     ("superman",): "SUPERMAN",
     # Bein
+    ("air_squat", "tempo_squat"): "SQUAT",
     ("goblet_squat",): "GOBLET_SQUAT",
     ("db_front_squat",): "FRONT_SQUAT",
     ("bb_squat",): "BB_SQUAT",
@@ -728,6 +1278,8 @@ MAP = {
     ("bulgarian",): "BULGARIAN",
     ("db_bulgarian",): "BULGARIAN_DB",
     ("step_up",): "STEP_UP",
+    ("walking_lunge",): "WALKING_LUNGE",
+    ("lateral_lunge",): "LATERAL_LUNGE",
     # Hofte
     ("glute_bridge", "hamstring_slide"): "GLUTE_BRIDGE",
     ("glute_bridge_1leg",): "GLUTE_BRIDGE_1LEG",
@@ -747,12 +1299,13 @@ MAP = {
     ("hanging_knee_raise",): "HANGING_RAISE",
     ("hanging_leg_raise",): "HANGING_LEG_RAISE",
     ("russian_twist_db",): "SEATED_TWIST",
-    ("ab_wheel_alt",): "PLANK",
+    ("ab_wheel_alt",): "BODY_SAW",
     ("suitcase_carry",): "CARRY",
     # Kondisjon
     ("mountain_climber",): "MOUNTAIN_CLIMBER",
     ("jump_rope",): "JUMP_ROPE",
-    ("jump_squat", "burpee"): "JUMP",
+    ("jump_squat",): "JUMP",
+    ("burpee",): "BURPEE",
     ("box_jump",): "BOX_JUMP",
     ("high_knees",): "CARDIO_RUN",
 }

@@ -8,7 +8,7 @@ import re
 
 from PIL import Image, ImageDraw, ImageFont
 
-from anim_solve import solve, solve_seq
+from anim_solve import solve, solve_seq, seq_alpha
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 APP_SRC = os.path.join(HERE, "..", "..", "app", "src", "main", "java", "no", "rigg", "app")
@@ -57,10 +57,13 @@ def load(src_dir=APP_SRC):
             )
         if seqpart:
             keys = []
-            for km in re.finditer(r"Key\((\d+), Frame\((.*?)\n            \)\),", seqpart, re.S):
+            for km in re.finditer(r"Key\((\d+), Frame\((.*?)\n            \)(?:, alpha = ([-\d.]+)f)?\),", seqpart, re.S):
                 kb = km.group(2)
                 keys.append((dict(head=_pts(re.search(r"head = (p\([^)]*\))", kb).group(1))[0],
-                                  lines=_segs(re.search(r"lines = listOf\((.*?)\n                \)", kb, re.S).group(1))),
+                                  lines=_segs(re.search(r"lines = listOf\((.*?)\n                \)", kb, re.S).group(1)),
+                                  dots=_opt(r"dots = listOf\((.*?\))\)", kb, _pts),
+                                  props=_opt(r"props = listOf\((.*?)\n                \)", kb, _segs),
+                                  alpha=float(km.group(3)) if km.group(3) else 1.0),
                              int(km.group(1))))
             pose["seq"] = keys
         poses[name] = pose
@@ -84,8 +87,18 @@ def solve_at(pose, t_ms, rep_ms):
 BG, INK, PROP, GROUND, DOT = (247, 243, 250), (29, 27, 32), (160, 156, 168), (190, 186, 196), (103, 80, 164)
 
 
-def draw(pose, solved, size):
+def alpha_at(pose, t_ms, rep_ms):
+    return seq_alpha(pose["seq"], t_ms % cycle_ms(pose, rep_ms)) if pose["seq"] else 1.0
+
+
+def draw(pose, solved, size, alpha=1.0):
     """Tegner en løst figur omtrent slik appen gjør (samme rekkefølge og luftkant rundt armene foran kroppen)."""
+    if alpha < 1.0:  # toning: bare gulvet står fast
+        bg = Image.new("RGB", (size, size), BG)
+        if pose["ground"]:
+            ImageDraw.Draw(bg).line([(0.04 * size, 0.97 * size), (0.96 * size, 0.97 * size)], fill=GROUND,
+                                    width=max(1, round(size * 0.035)))
+        return Image.blend(bg, draw(pose, solved, size), alpha)
     head, lines, dots, props = solved
     img = Image.new("RGB", (size, size), BG)
     d = ImageDraw.Draw(img)
@@ -107,6 +120,8 @@ def draw(pose, solved, size):
     for i, (a, b) in enumerate(lines):
         if i not in front:
             line(a, b, INK, stroke)
+    hx, hy, r = head[0] * size, head[1] * size, 0.07 * size
+    d.ellipse([hx - r, hy - r, hx + r, hy + r], fill=INK)  # hodet før armene foran, som i appen
     for i in front:
         a, b = lines[i]
         line((a[0] + (b[0] - a[0]) * 0.3, a[1] + (b[1] - a[1]) * 0.3), b, BG, stroke * 1.9)
@@ -115,8 +130,6 @@ def draw(pose, solved, size):
             line(a, b, PROP, stroke * 0.75)
     for i in front:
         line(lines[i][0], lines[i][1], INK, stroke)
-    hx, hy, r = head[0] * size, head[1] * size, 0.07 * size
-    d.ellipse([hx - r, hy - r, hx + r, hy + r], fill=INK)
     for x, y in dots:
         rr = stroke * 1.1
         d.ellipse([x * size - rr, y * size - rr, x * size + rr, y * size + rr], fill=DOT)

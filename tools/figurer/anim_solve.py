@@ -134,20 +134,45 @@ def solve(pose, end, k, ground=None):
     return head, lines, dots, props
 
 
-def solve_seq(pose, keys, t_ms):
-    """Samme som solveSequence() i Kotlin. keys: [(frame_dict, ms)]."""
+def _with_frame(pose, fr):
+    """Som Pose.withFrame() i Kotlin: prikker og utstyr fra nøkkelbildet hvis antallet stemmer."""
+    dots = fr.get("dots") or []
+    props = fr.get("props") or []
+    return dict(pose, head=fr["head"], lines=fr["lines"],
+                dots=dots if len(dots) == len(pose["dots"]) else pose["dots"],
+                props=props if len(props) == len(pose["props"]) else pose["props"])
+
+
+def _segment(keys, t_ms):
+    """(indeks, u) for nøkkelbildet t_ms ligger i, med u = 0..1 gjennom steget (før myk start/stopp)."""
     start = 0.0
-    frm = dict(head=pose["head"], lines=pose["lines"], dots=pose["dots"], props=pose["props"])
-    for idx, (fr, ms) in enumerate(keys):
+    for idx, (_, ms) in enumerate(keys):
         end = start + ms
         if t_ms < end or idx == len(keys) - 1:
-            u = min(max((t_ms - start) / max(ms, 1), 0.0), 1.0)
-            eased = u * u * (3 - 2 * u)
-            from_pose = dict(pose, head=frm["head"], lines=frm["lines"])
-            if (frm["head"], frm["lines"]) == (fr["head"], fr["lines"]) or eased <= 0:
-                return from_pose["head"], from_pose["lines"], pose["dots"], pose["props"]
-            end_frame = dict(head=fr["head"], lines=fr["lines"], dots=[], props=[])
-            return solve(from_pose, end_frame, eased)
+            return idx, min(max((t_ms - start) / max(ms, 1), 0.0), 1.0)
         start = end
-        frm = fr
-    return pose["head"], pose["lines"], pose["dots"], pose["props"]
+    return len(keys) - 1, 1.0
+
+
+def solve_seq(pose, keys, t_ms):
+    """Samme som solveSequence() i Kotlin. keys: [(frame_dict, ms)]."""
+    idx, u = _segment(keys, t_ms)
+    eased = u * u * (3 - 2 * u)
+    frm = keys[idx - 1][0] if idx > 0 else pose
+    fr = keys[idx][0]
+    from_pose = _with_frame(pose, frm)
+    same = (frm["head"], frm["lines"], frm.get("dots") or [], frm.get("props") or []) == \
+           (fr["head"], fr["lines"], fr.get("dots") or [], fr.get("props") or [])
+    if same or eased <= 0:
+        return from_pose["head"], from_pose["lines"], from_pose["dots"], from_pose["props"]
+    end_frame = dict(head=fr["head"], lines=fr["lines"], dots=fr.get("dots") or [], props=fr.get("props") or [])
+    return solve(from_pose, end_frame, eased)
+
+
+def seq_alpha(keys, t_ms):
+    """Samme som sequenceAlpha() i Kotlin: figuren kan tones ut og inn (f.eks. gående utfall som starter på nytt)."""
+    idx, u = _segment(keys, t_ms)
+    eased = u * u * (3 - 2 * u)
+    a0 = keys[idx - 1][0].get("alpha", 1.0) if idx > 0 else 1.0
+    a1 = keys[idx][0].get("alpha", 1.0)
+    return min(max(a0 + (a1 - a0) * eased, 0.0), 1.0)
