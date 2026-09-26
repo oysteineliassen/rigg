@@ -19,7 +19,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.lerp
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlin.math.PI
@@ -58,6 +61,8 @@ private data class Pose(
     /** Vekter (manual/kettlebell), tegnet i aksentfargen. */
     val dots: List<Offset> = emptyList(),
     val ground: Boolean = true,
+    /** Linjer (armer) som ligger foran kroppen: tegnes sist, med en luftkant som skiller dem fra det bak. */
+    val front: Set<Int> = emptySet(),
     /**
      * Den andre ytterstillingen i bevegelsen, for animasjon. Må ha like mange linjer og prikker,
      * i samme rekkefølge, som posen over. Punkter som deles mellom linjer (ledd) må deles her også,
@@ -265,6 +270,7 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
         props = listOf(
             p(0.6f, 0.64f) to p(0.66f, 0.03f), // strikk fra festepunkt oppe
         ),
+        front = setOf(3, 4),
         // Underarmen tilbake opp, albuen står i ro.
         end = Frame(
             head = p(0.44f, 0.16f),
@@ -396,6 +402,7 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
             p(0.6f, 0.68f) to p(0.68f, 0.62f),
         ),
         dots = listOf(p(0.705f, 0.61f)),
+        front = setOf(3, 4),
         // Opp fra knebøyen og rett videre til press over hodet.
         end = Frame(
             head = p(0.5f, 0.23f),
@@ -421,6 +428,7 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
             p(0.75f, 0.57f) to p(0.74f, 0.72f),
         ),
         dots = listOf(p(0.74f, 0.75f)),
+        front = setOf(3, 4),
         // Trukket opp: albuen over ryggen.
         end = Frame(
             head = p(0.86f, 0.34f),
@@ -468,6 +476,7 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
         props = listOf(
             p(0.38f, 0.64f) to p(0.9f, 0.84f), // strikk rundt føttene
         ),
+        front = setOf(2, 3),
         // Armene strakt frem igjen.
         end = Frame(
             head = p(0.3f, 0.34f),
@@ -524,6 +533,7 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
         props = listOf(
             p(0.64f, 0.14f) to p(0.62f, 0.02f), // strikk til festepunkt oppe
         ),
+        front = setOf(3, 4),
         // Trukket ned: albuen ned langs siden.
         end = Frame(
             head = p(0.48f, 0.3f),
@@ -549,6 +559,7 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
             p(0.47f, 0.5f) to p(0.68f, 0.38f), // underarm curlet opp
         ),
         dots = listOf(p(0.71f, 0.36f)),
+        front = setOf(3, 4),
         // Armen strakt ned. Albuen står i ro.
         end = Frame(
             head = p(0.44f, 0.16f),
@@ -575,6 +586,7 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
         props = listOf(
             p(0.68f, 0.38f) to p(0.52f, 0.96f), // strikk fra hånden ned under foten
         ),
+        front = setOf(3, 4),
         // Armen strakt ned. Albuen står i ro.
         end = Frame(
             head = p(0.44f, 0.16f),
@@ -682,23 +694,26 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
     IllustrationType.LUNGE to Pose(
         head = p(0.44f, 0.12f),
         lines = listOf(
-            p(0.44f, 0.24f) to p(0.44f, 0.5f), // overkropp
+            p(0.44f, 0.24f) to p(0.44f, 0.29f), // nakke til skulder
+            p(0.44f, 0.29f) to p(0.44f, 0.5f), // overkropp
             p(0.44f, 0.5f) to p(0.56f, 0.7f), // fremre bein bøyd
             p(0.56f, 0.7f) to p(0.5f, 0.96f),
             p(0.44f, 0.5f) to p(0.301f, 0.766f), // bakre bein
             p(0.301f, 0.766f) to p(0.15f, 0.96f),
-            p(0.44f, 0.24f) to p(0.54f, 0.49f), // armene langs siden
+            p(0.44f, 0.29f) to p(0.49f, 0.55f), // armene rett ned langs siden
         ),
+        front = setOf(6),
         // Nede: bakre kne nesten i gulvet. Føttene står i ro.
         end = Frame(
             head = p(0.44f, 0.26f),
             lines = listOf(
-                p(0.44f, 0.38f) to p(0.44f, 0.64f),
+                p(0.44f, 0.38f) to p(0.44f, 0.43f),
+                p(0.44f, 0.43f) to p(0.44f, 0.64f),
                 p(0.44f, 0.64f) to p(0.651f, 0.74f),
                 p(0.651f, 0.74f) to p(0.5f, 0.96f),
                 p(0.44f, 0.64f) to p(0.395f, 0.937f),
                 p(0.395f, 0.937f) to p(0.15f, 0.96f),
-                p(0.44f, 0.38f) to p(0.54f, 0.63f),
+                p(0.44f, 0.43f) to p(0.49f, 0.69f),
             ),
         ),
     ),
@@ -706,27 +721,30 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
         // Nede i bevegelsen.
         head = p(0.36f, 0.22f),
         lines = listOf(
-            p(0.37f, 0.32f) to p(0.39f, 0.58f), // overkropp
+            p(0.37f, 0.32f) to p(0.374f, 0.37f), // nakke til skulder
+            p(0.374f, 0.37f) to p(0.39f, 0.58f), // overkropp
             p(0.39f, 0.58f) to p(0.178f, 0.622f), // fremre lår
             p(0.178f, 0.622f) to p(0.22f, 0.96f), // fremre legg
             p(0.39f, 0.58f) to p(0.578f, 0.857f), // bakre lår ned mot gulvet
             p(0.578f, 0.857f) to p(0.72f, 0.58f), // bakre fot oppe på benken
-            p(0.37f, 0.32f) to p(0.29f, 0.58f), // armene langs siden
+            p(0.374f, 0.37f) to p(0.335f, 0.63f), // armene rett ned langs siden
         ),
         props = listOf(
             p(0.64f, 0.62f) to p(0.96f, 0.62f), // benk
             p(0.9f, 0.62f) to p(0.9f, 0.97f),
         ),
+        front = setOf(6),
         // Oppe.
         end = Frame(
             head = p(0.36f, 0.1f),
             lines = listOf(
-                p(0.36f, 0.2f) to p(0.37f, 0.46f),
+                p(0.36f, 0.2f) to p(0.362f, 0.25f),
+                p(0.362f, 0.25f) to p(0.37f, 0.46f),
                 p(0.37f, 0.46f) to p(0.224f, 0.619f),
                 p(0.224f, 0.619f) to p(0.22f, 0.96f),
                 p(0.37f, 0.46f) to p(0.479f, 0.777f),
                 p(0.479f, 0.777f) to p(0.72f, 0.58f),
-                p(0.36f, 0.2f) to p(0.28f, 0.46f),
+                p(0.362f, 0.25f) to p(0.323f, 0.51f),
             ),
         ),
     ),
@@ -745,6 +763,7 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
             p(0.52f, 0.74f) to p(0.52f, 0.97f),
             p(0.92f, 0.74f) to p(0.92f, 0.97f),
         ),
+        front = setOf(5),
         // Oppe på kassen, bakre bein løftet.
         end = Frame(
             head = p(0.63f, 0.08f),
@@ -762,56 +781,62 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
         // Utfall med en manual i hver hånd.
         head = p(0.44f, 0.12f),
         lines = listOf(
-            p(0.44f, 0.24f) to p(0.44f, 0.5f), // overkropp
+            p(0.44f, 0.24f) to p(0.44f, 0.29f), // nakke til skulder
+            p(0.44f, 0.29f) to p(0.44f, 0.5f), // overkropp
             p(0.44f, 0.5f) to p(0.56f, 0.7f), // fremre bein bøyd
             p(0.56f, 0.7f) to p(0.5f, 0.96f),
             p(0.44f, 0.5f) to p(0.301f, 0.766f), // bakre bein
             p(0.301f, 0.766f) to p(0.15f, 0.96f),
-            p(0.44f, 0.24f) to p(0.54f, 0.49f), // armene langs siden
+            p(0.44f, 0.29f) to p(0.49f, 0.55f), // armene rett ned langs siden
         ),
-        dots = listOf(p(0.545f, 0.52f)),
+        dots = listOf(p(0.495f, 0.575f)),
+        front = setOf(6),
         // Nede: bakre kne nesten i gulvet. Føttene står i ro.
         end = Frame(
             head = p(0.44f, 0.26f),
             lines = listOf(
-                p(0.44f, 0.38f) to p(0.44f, 0.64f),
+                p(0.44f, 0.38f) to p(0.44f, 0.43f),
+                p(0.44f, 0.43f) to p(0.44f, 0.64f),
                 p(0.44f, 0.64f) to p(0.651f, 0.74f),
                 p(0.651f, 0.74f) to p(0.5f, 0.96f),
                 p(0.44f, 0.64f) to p(0.395f, 0.937f),
                 p(0.395f, 0.937f) to p(0.15f, 0.96f),
-                p(0.44f, 0.38f) to p(0.54f, 0.63f),
+                p(0.44f, 0.43f) to p(0.49f, 0.69f),
             ),
-            dots = listOf(p(0.545f, 0.66f)),
+            dots = listOf(p(0.495f, 0.715f)),
         ),
     ),
     IllustrationType.BULGARIAN_DB to Pose(
         // Med en manual i hver hånd.
         head = p(0.36f, 0.22f),
         lines = listOf(
-            p(0.37f, 0.32f) to p(0.39f, 0.58f), // overkropp
+            p(0.37f, 0.32f) to p(0.374f, 0.37f), // nakke til skulder
+            p(0.374f, 0.37f) to p(0.39f, 0.58f), // overkropp
             p(0.39f, 0.58f) to p(0.178f, 0.622f), // fremre lår
             p(0.178f, 0.622f) to p(0.22f, 0.96f), // fremre legg
             p(0.39f, 0.58f) to p(0.578f, 0.857f), // bakre lår ned mot gulvet
             p(0.578f, 0.857f) to p(0.72f, 0.58f), // bakre fot oppe på benken
-            p(0.37f, 0.32f) to p(0.29f, 0.58f), // armene langs siden
+            p(0.374f, 0.37f) to p(0.335f, 0.63f), // armene rett ned langs siden
         ),
         props = listOf(
             p(0.64f, 0.62f) to p(0.96f, 0.62f), // benk
             p(0.9f, 0.62f) to p(0.9f, 0.97f),
         ),
-        dots = listOf(p(0.285f, 0.61f)),
+        dots = listOf(p(0.33f, 0.655f)),
+        front = setOf(6),
         // Oppe.
         end = Frame(
             head = p(0.36f, 0.1f),
             lines = listOf(
-                p(0.36f, 0.2f) to p(0.37f, 0.46f),
+                p(0.36f, 0.2f) to p(0.362f, 0.25f),
+                p(0.362f, 0.25f) to p(0.37f, 0.46f),
                 p(0.37f, 0.46f) to p(0.224f, 0.619f),
                 p(0.224f, 0.619f) to p(0.22f, 0.96f),
                 p(0.37f, 0.46f) to p(0.479f, 0.777f),
                 p(0.479f, 0.777f) to p(0.72f, 0.58f),
-                p(0.36f, 0.2f) to p(0.28f, 0.46f),
+                p(0.362f, 0.25f) to p(0.323f, 0.51f),
             ),
-            dots = listOf(p(0.275f, 0.49f)),
+            dots = listOf(p(0.318f, 0.535f)),
         ),
     ),
     IllustrationType.GOBLET_SQUAT to Pose(
@@ -825,6 +850,7 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
             p(0.6f, 0.67f) to p(0.65f, 0.56f), // hendene holder vekta inntil brystet
         ),
         dots = listOf(p(0.675f, 0.57f)),
+        front = setOf(3, 4),
         // Stående. Føttene står i ro.
         end = Frame(
             head = p(0.5f, 0.1f),
@@ -849,6 +875,7 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
             p(0.66f, 0.65f) to p(0.7f, 0.55f), // manualene foran skuldrene
         ),
         dots = listOf(p(0.72f, 0.54f)),
+        front = setOf(3, 4),
         // Stående. Føttene står i ro.
         end = Frame(
             head = p(0.5f, 0.1f),
@@ -876,6 +903,7 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
             p(0.34f, 0.5f) to p(0.74f, 0.5f), // stanga over skuldrene
         ),
         dots = listOf(p(0.34f, 0.5f), p(0.74f, 0.5f)),
+        front = setOf(3, 4),
         // Stående. Føttene står i ro.
         end = Frame(
             head = p(0.5f, 0.1f),
@@ -905,6 +933,7 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
         props = listOf(
             p(0.7f, 0.55f) to p(0.5f, 0.96f), // strikk fra hendene ned under føttene
         ),
+        front = setOf(3, 4),
         // Stående. Føttene står i ro.
         end = Frame(
             head = p(0.5f, 0.1f),
@@ -961,6 +990,7 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
             p(0.68f, 0.33f) to p(0.55f, 0.62f), // arm henger med vekten
         ),
         dots = listOf(p(0.55f, 0.62f)),
+        front = setOf(3),
         // Stående: hofta skjøvet frem, vekta langs beina.
         end = Frame(
             head = p(0.45f, 0.09f),
@@ -968,9 +998,9 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
                 p(0.45f, 0.194f) to p(0.44f, 0.55f),
                 p(0.44f, 0.55f) to p(0.44f, 0.78f),
                 p(0.44f, 0.78f) to p(0.45f, 0.97f),
-                p(0.45f, 0.194f) to p(0.47f, 0.51f),
+                p(0.45f, 0.194f) to p(0.5f, 0.5f),
             ),
-            dots = listOf(p(0.47f, 0.51f)),
+            dots = listOf(p(0.5f, 0.515f)),
         ),
     ),
     IllustrationType.GLUTE_BRIDGE to Pose(
@@ -1115,6 +1145,7 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
             p(0.68f, 0.33f) to p(0.55f, 0.62f), // armene henger med kettlebellen mellom beina
         ),
         dots = listOf(p(0.55f, 0.62f)),
+        front = setOf(3),
         // Stående: hofta skjøvet frem, vekta langs beina.
         end = Frame(
             head = p(0.45f, 0.09f),
@@ -1140,6 +1171,7 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
         props = listOf(
             p(0.7f, 0.4f) to p(0.45f, 0.97f), // strikk fra skuldrene ned under føttene
         ),
+        front = setOf(3, 4),
         // Stående: hofta skjøvet frem, vekta langs beina.
         end = Frame(
             head = p(0.45f, 0.09f),
@@ -1167,6 +1199,7 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
         props = listOf(
             p(0.55f, 0.62f) to p(0.02f, 0.88f), // strikk mellom beina bak til festepunkt
         ),
+        front = setOf(3),
         // Stående: hofta skjøvet frem, vekta langs beina.
         end = Frame(
             head = p(0.45f, 0.09f),
@@ -1174,10 +1207,10 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
                 p(0.45f, 0.194f) to p(0.44f, 0.55f),
                 p(0.44f, 0.55f) to p(0.44f, 0.78f),
                 p(0.44f, 0.78f) to p(0.45f, 0.97f),
-                p(0.45f, 0.194f) to p(0.47f, 0.51f),
+                p(0.45f, 0.194f) to p(0.5f, 0.5f),
             ),
             props = listOf(
-                p(0.47f, 0.51f) to p(0.02f, 0.88f),
+                p(0.5f, 0.5f) to p(0.02f, 0.88f),
             ),
         ),
     ),
@@ -1192,6 +1225,7 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
             p(0.4f, 0.55f) to p(0.02f, 0.44f), // det andre beinet løftet bak
         ),
         dots = listOf(p(0.55f, 0.62f)),
+        front = setOf(3),
         // Stående: hofta skjøvet frem, vekta langs beina.
         end = Frame(
             head = p(0.45f, 0.09f),
@@ -1199,10 +1233,10 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
                 p(0.45f, 0.194f) to p(0.44f, 0.55f),
                 p(0.44f, 0.55f) to p(0.44f, 0.78f),
                 p(0.44f, 0.78f) to p(0.45f, 0.97f),
-                p(0.45f, 0.194f) to p(0.47f, 0.51f),
+                p(0.45f, 0.194f) to p(0.5f, 0.5f),
                 p(0.44f, 0.55f) to p(0.36f, 0.95f),
             ),
-            dots = listOf(p(0.47f, 0.51f)),
+            dots = listOf(p(0.5f, 0.515f)),
         ),
     ),
 
@@ -1354,6 +1388,7 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
             p(0.31f, 0.6f) to p(0.5f, 0.66f), // armer holder vekten ut til siden
         ),
         dots = listOf(p(0.53f, 0.66f)),
+        front = setOf(3),
         // Vekta over til den andre siden.
         end = Frame(
             head = p(0.26f, 0.46f),
@@ -1454,6 +1489,7 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
             p(0.5f, 0.3f) to p(0.56f, 0.62f), // arm med vekten langs siden
         ),
         dots = listOf(p(0.56f, 0.64f)),
+        front = setOf(5),
         // Går: beina bytter plass.
         end = Frame(
             head = p(0.5f, 0.14f),
@@ -1706,9 +1742,14 @@ private fun solvePose(pose: Pose, end: Frame, k: Float): Solved {
         pose.dots
     }
     val props = if (end.props.isNotEmpty() && end.props.size == pose.props.size) {
-        pose.props.zip(end.props) { (a0, b0), (a1, b1) ->
-            (placed[a0] ?: lerp(a0, a1, k)) to (placed[b0] ?: lerp(b0, b1, k))
+        // Punkter som står likt i begge stillinger (festepunkt for strikk) står i ro.
+        // Stanga følger skivene (samme punkt som en vekt); annet utstyr som beveger seg, som hoppetauet, glir.
+        fun propPoint(p0: Offset, p1: Offset): Offset = placed[p0] ?: when {
+            p0 == p1 -> p0
+            p0 in pose.dots -> attached(p0, p1)
+            else -> lerp(p0, p1, k)
         }
+        pose.props.zip(end.props) { (a0, b0), (a1, b1) -> propPoint(a0, a1) to propPoint(b0, b1) }
     } else {
         pose.props
     }
@@ -1755,7 +1796,7 @@ fun ExerciseIllustration(
     val dots = solved.dots
     val props = solved.props
 
-    Canvas(modifier = modifier) {
+    Canvas(modifier = modifier.graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }) {
         val w = size.width
         val h = size.height
         val stroke = size.minDimension * 0.07f
@@ -1770,7 +1811,7 @@ fun ExerciseIllustration(
                 cap = StrokeCap.Round,
             )
         }
-        props.forEach { (a, b) ->
+        fun drawProps() = props.forEach { (a, b) ->
             drawLine(
                 color = strokeColor.copy(alpha = 0.45f),
                 start = toPx(a),
@@ -1779,7 +1820,29 @@ fun ExerciseIllustration(
                 cap = StrokeCap.Round,
             )
         }
-        lines.forEach { (a, b) ->
+        // Utstyret tegnes etter luftkanten når figuren har armer foran, så strikk og stang ikke klippes bort.
+        if (pose.front.isEmpty()) drawProps()
+        lines.forEachIndexed { i, (a, b) ->
+            if (i !in pose.front) {
+                drawLine(color = strokeColor, start = toPx(a), end = toPx(b), strokeWidth = stroke, cap = StrokeCap.Round)
+            }
+        }
+        // Luftkant: klipp et smalt hull rundt armene i det som allerede er tegnet (kroppen bak), og tegn så
+        // armene oppå. Starter 30 % ned på armen så skulderleddet henger sammen med kroppen.
+        pose.front.forEach { i ->
+            val (a, b) = lines[i]
+            drawLine(
+                color = Color.Black,
+                start = toPx(lerp(a, b, 0.3f)),
+                end = toPx(b),
+                strokeWidth = stroke * 1.9f,
+                cap = StrokeCap.Round,
+                blendMode = BlendMode.Clear,
+            )
+        }
+        if (pose.front.isNotEmpty()) drawProps()
+        pose.front.forEach { i ->
+            val (a, b) = lines[i]
             drawLine(color = strokeColor, start = toPx(a), end = toPx(b), strokeWidth = stroke, cap = StrokeCap.Round)
         }
         drawCircle(color = strokeColor, radius = pose.headRadius * size.minDimension, center = toPx(head))
