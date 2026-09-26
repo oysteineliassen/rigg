@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
@@ -83,8 +84,8 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
         lines = listOf(
             p(0.18f, 0.64f) to p(0.58f, 0.74f), // overkropp
             p(0.58f, 0.74f) to p(0.92f, 0.84f), // bein til tærne
-            p(0.18f, 0.64f) to p(0.19f, 0.78f), // overarm (strak arm = to linjer på rad, så albuen kan bøyes)
-            p(0.19f, 0.78f) to p(0.2f, 0.92f), // underarm ned til hånden
+            p(0.18f, 0.64f) to p(0.2f, 0.78f), // overarm (nesten strak, med en anelse bøy samme vei som albuen går nede)
+            p(0.2f, 0.78f) to p(0.2f, 0.92f), // underarm ned til hånden
         ),
         // Nede: kroppen vipper rundt tærne, albuene går bakover. Hender og tær står i ro.
         end = Frame(
@@ -131,8 +132,8 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
             p(0.18f, 0.9f) to p(0.54f, 0.9f), // liggende på gulvet
             p(0.54f, 0.9f) to p(0.7f, 0.66f), // bøyde knær
             p(0.7f, 0.66f) to p(0.84f, 0.92f),
-            p(0.28f, 0.9f) to p(0.29f, 0.71f), // overarm
-            p(0.29f, 0.71f) to p(0.3f, 0.52f), // underarm, presset opp
+            p(0.28f, 0.9f) to p(0.3f, 0.71f), // overarm
+            p(0.3f, 0.71f) to p(0.3f, 0.52f), // underarm, presset opp
         ),
         dots = listOf(p(0.3f, 0.48f)),
         // Nede: albuen i gulvet.
@@ -142,8 +143,8 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
                 p(0.18f, 0.9f) to p(0.54f, 0.9f),
                 p(0.54f, 0.9f) to p(0.7f, 0.66f),
                 p(0.7f, 0.66f) to p(0.84f, 0.92f),
-                p(0.28f, 0.9f) to p(0.461f, 0.841f),
-                p(0.461f, 0.841f) to p(0.3f, 0.74f),
+                p(0.28f, 0.9f) to p(0.461f, 0.84f),
+                p(0.461f, 0.84f) to p(0.3f, 0.74f),
             ),
             dots = listOf(p(0.3f, 0.7f)),
         ),
@@ -219,10 +220,10 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
                 p(0.5f, 0.27f) to p(0.5f, 0.56f),
                 p(0.5f, 0.56f) to p(0.44f, 0.95f),
                 p(0.5f, 0.56f) to p(0.56f, 0.95f),
-                p(0.5f, 0.3f) to p(0.43f, 0.555f),
-                p(0.5f, 0.3f) to p(0.57f, 0.555f),
+                p(0.5f, 0.3f) to p(0.4f, 0.54f),
+                p(0.5f, 0.3f) to p(0.6f, 0.54f),
             ),
-            dots = listOf(p(0.425f, 0.58f), p(0.575f, 0.58f)),
+            dots = listOf(p(0.39f, 0.565f), p(0.61f, 0.565f)),
         ),
     ),
     IllustrationType.DIP to Pose(
@@ -490,8 +491,8 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
             p(0.44f, 0.24f) to p(0.44f, 0.5f), // overkropp
             p(0.44f, 0.5f) to p(0.56f, 0.7f), // fremre bein bøyd
             p(0.56f, 0.7f) to p(0.5f, 0.96f),
-            p(0.44f, 0.5f) to p(0.26f, 0.74f), // bakre bein
-            p(0.26f, 0.74f) to p(0.15f, 0.96f),
+            p(0.44f, 0.5f) to p(0.301f, 0.766f), // bakre bein
+            p(0.301f, 0.766f) to p(0.15f, 0.96f),
         ),
         // Nede: bakre kne nesten i gulvet. Føttene står i ro.
         end = Frame(
@@ -581,19 +582,19 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
         ),
     ),
     IllustrationType.GLUTE_BRIDGE to Pose(
-        head = p(0.1f, 0.76f),
+        head = p(0.08f, 0.87f),
         lines = listOf(
-            p(0.18f, 0.76f) to p(0.52f, 0.58f), // hofta løftet, skuldre i gulvet
-            p(0.52f, 0.58f) to p(0.74f, 0.76f), // bøyd bein ned til foten
-            p(0.74f, 0.76f) to p(0.9f, 0.92f),
+            p(0.16f, 0.9f) to p(0.5f, 0.64f), // hofta løftet, skuldrene i gulvet
+            p(0.5f, 0.64f) to p(0.72f, 0.7f), // lår
+            p(0.72f, 0.7f) to p(0.8f, 0.94f), // legg, foten i gulvet
         ),
-        // Hofta senket mot gulvet.
+        // Hofta senket til gulvet.
         end = Frame(
-            head = p(0.06f, 0.8f),
+            head = p(0.08f, 0.87f),
             lines = listOf(
-                p(0.13f, 0.82f) to p(0.5f, 0.9f),
-                p(0.5f, 0.9f) to p(0.74f, 0.76f),
-                p(0.74f, 0.76f) to p(0.9f, 0.92f),
+                p(0.16f, 0.9f) to p(0.57f, 0.915f),
+                p(0.57f, 0.915f) to p(0.682f, 0.716f),
+                p(0.682f, 0.716f) to p(0.8f, 0.94f),
             ),
         ),
     ),
@@ -840,7 +841,7 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
                 p(0.5f, 0.56f) to p(0.46f, 0.72f),
                 p(0.46f, 0.72f) to p(0.62f, 0.8f),
                 p(0.62f, 0.8f) to p(0.52f, 0.96f),
-                p(0.5f, 0.58f) to p(0.68f, 0.66f),
+                p(0.5f, 0.58f) to p(0.33f, 0.7f),
                 p(0.7f, 0.5f) to p(0.7f, 0.3f),
                 p(0.7f, 0.3f) to p(0.65f, 0.37f),
                 p(0.7f, 0.3f) to p(0.75f, 0.37f),
@@ -976,6 +977,12 @@ private fun twoBone(p: Offset, f: Offset, l1: Float, l2: Float, side: Float): Of
     return Offset(p.x + ux * a - uy * h * side, p.y + uy * a + ux * h * side)
 }
 
+/** Hvor mye og hvilken vei leddet [j] er bøyd på linjen [p]-[f] (normalisert kryssprodukt, ca. sinus til vinkelen). */
+private fun bend(p: Offset, j: Offset, f: Offset): Float {
+    val c = (f.x - p.x) * (j.y - p.y) - (f.y - p.y) * (j.x - p.x)
+    return c / ((f - p).getDistance() * (j - p).getDistance()).coerceAtLeast(1e-9f)
+}
+
 private fun solvePose(pose: Pose, end: Frame, k: Float): Solved {
     val a = pose.lines
     val b = end.lines
@@ -1028,8 +1035,11 @@ private fun solvePose(pose: Pose, end: Frame, k: Float): Solved {
         val l2a = (j - f).getDistance()
         val l1 = l1a + ((a2b.getValue(p) - a2b.getValue(j)).getDistance() - l1a) * k
         val l2 = l2a + ((a2b.getValue(j) - a2b.getValue(f)).getDistance() - l2a) * k
-        val cross = (f.x - p.x) * (j.y - p.y) - (f.y - p.y) * (j.x - p.x)
-        placed[j] = twoBone(placed.getValue(p), f, l1, l2, if (cross >= 0f) 1f else -1f)
+        // Bøyeretning fra den stillingen der lemmet er mest bøyd (en nesten strak arm sier lite om retningen).
+        val bendA = bend(p, j, f)
+        val bendB = bend(a2b.getValue(p), a2b.getValue(j), a2b.getValue(f))
+        val chosen = if (abs(bendA) >= abs(bendB)) bendA else bendB
+        placed[j] = twoBone(placed.getValue(p), f, l1, l2, if (chosen >= 0f) 1f else -1f)
         placed[f] = f
     }
 
