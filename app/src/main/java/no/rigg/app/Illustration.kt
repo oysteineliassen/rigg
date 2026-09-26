@@ -1,5 +1,11 @@
 package no.rigg.app
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -8,12 +14,16 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.lerp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import kotlin.math.PI
+import kotlin.math.cos
 
 /**
  * Enkle strekfigur-illustrasjoner tegnet i kode (ingen bilder å laste ned eller lisensiere).
@@ -37,12 +47,27 @@ private data class Pose(
     val headRadius: Float = 0.07f,
     /** Kroppen: armer, bein og overkropp. */
     val lines: List<Pair<Offset, Offset>>,
-    /** Utstyr og omgivelser (stang, benk, vegg, strikk), tegnet tynnere og lysere enn kroppen. */
+    /** Utstyr og omgivelser (stang, benk, vegg, strikk), tegnet tynnere og lysere enn kroppen. Står stille. */
     val props: List<Pair<Offset, Offset>> = emptyList(),
     /** Vekter (manual/kettlebell), tegnet i aksentfargen. */
     val dots: List<Offset> = emptyList(),
     val ground: Boolean = true,
+    /**
+     * Den andre ytterstillingen i bevegelsen, for animasjon. Må ha like mange linjer og prikker,
+     * i samme rekkefølge, som posen over. Punkter som deles mellom linjer (ledd) må deles her også,
+     * ellers faller figuren fra hverandre underveis. null = figuren står stille.
+     */
+    val end: Frame? = null,
 )
+
+private data class Frame(
+    val head: Offset,
+    val lines: List<Pair<Offset, Offset>>,
+    val dots: List<Offset> = emptyList(),
+)
+
+/** Én repetisjon (ned og opp igjen) i millisekunder. */
+private const val REP_MS = 2200
 
 private fun p(x: Float, y: Float) = Offset(x, y)
 
@@ -53,7 +78,18 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
         lines = listOf(
             p(0.18f, 0.64f) to p(0.58f, 0.74f), // overkropp
             p(0.58f, 0.74f) to p(0.92f, 0.84f), // bein til tærne
-            p(0.18f, 0.64f) to p(0.2f, 0.92f), // strak arm ned til gulvet
+            p(0.18f, 0.64f) to p(0.19f, 0.78f), // overarm (strak arm = to linjer på rad, så albuen kan bøyes)
+            p(0.19f, 0.78f) to p(0.2f, 0.92f), // underarm ned til hånden
+        ),
+        // Nede: kroppen vipper rundt tærne, albuene går bakover. Hender og tær står i ro.
+        end = Frame(
+            head = p(0.12f, 0.74f),
+            lines = listOf(
+                p(0.2f, 0.8f) to p(0.58f, 0.82f),
+                p(0.58f, 0.82f) to p(0.92f, 0.84f),
+                p(0.2f, 0.8f) to p(0.326f, 0.86f),
+                p(0.326f, 0.86f) to p(0.2f, 0.92f),
+            ),
         ),
     ),
     IllustrationType.BENCH_PRESS to Pose(
@@ -188,20 +224,34 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
         ),
     ),
     IllustrationType.PULLUP_HANG to Pose(
-        head = p(0.5f, 0.27f),
+        // Hengende, sett forfra. Stanga er senket litt så haken får plass over den i toppen.
+        head = p(0.5f, 0.36f),
         lines = listOf(
-            p(0.5f, 0.37f) to p(0.5f, 0.64f), // overkropp (sett forfra)
-            p(0.5f, 0.64f) to p(0.45f, 0.94f), // hengende bein
-            p(0.5f, 0.64f) to p(0.55f, 0.94f),
-            p(0.5f, 0.39f) to p(0.3f, 0.3f), // armer i V opp til stanga
-            p(0.3f, 0.3f) to p(0.28f, 0.08f),
-            p(0.5f, 0.39f) to p(0.7f, 0.3f),
-            p(0.7f, 0.3f) to p(0.72f, 0.08f),
+            p(0.5f, 0.46f) to p(0.5f, 0.68f), // overkropp
+            p(0.5f, 0.68f) to p(0.46f, 0.95f), // hengende bein
+            p(0.5f, 0.68f) to p(0.54f, 0.95f),
+            p(0.5f, 0.48f) to p(0.37f, 0.31f), // armer i V opp til stanga
+            p(0.37f, 0.31f) to p(0.3f, 0.16f),
+            p(0.5f, 0.48f) to p(0.63f, 0.31f),
+            p(0.63f, 0.31f) to p(0.7f, 0.16f),
         ),
         props = listOf(
-            p(0.1f, 0.08f) to p(0.9f, 0.08f), // tverrligger
+            p(0.1f, 0.16f) to p(0.9f, 0.16f), // tverrligger
         ),
         ground = false,
+        // Toppen: haken over stanga, albuene ut og ned. Hendene står i ro på stanga.
+        end = Frame(
+            head = p(0.5f, 0.1f),
+            lines = listOf(
+                p(0.5f, 0.22f) to p(0.5f, 0.46f),
+                p(0.5f, 0.46f) to p(0.46f, 0.73f),
+                p(0.5f, 0.46f) to p(0.54f, 0.73f),
+                p(0.5f, 0.24f) to p(0.331f, 0.323f),
+                p(0.331f, 0.323f) to p(0.3f, 0.16f),
+                p(0.5f, 0.24f) to p(0.669f, 0.323f),
+                p(0.669f, 0.323f) to p(0.7f, 0.16f),
+            ),
+        ),
     ),
     IllustrationType.PULLDOWN to Pose(
         head = p(0.48f, 0.3f),
@@ -230,12 +280,23 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
 
     // ------------------------------------------------------------ BEIN
     IllustrationType.SQUAT to Pose(
-        head = p(0.58f, 0.2f),
+        // Nederst i knebøyen. Figuren er litt mindre enn før, fordi den også må få plass stående.
+        head = p(0.61f, 0.44f),
         lines = listOf(
-            p(0.55f, 0.3f) to p(0.34f, 0.56f), // overkropp lent frem
-            p(0.34f, 0.56f) to p(0.62f, 0.62f), // lår nesten vannrett
-            p(0.62f, 0.62f) to p(0.54f, 0.96f), // legg
-            p(0.54f, 0.33f) to p(0.82f, 0.36f), // armer frem for balanse
+            p(0.544f, 0.516f) to p(0.39f, 0.7f), // overkropp lent frem
+            p(0.39f, 0.7f) to p(0.635f, 0.726f), // lår nesten vannrett
+            p(0.635f, 0.726f) to p(0.5f, 0.96f), // legg, kneet frem over tærne
+            p(0.544f, 0.52f) to p(0.8f, 0.54f), // armer frem for balanse
+        ),
+        // Stående. Føttene står i ro.
+        end = Frame(
+            head = p(0.5f, 0.1f),
+            lines = listOf(
+                p(0.5f, 0.2f) to p(0.5f, 0.44f),
+                p(0.5f, 0.44f) to p(0.5f, 0.69f),
+                p(0.5f, 0.69f) to p(0.5f, 0.96f),
+                p(0.5f, 0.21f) to p(0.756f, 0.23f),
+            ),
         ),
     ),
     IllustrationType.WALL_SIT to Pose(
@@ -510,15 +571,47 @@ fun illustrationFor(exercise: Exercise): IllustrationType = when (exercise.id) {
     }
 }
 
-/** Tegner strekfiguren for en øvelse. */
+/**
+ * Tegner strekfiguren for en øvelse. Med [animate] = true beveger figuren seg rolig frem og tilbake
+ * mellom de to ytterstillingene (bare for poser som har en sluttposisjon). Brukes i detaljvisningen;
+ * listene bruker stillbilder så skjermen ikke blir urolig.
+ */
 @Composable
 fun ExerciseIllustration(
     exercise: Exercise,
     modifier: Modifier = Modifier,
     strokeColor: Color = MaterialTheme.colorScheme.onSurface,
     accentColor: Color = MaterialTheme.colorScheme.primary,
+    animate: Boolean = false,
 ) {
     val pose = poseFor(illustrationFor(exercise))
+    val end = pose.end
+    val phase = if (animate && end != null) {
+        val transition = rememberInfiniteTransition(label = "ovelse")
+        val t by transition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(tween(REP_MS, easing = LinearEasing), RepeatMode.Restart),
+            label = "fase",
+        )
+        t
+    } else {
+        0f
+    }
+    // 0 -> 1 -> 0 med myk oppbremsing i begge ytterstillinger, som en rolig repetisjon.
+    val k = ((1 - cos(2 * PI * phase)) / 2).toFloat()
+    val head = if (end != null) lerp(pose.head, end.head, k) else pose.head
+    val lines = if (end != null) {
+        pose.lines.zip(end.lines) { (a0, b0), (a1, b1) -> lerp(a0, a1, k) to lerp(b0, b1, k) }
+    } else {
+        pose.lines
+    }
+    val dots = if (end != null && end.dots.size == pose.dots.size) {
+        pose.dots.zip(end.dots) { d0, d1 -> lerp(d0, d1, k) }
+    } else {
+        pose.dots
+    }
+
     Canvas(modifier = modifier) {
         val w = size.width
         val h = size.height
@@ -543,11 +636,11 @@ fun ExerciseIllustration(
                 cap = StrokeCap.Round,
             )
         }
-        pose.lines.forEach { (a, b) ->
+        lines.forEach { (a, b) ->
             drawLine(color = strokeColor, start = toPx(a), end = toPx(b), strokeWidth = stroke, cap = StrokeCap.Round)
         }
-        drawCircle(color = strokeColor, radius = pose.headRadius * size.minDimension, center = toPx(pose.head))
-        pose.dots.forEach { d ->
+        drawCircle(color = strokeColor, radius = pose.headRadius * size.minDimension, center = toPx(head))
+        dots.forEach { d ->
             drawCircle(color = accentColor, radius = stroke * 1.1f, center = toPx(d))
         }
     }

@@ -568,7 +568,7 @@ private fun DayCard(vm: AppViewModel, day: WorkoutDay, requestNotificationPermis
             Card {
                 Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     if (ex != null) {
-                        ExerciseIllustration(ex, modifier = Modifier.size(160.dp))
+                        ExerciseIllustration(ex, modifier = Modifier.size(160.dp), animate = true)
                         Spacer(Modifier.height(12.dp))
                         Text(ex.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.height(4.dp))
