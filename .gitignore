@@ -23,3 +23,8 @@ captures/
 # OS
 .DS_Store
 Thumbs.db
+
+# Python (verktøyene i tools/) og forhåndsvisninger derfra
+__pycache__/
+tools/figurer/*.gif
+tools/figurer/*.png

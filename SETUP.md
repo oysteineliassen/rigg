@@ -6,14 +6,14 @@
 Pakkenavnet (applicationId) er `no.rigg.app`. Det kan ikke endres etter at appen er lagt ut på Play Store.
 
 ## Git
-Prosjektet er et git-repo. Endringer fra Claude kommer som `.patch`-filer i stedet for en hel zip,
-så dine egne endringer ikke blir overskrevet. Legg patch-filen i prosjektmappen og kjør i Terminal-fanen
-nederst i Android Studio:
+Prosjektet er et git-repo. Endringer fra Claude kommer som enkeltfiler (eller en liten zip) som erstatter
+filene i prosjektet. Kjør deretter i Terminal-fanen nederst i Android Studio:
 
-    git am navn-på-filen.patch
+    git add -A
+    git commit -m "Kort beskrivelse"
 
 Da blir endringen en egen commit som du kan se i Git-fanen, og angre med `git revert` hvis noe er galt.
-Har du endret noe selv, commit det først (Git > Commit), så holdes endringene adskilt.
+Har du endret noe selv, commit det først, så holdes endringene adskilt.
 
 ## AI
 - **Med API-nøkkel:** Fanen «Mer» > AI > velg leverandør, lim inn nøkkel. Nøkkelen lagres kun lokalt.
@@ -28,6 +28,9 @@ Har du endret noe selv, commit det først (Git > Commit), så holdes endringene 
 - `ProgramGenerator.kt`: regelbasert generator (offline)
 - `AiClient.kt`: prompt, API-kall og validering av AI-svar
 - `Store.kt`, `AppViewModel.kt`, `MainActivity.kt`: lagring, tilstand og skjermer
+- `ExerciseLibraryScreen.kt`: fanen «Øvelser»
+- `Illustration.kt`: de animerte strekfigurene. Store deler av filen er generert av verktøyene i
+  `tools/figurer` (se README der), så figurene endres der og ikke direkte i Kotlin-filen.
 
 ## Hviletimer og øktklokke
 - `WorkoutTimers.kt`: felles tilstand for hvile og økt, pluss lydene (`Beeper`) og vibrasjon (`Haptics`).
@@ -40,5 +43,3 @@ Har du endret noe selv, commit det først (Git > Commit), så holdes endringene 
 - `res/drawable/ic_launcher_foreground.xml` / `ic_launcher_background.xml`: det adaptive ikonet (rigg + stang, rå/minimalistisk stil).
 - `res/mipmap-anydpi-v26/ic_launcher.xml`: setter sammen bakgrunn + forgrunn (fungerer fra minSdk 26, så ingen egne PNG-mipmaps trengs).
 - Vil du ha et annet uttrykk (farge, form), si ifra så justerer jeg vektorene.
-
-Prosjektet er ikke kompilert ennå (byggemiljøet hadde ikke Android SDK). Send feilmeldingene fra Android Studio, så retter jeg dem.
