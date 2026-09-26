@@ -120,11 +120,11 @@ def draw(pose, solved, size, alpha=1.0):
     for i, (a, b) in enumerate(lines):
         if i not in front:
             line(a, b, INK, stroke)
-    hx, hy, r = head[0] * size, head[1] * size, 0.07 * size
-    d.ellipse([hx - r, hy - r, hx + r, hy + r], fill=INK)  # hodet før armene foran, som i appen
     for i in front:
         a, b = lines[i]
         line((a[0] + (b[0] - a[0]) * 0.3, a[1] + (b[1] - a[1]) * 0.3), b, BG, stroke * 1.9)
+    hx, hy, r = head[0] * size, head[1] * size, 0.07 * size
+    d.ellipse([hx - r, hy - r, hx + r, hy + r], fill=INK)  # etter luftkanten, før armene foran (som i appen)
     if front:
         for a, b in props:
             line(a, b, PROP, stroke * 0.75)

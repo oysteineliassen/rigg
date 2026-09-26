@@ -955,7 +955,7 @@ put("BAND_SQUAT", "BEIN", [squat(1, rack, None, band_sq), squat(0, rack, None, b
     "Knebøy med strikk: strikken går fra hendene ved skuldrene ned under føttene.", front=[3, 4])
 
 # Thruster: frontknebøy og rett videre til press over hodet.
-press_up = lambda t: ("a", -84, -88)
+press_up = lambda t: ("a", -76, -80)
 thr = [squat(1, rack, rack_dot), squat(0.05, rack, rack_dot), squat(0, press_up, lambda p: [p["hand"]]),
        squat(0, press_up, lambda p: [p["hand"]]), squat(0.05, rack, rack_dot), squat(1, rack, rack_dot),
        squat(1, rack, rack_dot)]
@@ -976,16 +976,16 @@ def jump_frame(depth, arm, lift=0.0, toes=False):
 
 
 put("JUMP", "KONDISJON", [
-    jump_frame(1, ("a", 150, 140)),
-    jump_frame(0.05, ("a", -30, -40)),
-    jump_frame(0, ("a", -40, -45), lift=0.08),
-    jump_frame(0, ("a", -40, -45), lift=0.08),
-    jump_frame(0.35, ("a", 10, 0)),
-    jump_frame(1, ("a", 150, 140)),
-    jump_frame(1, ("a", 150, 140)),
+    jump_frame(1, ("a", 150, 150)),
+    jump_frame(0.05, ("a", -10, -10)),
+    jump_frame(0, ("a", -42, -42), lift=0.08),
+    jump_frame(0, ("a", -42, -42), lift=0.08),
+    jump_frame(0.35, ("a", 25, 25)),
+    jump_frame(1, ("a", 150, 150)),
+    jump_frame(1, ("a", 150, 150)),
 ], "Hoppknebøy: ned i knebøy med armene bak, eksplosivt opp med armene frem og opp, myk landing.",
-    keys=[(260, "eksplosivt opp"), (200, "i lufta"), (100, "toppen"), (240, "lander"), (380, "ned i knebøy"),
-          (250, "klar")], front=[3, 4])
+    keys=[(320, "eksplosivt opp"), (220, "i lufta"), (120, "toppen"), (280, "lander"), (450, "ned i knebøy"),
+          (350, "klar")], front=[3, 4])
 
 
 # ---------------------------------------------------------------- GÅENDE UTFALL OG SIDEUTFALL
@@ -1048,28 +1048,33 @@ put("DEAD_BUG", "KJERNE", [T, dead_bug(ext_arm, tab_leg, tab_arm, ext_leg), dead
     keys=[(700, "arm og motsatt bein ut"), (250, "hold"), (650, "tilbake"), (200, "pause"), (700, "andre arm og bein ut"),
           (250, "hold"), (650, "tilbake"), (200, "pause")])
 
-# Russian twist sett forfra: sittende med knærne opp, overkroppen vris så manualen går fra side til side.
-TW_L = dict(LEN, torso=0.25)
-
-
+# Russian twist sett forfra: sittende, overkroppen lent litt bakover og knærne opp foran brystet. Beina og armene
+# ligger foran overkroppen (luftkant). Overkroppen vris, så manualen føres ned ved hofta på hver side.
 def twist(side_):
-    pel = (0.5, 0.93)
-    neck_y = 0.66
-    rot = side_ * 0.035
-    sl, sr = (0.415 + rot, neck_y + 0.012 * side_), (0.585 + rot, neck_y - 0.012 * side_)
-    hands = (0.5 + side_ * 0.22, 0.86) if side_ else (0.5, 0.8)
-    fr = front(pel, [("a", -118, 100), ("a", -62, 80)],
-               [("p", hands, 110 if side_ >= 0 else 150), ("p", rnd((hands[0] + 0.004, hands[1])), 30 if side_ <= 0 else 70)],
-               shoulders=(sl, sr), head=(0.5 + rot * 1.6, neck_y - 0.09), L=TW_L)
-    fr["dots"] = [rnd((hands[0], hands[1] - 0.01))]
+    pel, neck_y = (0.5, 0.935), 0.64
+    shift = side_ * 0.045
+    sl = (0.415 + shift + (0.03 if side_ < 0 else 0), neck_y + 0.01 * abs(side_))
+    sr = (0.585 + shift - (0.03 if side_ > 0 else 0), neck_y + 0.01 * abs(side_))
+    knees, feet = ((0.455, 0.72), (0.545, 0.72)), ((0.425, 0.845), (0.575, 0.845))
+    if side_:
+        hands = (0.5 + side_ * 0.2, 0.89)
+        el = rnd(((sl[0] + hands[0]) / 2 - 0.02 * side_, (sl[1] + hands[1]) / 2))
+        er = rnd(((sr[0] + hands[0]) / 2 + 0.02 * side_, (sr[1] + hands[1]) / 2))
+    else:
+        hands = (0.5, 0.735)
+        el, er = (0.405, 0.73), (0.595, 0.73)
+    fr = front(pel, [("j", knees[0], feet[0]), ("j", knees[1], feet[1])],
+               [("j", el, hands), ("j", er, rnd((hands[0] + 0.004, hands[1])))],
+               shoulders=(sl, sr), head=(0.5 + shift * 0.8, neck_y - 0.09), L=dict(LEN, torso=0.295))
+    fr["dots"] = [rnd((hands[0] + 0.002, hands[1] + 0.005))]
     return fr
 
 
 put("SEATED_TWIST", "KJERNE", [twist(0), twist(-1), twist(-1), twist(0), twist(1), twist(1), twist(0)],
-    "Russian twist sett forfra: sittende med knærne opp og overkroppen lent litt bakover. Manualen føres fra side "
-    "til side ved at overkroppen vris.",
-    keys=[(500, "vri mot venstre"), (150, "manualen ned ved hofta"), (450, "tilbake"), (500, "vri mot høyre"),
-          (150, "manualen ned ved hofta"), (450, "tilbake")])
+    "Russian twist sett forfra: sittende med knærne opp foran brystet og overkroppen lent litt bakover. Overkroppen "
+    "vris, så manualen føres ned ved hofta på den ene siden, så den andre.",
+    keys=[(550, "vri mot venstre"), (200, "manualen ned ved hofta"), (500, "tilbake"), (550, "vri mot høyre"),
+          (200, "manualen ned ved hofta"), (500, "tilbake")], front=[0, 1, 5, 6, 8, 9, 11, 12])
 
 # Kroppssag: planke på underarmene, kroppen skyves bakover og frem ved å vippe i skulderen. Føttene glir.
 BS_E, BS_H = (0.2, FLOOR_Y), (0.2 - LEN["farm"], FLOOR_Y)
@@ -1121,7 +1126,7 @@ def high_knees(which, mid=False):
 put("CARDIO_RUN", "KONDISJON",
     [high_knees(0), high_knees(1, mid=True), high_knees(1), high_knees(0, mid=True), high_knees(0)],
     "Høye knær: oppreist overkropp, knærne vekselvis opp til hoftehøyde og armene i motsatt takt.",
-    keys=[(160, "bytter"), (160, "andre kne opp"), (160, "bytter"), (160, "første kne opp")], front=[3, 4])
+    keys=[(300, "bytter"), (300, "andre kne opp"), (300, "bytter"), (300, "første kne opp")], front=[3, 4])
 
 # Burpee: ned med hendene i gulvet, hopp bakover til planke, inn igjen, opp og hopp med armene over hodet.
 BU_F, BU_H = (0.6, FLOOR_Y), (0.74, FLOOR_Y)

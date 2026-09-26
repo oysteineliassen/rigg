@@ -440,10 +440,10 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
                     p(0.5f, 0.955f) to p(0.5f, 0.765f),
                     p(0.5f, 0.765f) to p(0.5f, 0.575f),
                     p(0.5f, 0.575f) to p(0.5f, 0.325f),
-                    p(0.5f, 0.325f) to p(0.515f, 0.186f),
-                    p(0.515f, 0.186f) to p(0.519f, 0.066f),
+                    p(0.5f, 0.325f) to p(0.534f, 0.189f),
+                    p(0.534f, 0.189f) to p(0.555f, 0.071f),
                 ),
-                dots = listOf(p(0.519f, 0.066f)),
+                dots = listOf(p(0.555f, 0.071f)),
             )),
             // strake armer
             Key(200, Frame(
@@ -452,10 +452,10 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
                     p(0.5f, 0.955f) to p(0.5f, 0.765f),
                     p(0.5f, 0.765f) to p(0.5f, 0.575f),
                     p(0.5f, 0.575f) to p(0.5f, 0.325f),
-                    p(0.5f, 0.325f) to p(0.515f, 0.186f),
-                    p(0.515f, 0.186f) to p(0.519f, 0.066f),
+                    p(0.5f, 0.325f) to p(0.534f, 0.189f),
+                    p(0.534f, 0.189f) to p(0.555f, 0.071f),
                 ),
-                dots = listOf(p(0.519f, 0.066f)),
+                dots = listOf(p(0.555f, 0.071f)),
             )),
             // ned til skuldrene
             Key(350, Frame(
@@ -2361,144 +2361,145 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
         ),
     ),
     IllustrationType.SEATED_TWIST to Pose(
-        // Russian twist sett forfra: sittende med knærne opp og overkroppen lent litt bakover. Manualen føres fra side til side ved at overkroppen vris.
-        head = p(0.5f, 0.57f),
+        // Russian twist sett forfra: sittende med knærne opp foran brystet og overkroppen lent litt bakover. Overkroppen vris, så manualen føres ned ved hofta på den ene siden, så den andre.
+        head = p(0.5f, 0.55f),
         lines = listOf(
-            p(0.328f, 0.949f) to p(0.361f, 0.762f),
-            p(0.361f, 0.762f) to p(0.45f, 0.93f),
-            p(0.45f, 0.93f) to p(0.5f, 0.93f),
-            p(0.5f, 0.93f) to p(0.5f, 0.68f),
-            p(0.5f, 0.68f) to p(0.415f, 0.66f),
-            p(0.415f, 0.66f) to p(0.38f, 0.796f),
-            p(0.38f, 0.796f) to p(0.5f, 0.8f),
-            p(0.5f, 0.93f) to p(0.55f, 0.93f),
-            p(0.55f, 0.93f) to p(0.639f, 0.762f),
-            p(0.639f, 0.762f) to p(0.672f, 0.949f),
-            p(0.5f, 0.68f) to p(0.585f, 0.66f),
-            p(0.585f, 0.66f) to p(0.624f, 0.794f),
-            p(0.624f, 0.794f) to p(0.504f, 0.8f),
+            p(0.425f, 0.845f) to p(0.455f, 0.72f),
+            p(0.455f, 0.72f) to p(0.45f, 0.935f),
+            p(0.45f, 0.935f) to p(0.5f, 0.935f),
+            p(0.5f, 0.935f) to p(0.5f, 0.64f),
+            p(0.5f, 0.64f) to p(0.415f, 0.64f),
+            p(0.415f, 0.64f) to p(0.405f, 0.73f),
+            p(0.405f, 0.73f) to p(0.5f, 0.735f),
+            p(0.5f, 0.935f) to p(0.55f, 0.935f),
+            p(0.55f, 0.935f) to p(0.545f, 0.72f),
+            p(0.545f, 0.72f) to p(0.575f, 0.845f),
+            p(0.5f, 0.64f) to p(0.585f, 0.64f),
+            p(0.585f, 0.64f) to p(0.595f, 0.73f),
+            p(0.595f, 0.73f) to p(0.504f, 0.735f),
         ),
-        dots = listOf(p(0.5f, 0.79f)),
+        dots = listOf(p(0.502f, 0.74f)),
+        front = setOf(0, 1, 5, 6, 8, 9, 11, 12),
         sequence = listOf(
             // vri mot venstre
-            Key(500, Frame(
-                head = p(0.444f, 0.57f),
+            Key(550, Frame(
+                head = p(0.464f, 0.55f),
                 lines = listOf(
-                    p(0.328f, 0.949f) to p(0.361f, 0.762f),
-                    p(0.361f, 0.762f) to p(0.45f, 0.93f),
-                    p(0.45f, 0.93f) to p(0.5f, 0.93f),
-                    p(0.5f, 0.93f) to p(0.5f, 0.68f),
-                    p(0.5f, 0.68f) to p(0.38f, 0.648f),
-                    p(0.38f, 0.648f) to p(0.275f, 0.74f),
-                    p(0.275f, 0.74f) to p(0.28f, 0.86f),
-                    p(0.5f, 0.93f) to p(0.55f, 0.93f),
-                    p(0.55f, 0.93f) to p(0.639f, 0.762f),
-                    p(0.639f, 0.762f) to p(0.672f, 0.949f),
-                    p(0.5f, 0.68f) to p(0.55f, 0.672f),
-                    p(0.55f, 0.672f) to p(0.407f, 0.773f),
-                    p(0.407f, 0.773f) to p(0.284f, 0.86f),
+                    p(0.425f, 0.845f) to p(0.455f, 0.72f),
+                    p(0.455f, 0.72f) to p(0.45f, 0.935f),
+                    p(0.45f, 0.935f) to p(0.5f, 0.935f),
+                    p(0.5f, 0.935f) to p(0.5f, 0.64f),
+                    p(0.5f, 0.64f) to p(0.4f, 0.65f),
+                    p(0.4f, 0.65f) to p(0.37f, 0.77f),
+                    p(0.37f, 0.77f) to p(0.3f, 0.89f),
+                    p(0.5f, 0.935f) to p(0.55f, 0.935f),
+                    p(0.55f, 0.935f) to p(0.545f, 0.72f),
+                    p(0.545f, 0.72f) to p(0.575f, 0.845f),
+                    p(0.5f, 0.64f) to p(0.54f, 0.65f),
+                    p(0.54f, 0.65f) to p(0.4f, 0.77f),
+                    p(0.4f, 0.77f) to p(0.304f, 0.89f),
                 ),
-                dots = listOf(p(0.28f, 0.85f)),
+                dots = listOf(p(0.302f, 0.895f)),
             )),
             // manualen ned ved hofta
-            Key(150, Frame(
-                head = p(0.444f, 0.57f),
+            Key(200, Frame(
+                head = p(0.464f, 0.55f),
                 lines = listOf(
-                    p(0.328f, 0.949f) to p(0.361f, 0.762f),
-                    p(0.361f, 0.762f) to p(0.45f, 0.93f),
-                    p(0.45f, 0.93f) to p(0.5f, 0.93f),
-                    p(0.5f, 0.93f) to p(0.5f, 0.68f),
-                    p(0.5f, 0.68f) to p(0.38f, 0.648f),
-                    p(0.38f, 0.648f) to p(0.275f, 0.74f),
-                    p(0.275f, 0.74f) to p(0.28f, 0.86f),
-                    p(0.5f, 0.93f) to p(0.55f, 0.93f),
-                    p(0.55f, 0.93f) to p(0.639f, 0.762f),
-                    p(0.639f, 0.762f) to p(0.672f, 0.949f),
-                    p(0.5f, 0.68f) to p(0.55f, 0.672f),
-                    p(0.55f, 0.672f) to p(0.407f, 0.773f),
-                    p(0.407f, 0.773f) to p(0.284f, 0.86f),
+                    p(0.425f, 0.845f) to p(0.455f, 0.72f),
+                    p(0.455f, 0.72f) to p(0.45f, 0.935f),
+                    p(0.45f, 0.935f) to p(0.5f, 0.935f),
+                    p(0.5f, 0.935f) to p(0.5f, 0.64f),
+                    p(0.5f, 0.64f) to p(0.4f, 0.65f),
+                    p(0.4f, 0.65f) to p(0.37f, 0.77f),
+                    p(0.37f, 0.77f) to p(0.3f, 0.89f),
+                    p(0.5f, 0.935f) to p(0.55f, 0.935f),
+                    p(0.55f, 0.935f) to p(0.545f, 0.72f),
+                    p(0.545f, 0.72f) to p(0.575f, 0.845f),
+                    p(0.5f, 0.64f) to p(0.54f, 0.65f),
+                    p(0.54f, 0.65f) to p(0.4f, 0.77f),
+                    p(0.4f, 0.77f) to p(0.304f, 0.89f),
                 ),
-                dots = listOf(p(0.28f, 0.85f)),
+                dots = listOf(p(0.302f, 0.895f)),
             )),
             // tilbake
-            Key(450, Frame(
-                head = p(0.5f, 0.57f),
+            Key(500, Frame(
+                head = p(0.5f, 0.55f),
                 lines = listOf(
-                    p(0.328f, 0.949f) to p(0.361f, 0.762f),
-                    p(0.361f, 0.762f) to p(0.45f, 0.93f),
-                    p(0.45f, 0.93f) to p(0.5f, 0.93f),
-                    p(0.5f, 0.93f) to p(0.5f, 0.68f),
-                    p(0.5f, 0.68f) to p(0.415f, 0.66f),
-                    p(0.415f, 0.66f) to p(0.38f, 0.796f),
-                    p(0.38f, 0.796f) to p(0.5f, 0.8f),
-                    p(0.5f, 0.93f) to p(0.55f, 0.93f),
-                    p(0.55f, 0.93f) to p(0.639f, 0.762f),
-                    p(0.639f, 0.762f) to p(0.672f, 0.949f),
-                    p(0.5f, 0.68f) to p(0.585f, 0.66f),
-                    p(0.585f, 0.66f) to p(0.624f, 0.794f),
-                    p(0.624f, 0.794f) to p(0.504f, 0.8f),
+                    p(0.425f, 0.845f) to p(0.455f, 0.72f),
+                    p(0.455f, 0.72f) to p(0.45f, 0.935f),
+                    p(0.45f, 0.935f) to p(0.5f, 0.935f),
+                    p(0.5f, 0.935f) to p(0.5f, 0.64f),
+                    p(0.5f, 0.64f) to p(0.415f, 0.64f),
+                    p(0.415f, 0.64f) to p(0.405f, 0.73f),
+                    p(0.405f, 0.73f) to p(0.5f, 0.735f),
+                    p(0.5f, 0.935f) to p(0.55f, 0.935f),
+                    p(0.55f, 0.935f) to p(0.545f, 0.72f),
+                    p(0.545f, 0.72f) to p(0.575f, 0.845f),
+                    p(0.5f, 0.64f) to p(0.585f, 0.64f),
+                    p(0.585f, 0.64f) to p(0.595f, 0.73f),
+                    p(0.595f, 0.73f) to p(0.504f, 0.735f),
                 ),
-                dots = listOf(p(0.5f, 0.79f)),
+                dots = listOf(p(0.502f, 0.74f)),
             )),
             // vri mot høyre
-            Key(500, Frame(
-                head = p(0.556f, 0.57f),
+            Key(550, Frame(
+                head = p(0.536f, 0.55f),
                 lines = listOf(
-                    p(0.328f, 0.949f) to p(0.361f, 0.762f),
-                    p(0.361f, 0.762f) to p(0.45f, 0.93f),
-                    p(0.45f, 0.93f) to p(0.5f, 0.93f),
-                    p(0.5f, 0.93f) to p(0.5f, 0.68f),
-                    p(0.5f, 0.68f) to p(0.45f, 0.672f),
-                    p(0.45f, 0.672f) to p(0.595f, 0.773f),
-                    p(0.595f, 0.773f) to p(0.72f, 0.86f),
-                    p(0.5f, 0.93f) to p(0.55f, 0.93f),
-                    p(0.55f, 0.93f) to p(0.639f, 0.762f),
-                    p(0.639f, 0.762f) to p(0.672f, 0.949f),
-                    p(0.5f, 0.68f) to p(0.62f, 0.648f),
-                    p(0.62f, 0.648f) to p(0.628f, 0.788f),
-                    p(0.628f, 0.788f) to p(0.724f, 0.86f),
+                    p(0.425f, 0.845f) to p(0.455f, 0.72f),
+                    p(0.455f, 0.72f) to p(0.45f, 0.935f),
+                    p(0.45f, 0.935f) to p(0.5f, 0.935f),
+                    p(0.5f, 0.935f) to p(0.5f, 0.64f),
+                    p(0.5f, 0.64f) to p(0.46f, 0.65f),
+                    p(0.46f, 0.65f) to p(0.56f, 0.77f),
+                    p(0.56f, 0.77f) to p(0.7f, 0.89f),
+                    p(0.5f, 0.935f) to p(0.55f, 0.935f),
+                    p(0.55f, 0.935f) to p(0.545f, 0.72f),
+                    p(0.545f, 0.72f) to p(0.575f, 0.845f),
+                    p(0.5f, 0.64f) to p(0.6f, 0.65f),
+                    p(0.6f, 0.65f) to p(0.67f, 0.77f),
+                    p(0.67f, 0.77f) to p(0.704f, 0.89f),
                 ),
-                dots = listOf(p(0.72f, 0.85f)),
+                dots = listOf(p(0.702f, 0.895f)),
             )),
             // manualen ned ved hofta
-            Key(150, Frame(
-                head = p(0.556f, 0.57f),
+            Key(200, Frame(
+                head = p(0.536f, 0.55f),
                 lines = listOf(
-                    p(0.328f, 0.949f) to p(0.361f, 0.762f),
-                    p(0.361f, 0.762f) to p(0.45f, 0.93f),
-                    p(0.45f, 0.93f) to p(0.5f, 0.93f),
-                    p(0.5f, 0.93f) to p(0.5f, 0.68f),
-                    p(0.5f, 0.68f) to p(0.45f, 0.672f),
-                    p(0.45f, 0.672f) to p(0.595f, 0.773f),
-                    p(0.595f, 0.773f) to p(0.72f, 0.86f),
-                    p(0.5f, 0.93f) to p(0.55f, 0.93f),
-                    p(0.55f, 0.93f) to p(0.639f, 0.762f),
-                    p(0.639f, 0.762f) to p(0.672f, 0.949f),
-                    p(0.5f, 0.68f) to p(0.62f, 0.648f),
-                    p(0.62f, 0.648f) to p(0.628f, 0.788f),
-                    p(0.628f, 0.788f) to p(0.724f, 0.86f),
+                    p(0.425f, 0.845f) to p(0.455f, 0.72f),
+                    p(0.455f, 0.72f) to p(0.45f, 0.935f),
+                    p(0.45f, 0.935f) to p(0.5f, 0.935f),
+                    p(0.5f, 0.935f) to p(0.5f, 0.64f),
+                    p(0.5f, 0.64f) to p(0.46f, 0.65f),
+                    p(0.46f, 0.65f) to p(0.56f, 0.77f),
+                    p(0.56f, 0.77f) to p(0.7f, 0.89f),
+                    p(0.5f, 0.935f) to p(0.55f, 0.935f),
+                    p(0.55f, 0.935f) to p(0.545f, 0.72f),
+                    p(0.545f, 0.72f) to p(0.575f, 0.845f),
+                    p(0.5f, 0.64f) to p(0.6f, 0.65f),
+                    p(0.6f, 0.65f) to p(0.67f, 0.77f),
+                    p(0.67f, 0.77f) to p(0.704f, 0.89f),
                 ),
-                dots = listOf(p(0.72f, 0.85f)),
+                dots = listOf(p(0.702f, 0.895f)),
             )),
             // tilbake
-            Key(450, Frame(
-                head = p(0.5f, 0.57f),
+            Key(500, Frame(
+                head = p(0.5f, 0.55f),
                 lines = listOf(
-                    p(0.328f, 0.949f) to p(0.361f, 0.762f),
-                    p(0.361f, 0.762f) to p(0.45f, 0.93f),
-                    p(0.45f, 0.93f) to p(0.5f, 0.93f),
-                    p(0.5f, 0.93f) to p(0.5f, 0.68f),
-                    p(0.5f, 0.68f) to p(0.415f, 0.66f),
-                    p(0.415f, 0.66f) to p(0.38f, 0.796f),
-                    p(0.38f, 0.796f) to p(0.5f, 0.8f),
-                    p(0.5f, 0.93f) to p(0.55f, 0.93f),
-                    p(0.55f, 0.93f) to p(0.639f, 0.762f),
-                    p(0.639f, 0.762f) to p(0.672f, 0.949f),
-                    p(0.5f, 0.68f) to p(0.585f, 0.66f),
-                    p(0.585f, 0.66f) to p(0.624f, 0.794f),
-                    p(0.624f, 0.794f) to p(0.504f, 0.8f),
+                    p(0.425f, 0.845f) to p(0.455f, 0.72f),
+                    p(0.455f, 0.72f) to p(0.45f, 0.935f),
+                    p(0.45f, 0.935f) to p(0.5f, 0.935f),
+                    p(0.5f, 0.935f) to p(0.5f, 0.64f),
+                    p(0.5f, 0.64f) to p(0.415f, 0.64f),
+                    p(0.415f, 0.64f) to p(0.405f, 0.73f),
+                    p(0.405f, 0.73f) to p(0.5f, 0.735f),
+                    p(0.5f, 0.935f) to p(0.55f, 0.935f),
+                    p(0.55f, 0.935f) to p(0.545f, 0.72f),
+                    p(0.545f, 0.72f) to p(0.575f, 0.845f),
+                    p(0.5f, 0.64f) to p(0.585f, 0.64f),
+                    p(0.585f, 0.64f) to p(0.595f, 0.73f),
+                    p(0.595f, 0.73f) to p(0.504f, 0.735f),
                 ),
-                dots = listOf(p(0.5f, 0.79f)),
+                dots = listOf(p(0.502f, 0.74f)),
             )),
         ),
     ),
@@ -2566,7 +2567,7 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
         front = setOf(3, 4),
         sequence = listOf(
             // bytter
-            Key(160, Frame(
+            Key(300, Frame(
                 head = p(0.535f, 0.241f),
                 lines = listOf(
                     p(0.51f, 0.925f) to p(0.575f, 0.746f),
@@ -2581,7 +2582,7 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
                 ),
             )),
             // andre kne opp
-            Key(160, Frame(
+            Key(300, Frame(
                 head = p(0.535f, 0.241f),
                 lines = listOf(
                     p(0.67f, 0.749f) to p(0.663f, 0.559f),
@@ -2596,7 +2597,7 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
                 ),
             )),
             // bytter
-            Key(160, Frame(
+            Key(300, Frame(
                 head = p(0.535f, 0.241f),
                 lines = listOf(
                     p(0.46f, 0.955f) to p(0.51f, 0.772f),
@@ -2611,7 +2612,7 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
                 ),
             )),
             // første kne opp
-            Key(160, Frame(
+            Key(300, Frame(
                 head = p(0.535f, 0.241f),
                 lines = listOf(
                     p(0.46f, 0.955f) to p(0.51f, 0.772f),
@@ -2635,74 +2636,74 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
             p(0.589f, 0.787f) to p(0.401f, 0.813f),
             p(0.401f, 0.813f) to p(0.541f, 0.606f),
             p(0.541f, 0.606f) to p(0.42f, 0.676f),
-            p(0.42f, 0.676f) to p(0.328f, 0.753f),
+            p(0.42f, 0.676f) to p(0.316f, 0.736f),
         ),
         front = setOf(3, 4),
         sequence = listOf(
             // eksplosivt opp
-            Key(260, Frame(
+            Key(320, Frame(
                 head = p(0.499f, 0.226f),
                 lines = listOf(
                     p(0.5f, 0.955f) to p(0.507f, 0.765f),
                     p(0.507f, 0.765f) to p(0.489f, 0.576f),
                     p(0.489f, 0.576f) to p(0.496f, 0.326f),
-                    p(0.496f, 0.326f) to p(0.617f, 0.256f),
-                    p(0.617f, 0.256f) to p(0.709f, 0.179f),
+                    p(0.496f, 0.326f) to p(0.634f, 0.302f),
+                    p(0.634f, 0.302f) to p(0.752f, 0.281f),
                 ),
             )),
             // i lufta
-            Key(200, Frame(
+            Key(220, Frame(
                 head = p(0.5f, 0.145f),
                 lines = listOf(
                     p(0.5f, 0.875f) to p(0.5f, 0.685f),
                     p(0.5f, 0.685f) to p(0.5f, 0.495f),
                     p(0.5f, 0.495f) to p(0.5f, 0.245f),
-                    p(0.5f, 0.245f) to p(0.607f, 0.155f),
-                    p(0.607f, 0.155f) to p(0.692f, 0.07f),
+                    p(0.5f, 0.245f) to p(0.604f, 0.151f),
+                    p(0.604f, 0.151f) to p(0.693f, 0.071f),
                 ),
             )),
             // toppen
-            Key(100, Frame(
+            Key(120, Frame(
                 head = p(0.5f, 0.145f),
                 lines = listOf(
                     p(0.5f, 0.875f) to p(0.5f, 0.685f),
                     p(0.5f, 0.685f) to p(0.5f, 0.495f),
                     p(0.5f, 0.495f) to p(0.5f, 0.245f),
-                    p(0.5f, 0.245f) to p(0.607f, 0.155f),
-                    p(0.607f, 0.155f) to p(0.692f, 0.07f),
+                    p(0.5f, 0.245f) to p(0.604f, 0.151f),
+                    p(0.604f, 0.151f) to p(0.693f, 0.071f),
                 ),
             )),
             // lander
-            Key(240, Frame(
+            Key(280, Frame(
                 head = p(0.498f, 0.268f),
                 lines = listOf(
                     p(0.5f, 0.955f) to p(0.532f, 0.768f),
                     p(0.532f, 0.768f) to p(0.425f, 0.611f),
                     p(0.425f, 0.611f) to p(0.477f, 0.366f),
-                    p(0.477f, 0.366f) to p(0.615f, 0.39f),
-                    p(0.615f, 0.39f) to p(0.735f, 0.39f),
+                    p(0.477f, 0.366f) to p(0.604f, 0.425f),
+                    p(0.604f, 0.425f) to p(0.713f, 0.476f),
                 ),
             )),
             // ned i knebøy
-            Key(380, Frame(
+            Key(450, Frame(
                 head = p(0.597f, 0.523f),
                 lines = listOf(
                     p(0.5f, 0.955f) to p(0.589f, 0.787f),
                     p(0.589f, 0.787f) to p(0.401f, 0.813f),
                     p(0.401f, 0.813f) to p(0.541f, 0.606f),
                     p(0.541f, 0.606f) to p(0.42f, 0.676f),
-                    p(0.42f, 0.676f) to p(0.328f, 0.753f),
+                    p(0.42f, 0.676f) to p(0.316f, 0.736f),
                 ),
             )),
             // klar
-            Key(250, Frame(
+            Key(350, Frame(
                 head = p(0.597f, 0.523f),
                 lines = listOf(
                     p(0.5f, 0.955f) to p(0.589f, 0.787f),
                     p(0.589f, 0.787f) to p(0.401f, 0.813f),
                     p(0.401f, 0.813f) to p(0.541f, 0.606f),
                     p(0.541f, 0.606f) to p(0.42f, 0.676f),
-                    p(0.42f, 0.676f) to p(0.328f, 0.753f),
+                    p(0.42f, 0.676f) to p(0.316f, 0.736f),
                 ),
             )),
         ),
@@ -3078,7 +3079,14 @@ private fun solvePose(pose: Pose, end: Frame, k: Float): Solved {
         val anchor = endpoints.minBy { (it - p0).getDistance() }
         return bone(placed.getValue(anchor), anchor, p0, a2b.getValue(anchor), p1, k)
     }
-    val head = attached(pose.head, end.head)
+    // Hodet følger nakken: festepunktet som har samme avstand til hodet i begge stillinger (og er nærmest),
+    // ikke bare det nærmeste. Ellers kan hodet henge på en albue eller hånd som svinger forbi (dead bug, thrusters).
+    val headAnchor = endpoints.minBy {
+        val d0 = (it - pose.head).getDistance()
+        val d1 = (a2b.getValue(it) - end.head).getDistance()
+        d0 + d1 + 3f * abs(d0 - d1)
+    }
+    val head = bone(placed.getValue(headAnchor), headAnchor, pose.head, a2b.getValue(headAnchor), end.head, k)
     val dots = if (end.dots.isNotEmpty() && end.dots.size == pose.dots.size) {
         pose.dots.zip(end.dots) { d0, d1 -> attached(d0, d1) }
     } else {
@@ -3225,8 +3233,6 @@ fun ExerciseIllustration(
                 drawLine(color = strokeColor, start = toPx(a), end = toPx(b), strokeWidth = stroke, cap = StrokeCap.Round)
             }
         }
-        // Hodet tegnes før armene som ligger foran, så en arm som går foran ansiktet (f.eks. triceps-fransk) synes.
-        drawCircle(color = strokeColor, radius = pose.headRadius * size.minDimension, center = toPx(head))
         // Luftkant: klipp et smalt hull rundt armene i det som allerede er tegnet (kroppen bak), og tegn så
         // armene oppå. Starter 30 % ned på armen så skulderleddet henger sammen med kroppen.
         pose.front.forEach { i ->
@@ -3240,6 +3246,8 @@ fun ExerciseIllustration(
                 blendMode = BlendMode.Clear,
             )
         }
+        // Hodet etter luftkanten (så det ikke klippes) men før armene foran, så en arm som går foran ansiktet synes.
+        drawCircle(color = strokeColor, radius = pose.headRadius * size.minDimension, center = toPx(head))
         if (pose.front.isNotEmpty()) drawProps()
         pose.front.forEach { i ->
             val (a, b) = lines[i]

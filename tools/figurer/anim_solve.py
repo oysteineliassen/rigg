@@ -115,7 +115,12 @@ def solve(pose, end, k, ground=None):
         anchor = min(endpoints, key=lambda q: math.dist(q, p0))
         return bone(placed[anchor], anchor, p0, a2b[anchor], p1, k)
 
-    head = attached(pose["head"], end["head"])
+    # Hodet følger nakken: festepunktet som har samme avstand til hodet i begge stillinger (og er nærmest),
+    # ikke bare det nærmeste. Ellers kan hodet henge på en albue eller hånd som svinger forbi (dead bug, thrusters).
+    h0, h1 = pose["head"], end["head"]
+    anchor = min(endpoints, key=lambda q: math.dist(q, h0) + math.dist(a2b[q], h1)
+                 + 3 * abs(math.dist(q, h0) - math.dist(a2b[q], h1)))
+    head = bone(placed[anchor], anchor, h0, a2b[anchor], h1, k)
     dots = [attached(d0, d1) for d0, d1 in zip(pose["dots"], end["dots"])] \
         if end["dots"] and len(end["dots"]) == len(pose["dots"]) else pose["dots"]
     if end["props"] and len(end["props"]) == len(pose["props"]):
