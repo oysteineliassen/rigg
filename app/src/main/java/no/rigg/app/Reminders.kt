@@ -23,7 +23,8 @@ private const val REQUEST_CODE_BASE = 5000
 
 /** Ukedagen som tall, samme rekkefølge som java.time.DayOfWeek (1 = mandag .. 7 = søndag). */
 fun dayLabel(iso: Int): String = when (iso) {
-    1 -> "Man"; 2 -> "Tir"; 3 -> "Ons"; 4 -> "Tor"; 5 -> "Fre"; 6 -> "Lør"; else -> "Søn"
+    1 -> tr("Mon", "Man"); 2 -> tr("Tue", "Tir"); 3 -> tr("Wed", "Ons"); 4 -> tr("Thu", "Tor")
+    5 -> tr("Fri", "Fre"); 6 -> tr("Sat", "Lør"); else -> tr("Sun", "Søn")
 }
 
 /**
@@ -73,7 +74,7 @@ object ReminderScheduler {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             nm.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "Treningspåminnelser", NotificationManager.IMPORTANCE_DEFAULT),
+                NotificationChannel(CHANNEL_ID, tr("Workout reminders", "Treningspåminnelser"), NotificationManager.IMPORTANCE_DEFAULT),
             )
         }
     }
@@ -91,8 +92,8 @@ class ReminderReceiver : BroadcastReceiver() {
         )
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle("Tid for trening")
-            .setContentText("Dagens økt venter. Åpne appen for å se programmet.")
+            .setContentTitle(tr("Time to train", "Tid for trening"))
+            .setContentText(tr("Today's workout is waiting. Open the app to see your program.", "Dagens økt venter. Åpne appen for å se programmet."))
             .setAutoCancel(true)
             .setContentIntent(openApp)
             .build()

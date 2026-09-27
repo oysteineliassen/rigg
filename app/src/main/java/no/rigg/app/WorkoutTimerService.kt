@@ -171,14 +171,14 @@ class WorkoutTimerService : Service() {
             .setContentIntent(openApp)
         when {
             rest != null -> builder
-                .setContentTitle("Hvile")
-                .setContentText(session?.let { "Økt: ${it.dayTitle}" } ?: "Pausen er i gang")
+                .setContentTitle(tr("Rest", "Hvile"))
+                .setContentText(session?.let { tr("Workout: ${it.dayTitle}", "Økt: ${it.dayTitle}") } ?: tr("Rest in progress", "Pausen er i gang"))
                 .setShowWhen(true)
                 .setUsesChronometer(true)
                 .setChronometerCountDown(true)
                 .setWhen(System.currentTimeMillis() + rest.remainingMs().coerceAtLeast(0))
             session != null -> builder
-                .setContentTitle("Økt pågår")
+                .setContentTitle(tr("Workout in progress", "Økt pågår"))
                 .setContentText(session.dayTitle)
                 .setShowWhen(true)
                 .setUsesChronometer(true)
@@ -199,7 +199,7 @@ class WorkoutTimerService : Service() {
         fun ensureChannel(context: Context) {
             val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             // Lav viktighet: varselet skal ikke lage lyd selv, pipene kommer fra Beeper.
-            nm.createNotificationChannel(NotificationChannel(CHANNEL_ID, "Pågående økt", NotificationManager.IMPORTANCE_LOW))
+            nm.createNotificationChannel(NotificationChannel(CHANNEL_ID, tr("Active workout", "Pågående økt"), NotificationManager.IMPORTANCE_LOW))
         }
     }
 }

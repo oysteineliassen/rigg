@@ -23,7 +23,7 @@ fun historyFor(logs: List<SessionLog>, exercise: Exercise): List<ProgressPoint> 
         val maxWeight = result.sets.mapNotNull { it.weightKg }.maxOrNull()
         val (value, unit) = when {
             exercise.isWeighted() && maxWeight != null -> maxWeight to "kg"
-            exercise.timed -> result.sets.maxOf { it.reps }.toDouble() to "sek"
+            exercise.timed -> result.sets.maxOf { it.reps }.toDouble() to tr("sec", "sek")
             else -> result.sets.maxOf { it.reps }.toDouble() to "reps"
         }
         ProgressPoint(date, value, unit)
@@ -57,21 +57,30 @@ object ProgressionAdvisor {
         val last = lastResult(logs, exercise.id) ?: return null
         if (last.sets.isEmpty()) return null
 
-        val unit = if (exercise.timed) "sek" else "reps"
+        val unit = if (exercise.timed) tr("sec", "sek") else "reps"
         val range = parseRepRange(planned.reps)
         val minAchieved = last.sets.minOf { it.reps }
         val lastWeight = last.sets.mapNotNull { it.weightKg }.maxOrNull()
-        val weightText = lastWeight?.let { " med ${formatWeight(it)} kg" } ?: ""
+        val weightText = lastWeight?.let { tr(" with ${formatWeight(it)} kg", " med ${formatWeight(it)} kg") } ?: ""
 
         val allHitTop = range != null && last.sets.all { it.reps >= range.last }
 
         return when {
             allHitTop && exercise.isWeighted() && lastWeight != null ->
-                "Sist: alle sett nådde ${range!!.last}+ $unit$weightText. Øk vekten litt neste gang, eller prøv en tyngre variant."
+                tr(
+                    "Last time: every set reached ${range!!.last}+ $unit$weightText. Add a little weight next time, or try a harder variation.",
+                    "Sist: alle sett nådde ${range!!.last}+ $unit$weightText. Øk vekten litt neste gang, eller prøv en tyngre variant.",
+                )
             allHitTop ->
-                "Sist: alle sett nådde ${range!!.last}+ $unit$weightText. Prøv en vanskeligere variant, tregere tempo eller kortere pause."
+                tr(
+                    "Last time: every set reached ${range!!.last}+ $unit$weightText. Try a harder variation, slower tempo or shorter rest.",
+                    "Sist: alle sett nådde ${range!!.last}+ $unit$weightText. Prøv en vanskeligere variant, tregere tempo eller kortere pause.",
+                )
             else ->
-                "Sist: laveste sett var $minAchieved $unit$weightText. Prøv å matche eller slå det denne gangen."
+                tr(
+                    "Last time: your lowest set was $minAchieved $unit$weightText. Try to match or beat it this time.",
+                    "Sist: laveste sett var $minAchieved $unit$weightText. Prøv å matche eller slå det denne gangen.",
+                )
         }
     }
 }

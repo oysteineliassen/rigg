@@ -15,6 +15,13 @@ filene i prosjektet. Kjør deretter i Terminal-fanen nederst i Android Studio:
 Da blir endringen en egen commit som du kan se i Git-fanen, og angre med `git revert` hvis noe er galt.
 Har du endret noe selv, commit det først, så holdes endringene adskilt.
 
+## Språk
+Appen er engelsk i bunn og norsk når telefonens systemspråk er norsk (bokmål, nynorsk eller «no").
+Alle andre språk får engelsk. Tekstene står i koden som `tr("English", "Norsk")` (se `I18n.kt`),
+og øvelsene har navn og notat på begge språk i `ExerciseLibrary.kt`. Videosøket på YouTube bruker alltid
+det engelske øvelsesnavnet, fordi det gir flest treff. Program som allerede er laget, beholder språket de
+ble laget på; lag et nytt program for å få det på det andre språket.
+
 ## AI
 - **Med API-nøkkel:** Fanen «Mer» > AI > velg leverandør, lim inn nøkkel. Nøkkelen lagres kun lokalt.
   - Claude: console.anthropic.com > API keys

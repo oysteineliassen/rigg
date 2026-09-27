@@ -21,14 +21,20 @@ object ProgramGenerator {
     private val PUSH_DAY = listOf(Slot(PUSH, CHEST), Slot(PUSH, SHOULDERS), Slot(PUSH, CHEST), Slot(PUSH, TRICEPS), Slot(CORE))
     private val PULL_DAY = listOf(Slot(PULL, BACK), Slot(PULL, BACK), Slot(PULL, BICEPS), Slot(PULL, SHOULDERS), Slot(CORE))
 
-    private fun template(days: Int): List<Pair<String, List<Slot>>> = when (days.coerceIn(1, 6)) {
-        1 -> listOf("Helkropp" to FULL_A)
-        2 -> listOf("Helkropp A" to FULL_A, "Helkropp B" to FULL_B)
-        3 -> listOf("Helkropp A" to FULL_A, "Helkropp B" to FULL_B, "Helkropp C" to FULL_C)
-        4 -> listOf("Overkropp A" to UPPER, "Underkropp A" to LOWER, "Overkropp B" to UPPER, "Underkropp B" to LOWER)
-        5 -> listOf("Push" to PUSH_DAY, "Pull" to PULL_DAY, "Bein" to LOWER, "Overkropp" to UPPER, "Underkropp" to LOWER)
-        else -> listOf("Push A" to PUSH_DAY, "Pull A" to PULL_DAY, "Bein A" to LOWER,
-            "Push B" to PUSH_DAY, "Pull B" to PULL_DAY, "Bein B" to LOWER)
+    private fun template(days: Int): List<Pair<String, List<Slot>>> {
+        val full = tr("Full body", "Helkropp")
+        val upper = tr("Upper body", "Overkropp")
+        val lower = tr("Lower body", "Underkropp")
+        val legs = tr("Legs", "Bein")
+        return when (days.coerceIn(1, 6)) {
+            1 -> listOf(full to FULL_A)
+            2 -> listOf("$full A" to FULL_A, "$full B" to FULL_B)
+            3 -> listOf("$full A" to FULL_A, "$full B" to FULL_B, "$full C" to FULL_C)
+            4 -> listOf("$upper A" to UPPER, "$lower A" to LOWER, "$upper B" to UPPER, "$lower B" to LOWER)
+            5 -> listOf("Push" to PUSH_DAY, "Pull" to PULL_DAY, legs to LOWER, upper to UPPER, lower to LOWER)
+            else -> listOf("Push A" to PUSH_DAY, "Pull A" to PULL_DAY, "$legs A" to LOWER,
+                "Push B" to PUSH_DAY, "Pull B" to PULL_DAY, "$legs B" to LOWER)
+        }
     }
 
     private fun maxLevel(l: Level) = when (l) { Level.BEGINNER -> 1; Level.INTERMEDIATE -> 2; Level.ADVANCED -> 3 }
@@ -39,7 +45,7 @@ object ProgramGenerator {
             Goal.HYPERTROPHY -> "8-12"
             Goal.FITNESS -> "12-15"
         }
-        val timedText = if (level == Level.ADVANCED) "45-60 sek" else "30-45 sek"
+        val timedText = if (level == Level.ADVANCED) tr("45-60 sec", "45-60 sek") else tr("30-45 sec", "30-45 sek")
         return when {
             ex.timed -> timedText
             ex.pattern == CORE -> "10-15"
@@ -112,21 +118,34 @@ object ProgramGenerator {
 
         // Mangler vi hele bevegelsesmønstre?
         val covered = days.flatMap { d -> d.exercises.mapNotNull { ExerciseLibrary.get(it.exerciseId)?.pattern } }.toSet()
-        if (PULL !in covered) warnings += "Ingen trekkøvelser (rygg) med utstyret ditt. Vurder tverrligger, strikk eller manual."
-        if (PUSH !in covered) warnings += "Ingen pressøvelser med utstyret ditt."
-        if (SQUAT !in covered && LUNGE !in covered) warnings += "Ingen beinøvelser funnet."
+        if (PULL !in covered) warnings += tr(
+            "No pulling exercises (back) with your equipment. Consider a pull-up bar, resistance band or dumbbell.",
+            "Ingen trekkøvelser (rygg) med utstyret ditt. Vurder tverrligger, strikk eller manual.",
+        )
+        if (PUSH !in covered) warnings += tr("No pushing exercises with your equipment.", "Ingen pressøvelser med utstyret ditt.")
+        if (SQUAT !in covered && LUNGE !in covered) warnings += tr("No leg exercises found.", "Ingen beinøvelser funnet.")
         if (owned.none { it in Equipment.loadBearing } && profile.goal != Goal.FITNESS) {
-            warnings += "Uten ekstern vekt blir progresjon via reps, tempo og vanskeligere varianter. Manualer eller kettlebell gir mye mer variasjon."
+            warnings += tr(
+                "Without external weight, progression comes from reps, tempo and harder variations. Dumbbells or a kettlebell give much more variety.",
+                "Uten ekstern vekt blir progresjon via reps, tempo og vanskeligere varianter. Manualer eller kettlebell gir mye mer variasjon.",
+            )
         }
         if (PULL_UP_BAR !in owned && RESISTANCE_BANDS !in owned && DUMBBELLS !in owned && KETTLEBELL !in owned && BARBELL !in owned && TRX !in owned && TABLE !in owned) {
-            warnings += "Rygg er vanskelig å trene uten trekk-utstyr. En tverrligger eller strikker er et billig løft."
+            warnings += tr(
+                "Back is hard to train without pulling equipment. A pull-up bar or resistance bands are a cheap upgrade.",
+                "Rygg er vanskelig å trene uten trekk-utstyr. En tverrligger eller strikker er et billig løft.",
+            )
         }
         if (profile.customEquipment.isNotBlank()) {
-            warnings += "Du har notert eget utstyr (\"${profile.customEquipment}\") som det regelbaserte programmet ikke kjenner til " +
-                "og derfor ikke bruker automatisk. Prøv AI-generering hvis du vil at det skal tas hensyn til."
+            warnings += tr(
+                "You've listed your own equipment (\"${profile.customEquipment}\"), which the rule-based program doesn't know " +
+                    "and therefore won't use automatically. Try AI generation if you want it taken into account.",
+                "Du har notert eget utstyr (\"${profile.customEquipment}\") som det regelbaserte programmet ikke kjenner til " +
+                    "og derfor ikke bruker automatisk. Prøv AI-generering hvis du vil at det skal tas hensyn til.",
+            )
         }
 
-        val name = "${profile.goal.label} - ${days.size} dager i uka"
+        val name = tr("${profile.goal.label} - ${days.size} days a week", "${profile.goal.label} - ${days.size} dager i uka")
         return Generated(Plan(name = name, days = days, progression = progressionText(profile, owned)), warnings)
     }
 
@@ -156,18 +175,18 @@ object ProgramGenerator {
     private fun progressionText(profile: Profile, owned: Set<Equipment>): String {
         val hasWeight = owned.any { it in Equipment.loadBearing }
         val sb = StringBuilder()
-        sb.appendLine("Kjør 4 uker, deretter nytt program eller en lettere uke.")
-        sb.appendLine("Uke 1: Innkjøring. Stopp 3 reps før utmattelse.")
-        sb.appendLine("Uke 2: Samme øvelser, prøv 1-2 flere reps per sett.")
-        sb.appendLine("Uke 3: Tregere tempo (3 sekunder ned) eller kortere pauser (-15 sek).")
-        sb.appendLine("Uke 4: Gå nær utmattelse (1-2 reps igjen) på siste sett i hver øvelse.")
+        sb.appendLine(tr("Run for 4 weeks, then switch to a new program or take a lighter week.", "Kjør 4 uker, deretter nytt program eller en lettere uke."))
+        sb.appendLine(tr("Week 1: Break-in. Stop 3 reps short of failure.", "Uke 1: Innkjøring. Stopp 3 reps før utmattelse."))
+        sb.appendLine(tr("Week 2: Same exercises, aim for 1-2 more reps per set.", "Uke 2: Samme øvelser, prøv 1-2 flere reps per sett."))
+        sb.appendLine(tr("Week 3: Slower tempo (3 seconds down) or shorter rests (-15 sec).", "Uke 3: Tregere tempo (3 sekunder ned) eller kortere pauser (-15 sek)."))
+        sb.appendLine(tr("Week 4: Go close to failure (1-2 reps left) on the last set of each exercise.", "Uke 4: Gå nær utmattelse (1-2 reps igjen) på siste sett i hver øvelse."))
         sb.appendLine()
-        sb.appendLine("Dobbel progresjon: Klarer du øvre repetisjonstall på alle sett, gå til neste steg:")
-        if (hasWeight) sb.appendLine("- Øk vekten litt, eller bruk en tyngre variant.")
-        sb.appendLine("- Bytt til en unilateral variant (én arm eller ett ben).")
-        sb.appendLine("- Legg inn pause i bunnen, eller bruk 3-1-1 tempo.")
-        if (RESISTANCE_BANDS in owned) sb.appendLine("- Bruk en tyngre strikk eller doble strikken.")
-        if (!hasWeight) sb.appendLine("- Uten vekter er det varianter som gjør øvelsen tyngre, ikke flere reps i det uendelige.")
+        sb.appendLine(tr("Double progression: once you hit the top of the rep range on all sets, move to the next step:", "Dobbel progresjon: Klarer du øvre repetisjonstall på alle sett, gå til neste steg:"))
+        if (hasWeight) sb.appendLine(tr("- Add a little weight, or use a harder variation.", "- Øk vekten litt, eller bruk en tyngre variant."))
+        sb.appendLine(tr("- Switch to a unilateral variation (one arm or one leg).", "- Bytt til en unilateral variant (én arm eller ett ben)."))
+        sb.appendLine(tr("- Add a pause at the bottom, or use a 3-1-1 tempo.", "- Legg inn pause i bunnen, eller bruk 3-1-1 tempo."))
+        if (RESISTANCE_BANDS in owned) sb.appendLine(tr("- Use a heavier band or double up the band.", "- Bruk en tyngre strikk eller doble strikken."))
+        if (!hasWeight) sb.appendLine(tr("- Without weights, harder variations are what make an exercise tougher, not endlessly adding reps.", "- Uten vekter er det varianter som gjør øvelsen tyngre, ikke flere reps i det uendelige."))
         return sb.toString().trim()
     }
 }

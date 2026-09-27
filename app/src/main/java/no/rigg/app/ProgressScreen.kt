@@ -27,7 +27,8 @@ import androidx.compose.ui.window.Dialog
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-private val DATE_FMT = DateTimeFormatter.ofPattern("d. MMM", Locale.forLanguageTag("no"))
+private val DATE_FMT: DateTimeFormatter
+    get() = DateTimeFormatter.ofPattern(tr("MMM d", "d. MMM"), Locale.getDefault())
 
 @Composable
 fun ProgressScreen(vm: AppViewModel) {
@@ -35,15 +36,18 @@ fun ProgressScreen(vm: AppViewModel) {
     var selectedId by remember { mutableStateOf<String?>(null) }
 
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Fremgang", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text(tr("Progress", "Fremgang"), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
 
         if (ids.isEmpty()) {
             Text(
-                "Ingen loggførte økter ennå.",
+                tr("No logged workouts yet.", "Ingen loggførte økter ennå."),
                 style = MaterialTheme.typography.bodyMedium,
             )
             Text(
-                "Logg en økt med reps og vekt på Program-fanen, så vises fremgangen din her.",
+                tr(
+                    "Log a workout with reps and weight on the Plan tab, and your progress will show up here.",
+                    "Logg en økt med reps og vekt på Program-fanen, så vises fremgangen din her.",
+                ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -61,7 +65,10 @@ fun ProgressScreen(vm: AppViewModel) {
                                     Text(ex.name, fontWeight = FontWeight.Medium)
                                     val last = history.last()
                                     Text(
-                                        "${history.size} økter logget · sist ${formatWeight(last.value)} ${last.unit}",
+                                        tr(
+                                            "${history.size} ${if (history.size == 1) "session" else "sessions"} logged · last ${formatWeight(last.value)} ${last.unit}",
+                                            "${history.size} økter logget · sist ${formatWeight(last.value)} ${last.unit}",
+                                        ),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
@@ -93,7 +100,7 @@ fun ProgressScreen(vm: AppViewModel) {
                         Text(id)
                     }
                     Spacer(Modifier.height(16.dp))
-                    TextButton(onClick = { selectedId = null }, modifier = Modifier.align(Alignment.End)) { Text("Lukk") }
+                    TextButton(onClick = { selectedId = null }, modifier = Modifier.align(Alignment.End)) { Text(tr("Close", "Lukk")) }
                 }
             }
         }
@@ -108,11 +115,11 @@ private fun ExerciseProgressChart(history: List<ProgressPoint>) {
 
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Column {
-            Text("Siste", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(tr("Latest", "Siste"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text("${formatWeight(last.value)} ${last.unit}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         }
         Column(horizontalAlignment = Alignment.End) {
-            Text("Beste", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(tr("Best", "Beste"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text("${formatWeight(best.value)} ${best.unit}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         }
     }
@@ -120,7 +127,7 @@ private fun ExerciseProgressChart(history: List<ProgressPoint>) {
 
     if (history.size < 2) {
         Text(
-            "Logg minst to økter med denne øvelsen for å se en graf.",
+            tr("Log at least two sessions with this exercise to see a chart.", "Logg minst to økter med denne øvelsen for å se en graf."),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -135,7 +142,10 @@ private fun ExerciseProgressChart(history: List<ProgressPoint>) {
     }
     Spacer(Modifier.height(8.dp))
     Text(
-        "${history.size} loggførte økter",
+        tr(
+            "${history.size} logged ${if (history.size == 1) "session" else "sessions"}",
+            "${history.size} loggførte økter",
+        ),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )

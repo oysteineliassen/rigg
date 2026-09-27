@@ -2,19 +2,21 @@ package no.rigg.app
 
 import kotlinx.serialization.Serializable
 
-enum class Equipment(val label: String) {
-    BODYWEIGHT("Kroppsvekt"), // alltid tilgjengelig, vises ikke som valg
-    DUMBBELLS("Manualer"),
-    KETTLEBELL("Kettlebell"),
-    RESISTANCE_BANDS("Strikk"),
-    PULL_UP_BAR("Tverrligger"),
-    BENCH("Benk"),
-    PLYO_BOX("Hoppekasse"),
-    BARBELL("Stang og skiver"),
-    CHAIR("Solid stol/sofa"),
-    TABLE("Solid bord"),
-    TRX("Slynger (TRX)"),
-    JUMP_ROPE("Hoppetau");
+enum class Equipment(private val en: String, private val no: String) {
+    BODYWEIGHT("Bodyweight", "Kroppsvekt"), // alltid tilgjengelig, vises ikke som valg
+    DUMBBELLS("Dumbbells", "Manualer"),
+    KETTLEBELL("Kettlebell", "Kettlebell"),
+    RESISTANCE_BANDS("Resistance bands", "Strikk"),
+    PULL_UP_BAR("Pull-up bar", "Tverrligger"),
+    BENCH("Bench", "Benk"),
+    PLYO_BOX("Plyo box", "Hoppekasse"),
+    BARBELL("Barbell and plates", "Stang og skiver"),
+    CHAIR("Sturdy chair/sofa", "Solid stol/sofa"),
+    TABLE("Sturdy table", "Solid bord"),
+    TRX("Suspension trainer (TRX)", "Slynger (TRX)"),
+    JUMP_ROPE("Jump rope", "Hoppetau");
+
+    val label: String get() = tr(en, no)
 
     companion object {
         val selectable: List<Equipment> get() = values().filter { it != BODYWEIGHT }
@@ -28,30 +30,42 @@ enum class Muscle { CHEST, BACK, SHOULDERS, BICEPS, TRICEPS, QUADS, GLUTES_HAMS,
 
 enum class Pattern { PUSH, PULL, SQUAT, HINGE, LUNGE, CORE, CARDIO }
 
-enum class Goal(val label: String) {
-    STRENGTH("Styrke"),
-    HYPERTROPHY("Muskelvekst"),
-    FITNESS("Generell form")
+enum class Goal(private val en: String, private val no: String) {
+    STRENGTH("Strength", "Styrke"),
+    HYPERTROPHY("Muscle growth", "Muskelvekst"),
+    FITNESS("General fitness", "Generell form");
+
+    val label: String get() = tr(en, no)
 }
 
-enum class Level(val label: String) {
-    BEGINNER("Nybegynner"),
-    INTERMEDIATE("Erfaren"),
-    ADVANCED("Avansert")
+enum class Level(private val en: String, private val no: String) {
+    BEGINNER("Beginner", "Nybegynner"),
+    INTERMEDIATE("Intermediate", "Erfaren"),
+    ADVANCED("Advanced", "Avansert");
+
+    val label: String get() = tr(en, no)
 }
 
 /** En øvelse i biblioteket. requiresAll: alt må finnes. requiresAny: minst ett må finnes (tom = ingen krav). */
 data class Exercise(
     val id: String,
-    val name: String,
+    val names: Txt,
     val pattern: Pattern,
     val muscles: List<Muscle>,
     val requiresAll: Set<Equipment>,
     val requiresAny: Set<Equipment>,
     val level: Int, // 1 = enkel, 2 = middels, 3 = krevende
     val timed: Boolean,
-    val note: String,
+    val notes: Txt,
 ) {
+    /** Navnet på telefonens språk. */
+    val name: String get() = names.get()
+
+    /** Engelsk navn: brukes i videosøk (flest videoer) og i AI-prompten. */
+    val nameEn: String get() = names.en
+
+    val note: String get() = notes.get()
+
     /** True hvis øvelsen bruker utstyr man kan legge på mer belastning på (manualer, kettlebell, stang, strikk, TRX). */
     fun isWeighted(): Boolean = (requiresAll + requiresAny).any { it in Equipment.loadBearing }
 }

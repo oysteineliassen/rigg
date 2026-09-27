@@ -29,55 +29,94 @@ object AiClient {
     fun buildPrompt(profile: Profile): String {
         val available = ExerciseLibrary.available(profile.equipment)
         val list = available.joinToString("\n") {
-            "- ${it.id} | ${it.name} | ${it.pattern} | ${it.muscles.joinToString("/")} | nivå ${it.level}" +
-                if (it.timed) " | tid" else ""
+            "- ${it.id} | ${it.nameEn} | ${it.pattern} | ${it.muscles.joinToString("/")} | level ${it.level}" +
+                if (it.timed) " | timed" else ""
         }
-        val equipmentText = (profile.equipment.map { it.label } + "Kroppsvekt").joinToString(", ")
+        val equipmentText = (profile.equipment.map { englishLabel(it) } + "Bodyweight").joinToString(", ")
+        val norwegian = Lang.isNorwegian
+        val languageRule = if (norwegian) {
+            "Write all text values (name, progression, day titles, tips) in Norwegian (bokmål)."
+        } else {
+            "Write all text values (name, progression, day titles, tips) in English."
+        }
+        val exampleTitle = if (norwegian) "Dag 1 - Helkropp" else "Day 1 - Full body"
+        val exampleTimed = if (norwegian) "30-45 sek" else "30-45 sec"
         return """
-Du er en erfaren styrketrener. Lag et 4-ukers treningsprogram for en person som trener hjemme med begrenset utstyr.
+You are an experienced strength coach. Create a 4-week training program for a person who trains at home with limited equipment.
 
-PROFIL
-- Utstyr: $equipmentText
-- Detaljer om utstyret: ${profile.equipmentDetails.ifBlank { "ingen oppgitt" }}
-- Annet utstyr personen har utover det som er listet (du kan referere til dette i "tip" og progresjonsteksten, men velg fortsatt kun øvelser med id fra listen under): ${profile.customEquipment.ifBlank { "ingen oppgitt" }}
-- Mål: ${profile.goal.label}
-- Nivå: ${profile.level.label}
-- Dager per uke: ${profile.daysPerWeek}
-- Tid per økt: ${profile.minutesPerSession} minutter (inkludert 5 min oppvarming)
-- Andre ønsker og skader: ${profile.notes.ifBlank { "ingen" }}
+PROFILE
+- Equipment: $equipmentText
+- Equipment details: ${profile.equipmentDetails.ifBlank { "none given" }}
+- Other equipment the person has beyond what is listed (you may refer to it in "tip" and the progression text, but still only choose exercises by id from the list below): ${profile.customEquipment.ifBlank { "none given" }}
+- Goal: ${englishLabel(profile.goal)}
+- Level: ${englishLabel(profile.level)}
+- Days per week: ${profile.daysPerWeek}
+- Time per session: ${profile.minutesPerSession} minutes (including a 5 min warm-up)
+- Other wishes and injuries: ${profile.notes.ifBlank { "none" }}
 
-REGLER
-- Bruk KUN øvelser fra listen under, og oppgi dem med nøyaktig id. Ikke finn på øvelser.
-- Alle store muskelgrupper skal trenes jevnlig i uka. Balanser press og trekk.
-- Tilpass antall øvelser, sett og pauser til tiden per økt.
-- Med lite utstyr kan du ikke bare legge på vekt. Beskriv progresjon via reps, tempo, pauser, unilaterale varianter og vanskeligere øvelser, og legg til vekt der utstyret tillater det.
-- Vær forsiktig med skader og nivå. Ikke velg øvelser som er urealistisk vanskelige.
+RULES
+- Use ONLY exercises from the list below, referenced by their exact id. Do not invent exercises.
+- All major muscle groups should be trained regularly through the week. Balance pushing and pulling.
+- Fit the number of exercises, sets and rest periods to the time per session.
+- With little equipment you can't just add weight. Describe progression through reps, tempo, rest, unilateral variations and harder exercises, and add weight where the equipment allows.
+- Be careful with injuries and level. Don't pick exercises that are unrealistically hard.
+- $languageRule
 
-TILGJENGELIGE ØVELSER (id | navn | mønster | muskler | nivå)
+AVAILABLE EXERCISES (id | name | pattern | muscles | level)
 $list
 
-SVARFORMAT
-Svar med KUN gyldig JSON, uten forklaring og uten markdown-kodeblokk, i dette formatet:
+RESPONSE FORMAT
+Respond with ONLY valid JSON, no explanation and no markdown code block, in this format:
 {
-  "name": "Kort navn på programmet",
+  "name": "Short name for the program",
   "weeks": 4,
-  "progression": "Kort og konkret beskrivelse av hvordan man progredierer uke for uke",
+  "progression": "Short, concrete description of how to progress week by week",
   "days": [
     {
-      "title": "Dag 1 - Helkropp",
+      "title": "$exampleTitle",
       "exercises": [
-        { "exerciseId": "goblet_squat", "sets": 3, "reps": "8-12", "restSec": 75, "tip": "Kort tips for akkurat denne personen" }
+        { "exerciseId": "goblet_squat", "sets": 3, "reps": "8-12", "restSec": 75, "tip": "Short tip for this particular person" }
       ]
     }
   ]
 }
-For tidsbaserte øvelser skriver du reps som for eksempel "30-45 sek".
+For timed exercises, write reps as for example "$exampleTimed".
 """.trimIndent()
+    }
+
+    // Faste engelske navn til prompten, uavhengig av systemspråket.
+    private fun englishLabel(e: Equipment): String = when (e) {
+        Equipment.BODYWEIGHT -> "Bodyweight"
+        Equipment.DUMBBELLS -> "Dumbbells"
+        Equipment.KETTLEBELL -> "Kettlebell"
+        Equipment.RESISTANCE_BANDS -> "Resistance bands"
+        Equipment.PULL_UP_BAR -> "Pull-up bar"
+        Equipment.BENCH -> "Bench"
+        Equipment.PLYO_BOX -> "Plyo box"
+        Equipment.BARBELL -> "Barbell and plates"
+        Equipment.CHAIR -> "Sturdy chair/sofa"
+        Equipment.TABLE -> "Sturdy table"
+        Equipment.TRX -> "Suspension trainer (TRX)"
+        Equipment.JUMP_ROPE -> "Jump rope"
+    }
+
+    private fun englishLabel(g: Goal): String = when (g) {
+        Goal.STRENGTH -> "Strength"
+        Goal.HYPERTROPHY -> "Muscle growth"
+        Goal.FITNESS -> "General fitness"
+    }
+
+    private fun englishLabel(l: Level): String = when (l) {
+        Level.BEGINNER -> "Beginner"
+        Level.INTERMEDIATE -> "Intermediate"
+        Level.ADVANCED -> "Advanced"
     }
 
     /** Kaller valgt modell via API og returnerer rå tekst. */
     suspend fun ask(settings: AiSettings, prompt: String): String = withContext(Dispatchers.IO) {
-        require(settings.apiKey.isNotBlank()) { "Mangler API-nøkkel. Legg den inn under Mer (nederst til høyre)." }
+        require(settings.apiKey.isNotBlank()) {
+            tr("Missing API key. Add it under More (bottom right).", "Mangler API-nøkkel. Legg den inn under Mer (nederst til høyre).")
+        }
         when (settings.provider) {
             Provider.ANTHROPIC -> askAnthropic(settings, prompt)
             Provider.OPENAI -> askOpenAi(settings, prompt)
@@ -129,12 +168,12 @@ For tidsbaserte øvelser skriver du reps som for eksempel "30-45 sek".
             val text = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
             if (code !in 200..299) {
                 val hint = when (code) {
-                    401, 403 -> " (sjekk API-nøkkelen)"
-                    404 -> " (sjekk modellnavnet)"
-                    429 -> " (for mange kall eller tom saldo)"
+                    401, 403 -> tr(" (check the API key)", " (sjekk API-nøkkelen)")
+                    404 -> tr(" (check the model name)", " (sjekk modellnavnet)")
+                    429 -> tr(" (too many requests or no credit left)", " (for mange kall eller tom saldo)")
                     else -> ""
                 }
-                error("API-feil $code$hint: ${text.take(300)}")
+                error(tr("API error $code$hint: ${text.take(300)}", "API-feil $code$hint: ${text.take(300)}"))
             }
             return text
         } finally {
@@ -149,7 +188,7 @@ For tidsbaserte øvelser skriver du reps som for eksempel "30-45 sek".
     fun parsePlan(raw: String, profile: Profile): Result<Generated> = runCatching {
         val start = raw.indexOf('{')
         val end = raw.lastIndexOf('}')
-        require(start >= 0 && end > start) { "Fant ingen JSON i svaret." }
+        require(start >= 0 && end > start) { tr("No JSON found in the response.", "Fant ingen JSON i svaret.") }
         val plan = json.decodeFromString<Plan>(raw.substring(start, end + 1))
 
         val allowed = ExerciseLibrary.available(profile.equipment).map { it.id }.toSet()
@@ -159,8 +198,20 @@ For tidsbaserte øvelser skriver du reps som for eksempel "30-45 sek".
             val kept = day.exercises.mapNotNull { pe ->
                 val lib = ExerciseLibrary.get(pe.exerciseId)
                 when {
-                    lib == null -> { warnings += "Fjernet ukjent øvelse «${pe.exerciseId}» i ${day.title}."; null }
-                    pe.exerciseId !in allowed -> { warnings += "Fjernet «${lib.name}» i ${day.title} (krever utstyr du ikke har)."; null }
+                    lib == null -> {
+                        warnings += tr(
+                            "Removed unknown exercise \"${pe.exerciseId}\" in ${day.title}.",
+                            "Fjernet ukjent øvelse «${pe.exerciseId}» i ${day.title}.",
+                        )
+                        null
+                    }
+                    pe.exerciseId !in allowed -> {
+                        warnings += tr(
+                            "Removed \"${lib.name}\" in ${day.title} (requires equipment you don't have).",
+                            "Fjernet «${lib.name}» i ${day.title} (krever utstyr du ikke har).",
+                        )
+                        null
+                    }
                     else -> pe.copy(
                         sets = pe.sets.coerceIn(1, 8),
                         restSec = pe.restSec.coerceIn(10, 300),
@@ -171,7 +222,7 @@ For tidsbaserte øvelser skriver du reps som for eksempel "30-45 sek".
             day.copy(exercises = kept)
         }.filter { it.exercises.isNotEmpty() }
 
-        require(cleanedDays.isNotEmpty()) { "Programmet hadde ingen gyldige øvelser." }
+        require(cleanedDays.isNotEmpty()) { tr("The program had no valid exercises.", "Programmet hadde ingen gyldige øvelser.") }
         Generated(plan.copy(days = cleanedDays), warnings)
     }
 

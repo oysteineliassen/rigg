@@ -76,8 +76,10 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class Tab(val label: String) {
-    SETUP("Oppsett"), PLAN("Program"), EXERCISES("Øvelser"), PROGRESS("Fremgang"), SETTINGS("Mer")
+private enum class Tab(val en: String, val no: String) {
+    SETUP("Setup", "Oppsett"), PLAN("Plan", "Program"), EXERCISES("Exercises", "Øvelser"), PROGRESS("Progress", "Fremgang"), SETTINGS("More", "Mer");
+
+    val label: String get() = tr(en, no)
 }
 
 private fun formatDuration(totalSeconds: Int): String {
@@ -92,7 +94,8 @@ private fun formatDuration(totalSeconds: Int): String {
  * og vedlikeholde en spesifikk lenke for hver, og et søk slutter aldri å virke selv om enkeltvideoer forsvinner.
  */
 fun openExerciseVideo(context: android.content.Context, exercise: Exercise) {
-    val query = Uri.encode("${exercise.name} øvelse riktig teknikk")
+    // Alltid engelsk søk, uansett språk i appen: det gir langt flere og bedre treff.
+    val query = Uri.encode("${exercise.nameEn} exercise proper form")
     val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/results?search_query=$query"))
     runCatching { context.startActivity(intent) }
 }
@@ -105,7 +108,7 @@ private fun ConfirmDialog(title: String, text: String, confirmLabel: String, onC
         title = { Text(title) },
         text = { Text(text) },
         confirmButton = { TextButton(onClick = { onConfirm(); onDismiss() }) { Text(confirmLabel) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Nei") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(tr("No", "Nei")) } },
     )
 }
 
@@ -204,10 +207,10 @@ private fun RestTimerBar(timer: RestTimer, onAddSeconds: (Int) -> Unit, onStop: 
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Text("Hviler: $left sek", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(tr("Resting: $left s", "Hviler: $left sek"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 TextButton(onClick = { onAddSeconds(15) }) { Text("+15s") }
-                TextButton(onClick = onStop) { Text("Stopp") }
+                TextButton(onClick = onStop) { Text(tr("Stop", "Stopp")) }
             }
         }
     }
@@ -227,8 +230,8 @@ private fun SetupScreen(vm: AppViewModel, goToPlan: () -> Unit, goToSettings: ()
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Text("Hva har du hjemme?", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        Text("Kroppsvekt er alltid med. Velg det du faktisk har tilgjengelig.", style = MaterialTheme.typography.bodyMedium)
+        Text(tr("What do you have at home?", "Hva har du hjemme?"), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text(tr("Bodyweight is always included. Pick what you actually have available.", "Kroppsvekt er alltid med. Velg det du faktisk har tilgjengelig."), style = MaterialTheme.typography.bodyMedium)
 
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Equipment.selectable.forEach { e ->
@@ -246,22 +249,26 @@ private fun SetupScreen(vm: AppViewModel, goToPlan: () -> Unit, goToSettings: ()
         OutlinedTextField(
             value = p.equipmentDetails,
             onValueChange = { vm.updateProfile(p.copy(equipmentDetails = it)) },
-            label = { Text("Detaljer (valgfritt)") },
-            placeholder = { Text("F.eks. 2 manualer à 12 kg, gul og rød strikk") },
+            label = { Text(tr("Details (optional)", "Detaljer (valgfritt)")) },
+            placeholder = { Text(tr("E.g. 2 × 12 kg dumbbells, yellow and red bands", "F.eks. 2 manualer à 12 kg, gul og rød strikk")) },
             modifier = Modifier.fillMaxWidth(),
         )
 
         OutlinedTextField(
             value = p.customEquipment,
             onValueChange = { vm.updateProfile(p.copy(customEquipment = it)) },
-            label = { Text("Annet utstyr (valgfritt)") },
-            placeholder = { Text("Har du noe som ikke står over? F.eks. sandsekk, boksesekk, dørbøyle-slynger") },
+            label = { Text(tr("Other equipment (optional)", "Annet utstyr (valgfritt)")) },
+            placeholder = { Text(tr("Anything not listed above? E.g. sandbag, punching bag, door-frame straps", "Har du noe som ikke står over? F.eks. sandsekk, boksesekk, dørbøyle-slynger")) },
             modifier = Modifier.fillMaxWidth(),
         )
         if (p.customEquipment.isNotBlank()) {
             Text(
-                "Brukes i AI-genererte program. Det regelbaserte (offline) programmet kjenner foreløpig bare " +
-                    "øvelsesbiblioteket sitt og kan ikke automatisk lage øvelser for utstyr det ikke vet om.",
+                tr(
+                    "Used in AI-generated plans. The rule-based (offline) generator currently only knows its own " +
+                        "exercise library and can't create exercises for equipment it doesn't know about.",
+                    "Brukes i AI-genererte program. Det regelbaserte (offline) programmet kjenner foreløpig bare " +
+                        "øvelsesbiblioteket sitt og kan ikke automatisk lage øvelser for utstyr det ikke vet om.",
+                ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -269,28 +276,28 @@ private fun SetupScreen(vm: AppViewModel, goToPlan: () -> Unit, goToSettings: ()
 
         HorizontalDivider()
 
-        Text("Mål", style = MaterialTheme.typography.titleMedium)
+        Text(tr("Goal", "Mål"), style = MaterialTheme.typography.titleMedium)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Goal.values().forEach { g ->
                 FilterChip(selected = p.goal == g, onClick = { vm.updateProfile(p.copy(goal = g)) }, label = { Text(g.label) })
             }
         }
 
-        Text("Nivå", style = MaterialTheme.typography.titleMedium)
+        Text(tr("Level", "Nivå"), style = MaterialTheme.typography.titleMedium)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Level.values().forEach { l ->
                 FilterChip(selected = p.level == l, onClick = { vm.updateProfile(p.copy(level = l)) }, label = { Text(l.label) })
             }
         }
 
-        Text("Dager i uka: ${p.daysPerWeek}", style = MaterialTheme.typography.titleMedium)
+        Text(tr("Days per week: ${p.daysPerWeek}", "Dager i uka: ${p.daysPerWeek}"), style = MaterialTheme.typography.titleMedium)
         Slider(
             value = p.daysPerWeek.toFloat(),
             onValueChange = { vm.updateProfile(p.copy(daysPerWeek = it.toInt())) },
             valueRange = 1f..6f, steps = 4,
         )
 
-        Text("Tid per økt: ${p.minutesPerSession} min", style = MaterialTheme.typography.titleMedium)
+        Text(tr("Time per workout: ${p.minutesPerSession} min", "Tid per økt: ${p.minutesPerSession} min"), style = MaterialTheme.typography.titleMedium)
         Slider(
             value = p.minutesPerSession.toFloat(),
             onValueChange = { vm.updateProfile(p.copy(minutesPerSession = (it / 5).toInt() * 5)) },
@@ -300,8 +307,8 @@ private fun SetupScreen(vm: AppViewModel, goToPlan: () -> Unit, goToSettings: ()
         OutlinedTextField(
             value = p.notes,
             onValueChange = { vm.updateProfile(p.copy(notes = it)) },
-            label = { Text("Skader og ønsker (valgfritt)") },
-            placeholder = { Text("F.eks. vondt i venstre kne, vil ha sterkere rygg") },
+            label = { Text(tr("Injuries and wishes (optional)", "Skader og ønsker (valgfritt)")) },
+            placeholder = { Text(tr("E.g. sore left knee, want a stronger back", "F.eks. vondt i venstre kne, vil ha sterkere rygg")) },
             modifier = Modifier.fillMaxWidth(),
         )
 
@@ -310,7 +317,7 @@ private fun SetupScreen(vm: AppViewModel, goToPlan: () -> Unit, goToSettings: ()
         Button(
             onClick = { vm.generateWithRules(); goToPlan() },
             modifier = Modifier.fillMaxWidth(),
-        ) { Text("Lag program (regelbasert, offline)") }
+        ) { Text(tr("Create plan (rule-based, offline)", "Lag program (regelbasert, offline)")) }
 
         Button(
             onClick = {
@@ -323,9 +330,9 @@ private fun SetupScreen(vm: AppViewModel, goToPlan: () -> Unit, goToSettings: ()
             if (vm.busy) {
                 CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                 Spacer(Modifier.width(8.dp))
-                Text("AI lager programmet ...")
+                Text(tr("AI is creating the plan ...", "AI lager programmet ..."))
             } else {
-                Text(if (vm.ai.apiKey.isBlank()) "Lag program med AI (legg inn API-nøkkel)" else "Lag program med AI")
+                Text(if (vm.ai.apiKey.isBlank()) tr("Create plan with AI (add API key)", "Lag program med AI (legg inn API-nøkkel)") else tr("Create plan with AI", "Lag program med AI"))
             }
         }
         // Naviger til programmet når et nytt program er lagt inn (f.eks. etter AI-kall).
@@ -334,32 +341,32 @@ private fun SetupScreen(vm: AppViewModel, goToPlan: () -> Unit, goToSettings: ()
             if (firstComposition) firstComposition = false else goToPlan()
         }
 
-        Text("Bruker du heller en chat du allerede er logget inn på?", style = MaterialTheme.typography.bodyMedium)
+        Text(tr("Prefer a chat you're already signed in to?", "Bruker du heller en chat du allerede er logget inn på?"), style = MaterialTheme.typography.bodyMedium)
         OutlinedButton(
             onClick = { clipboard.setText(AnnotatedString(vm.promptForClipboard())); copied = true },
             modifier = Modifier.fillMaxWidth(),
-        ) { Text(if (copied) "Prompt kopiert. Lim den inn i chatten" else "1. Kopier prompt til chat") }
-        OutlinedButton(onClick = { showImport = true }, modifier = Modifier.fillMaxWidth()) { Text("2. Lim inn svaret fra chatten") }
+        ) { Text(if (copied) tr("Prompt copied. Paste it into the chat", "Prompt kopiert. Lim den inn i chatten") else tr("1. Copy prompt for chat", "1. Kopier prompt til chat")) }
+        OutlinedButton(onClick = { showImport = true }, modifier = Modifier.fillMaxWidth()) { Text(tr("2. Paste the reply from the chat", "2. Lim inn svaret fra chatten")) }
     }
 
     if (showImport) {
         var text by remember { mutableStateOf("") }
         AlertDialog(
             onDismissRequest = { showImport = false },
-            title = { Text("Lim inn svar") },
+            title = { Text(tr("Paste reply", "Lim inn svar")) },
             text = {
                 OutlinedTextField(
                     value = text, onValueChange = { text = it },
                     modifier = Modifier.fillMaxWidth().heightIn(min = 160.dp, max = 320.dp),
-                    placeholder = { Text("Lim inn JSON-svaret fra chatten her") },
+                    placeholder = { Text(tr("Paste the JSON reply from the chat here", "Lim inn JSON-svaret fra chatten her")) },
                 )
             },
             confirmButton = {
                 TextButton(onClick = {
                     if (vm.importPlan(text)) { showImport = false; goToPlan() }
-                }) { Text("Importer") }
+                }) { Text(tr("Import", "Importer")) }
             },
-            dismissButton = { TextButton(onClick = { showImport = false }) { Text("Avbryt") } },
+            dismissButton = { TextButton(onClick = { showImport = false }) { Text(tr("Cancel", "Avbryt")) } },
         )
     }
 }
@@ -374,11 +381,11 @@ private fun PlanScreen(vm: AppViewModel, goToSetup: () -> Unit, requestNotificat
             Modifier.fillMaxSize().padding(24.dp),
             verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text("Ingen program ennå", style = MaterialTheme.typography.titleLarge)
+            Text(tr("No plan yet", "Ingen program ennå"), style = MaterialTheme.typography.titleLarge)
             Spacer(Modifier.height(8.dp))
-            Text("Velg utstyr og mål, og lag et program.", style = MaterialTheme.typography.bodyMedium)
+            Text(tr("Choose equipment and goals, then create a plan.", "Velg utstyr og mål, og lag et program."), style = MaterialTheme.typography.bodyMedium)
             Spacer(Modifier.height(16.dp))
-            Button(onClick = goToSetup) { Text("Gå til oppsett") }
+            Button(onClick = goToSetup) { Text(tr("Go to setup", "Gå til oppsett")) }
         }
         return
     }
@@ -397,20 +404,27 @@ private fun PlanScreen(vm: AppViewModel, goToSetup: () -> Unit, requestNotificat
     ) {
         Text(plan.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text(
-            "${plan.weeks} uker · ${plan.days.size} økter i uka · fullført denne uka: $doneThisWeek/${plan.days.size}",
+            tr(
+                "${plan.weeks} ${if (plan.weeks == 1) "week" else "weeks"} · ${plan.days.size} ${if (plan.days.size == 1) "workout" else "workouts"} per week · done this week: $doneThisWeek/${plan.days.size}",
+                "${plan.weeks} uker · ${plan.days.size} økter i uka · fullført denne uka: $doneThisWeek/${plan.days.size}",
+            ),
             style = MaterialTheme.typography.bodyMedium,
         )
 
         if (weeksElapsed >= plan.weeks) {
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Tid for en lettere uke?", fontWeight = FontWeight.Bold)
+                    Text(tr("Time for a lighter week?", "Tid for en lettere uke?"), fontWeight = FontWeight.Bold)
                     Text(
-                        "Du har kjørt dette programmet i $weeksElapsed uker. Vurder en lettere uke (50-60 % av vanlig vekt/reps), " +
-                            "eller lag et nytt program på Oppsett-fanen for fortsatt fremgang.",
+                        tr(
+                            "You've been on this plan for $weeksElapsed ${if (weeksElapsed == 1L) "week" else "weeks"}. Consider a lighter week (50-60% of your usual weight/reps), " +
+                                "or create a new plan on the Setup tab to keep progressing.",
+                            "Du har kjørt dette programmet i $weeksElapsed uker. Vurder en lettere uke (50-60 % av vanlig vekt/reps), " +
+                                "eller lag et nytt program på Oppsett-fanen for fortsatt fremgang.",
+                        ),
                         style = MaterialTheme.typography.bodyMedium,
                     )
-                    TextButton(onClick = goToSetup, modifier = Modifier.align(Alignment.End)) { Text("Gå til oppsett") }
+                    TextButton(onClick = goToSetup, modifier = Modifier.align(Alignment.End)) { Text(tr("Go to setup", "Gå til oppsett")) }
                 }
             }
         }
@@ -418,7 +432,7 @@ private fun PlanScreen(vm: AppViewModel, goToSetup: () -> Unit, requestNotificat
         if (vm.warnings.isNotEmpty()) {
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Merk", fontWeight = FontWeight.Bold)
+                    Text(tr("Note", "Merk"), fontWeight = FontWeight.Bold)
                     vm.warnings.forEach { Text("• $it", style = MaterialTheme.typography.bodyMedium) }
                 }
             }
@@ -429,26 +443,29 @@ private fun PlanScreen(vm: AppViewModel, goToSetup: () -> Unit, requestNotificat
         if (plan.progression.isNotBlank()) {
             Card {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Progresjon", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(tr("Progression", "Progresjon"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Text(plan.progression, style = MaterialTheme.typography.bodyMedium)
                 }
             }
         }
 
         if (vm.logs.isNotEmpty()) {
-            Text("Siste økter", style = MaterialTheme.typography.titleMedium)
+            Text(tr("Recent workouts", "Siste økter"), style = MaterialTheme.typography.titleMedium)
             vm.logs.takeLast(5).reversed().forEach {
                 val suffix = if (it.durationMin > 0) " · ${it.durationMin} min" else ""
                 Text("${it.date} · ${it.dayTitle}$suffix", style = MaterialTheme.typography.bodyMedium)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = { showHistory = true }) { Text("Se all historikk") }
-                TextButton(onClick = { vm.undoLastLog() }) { Text("Angre siste logging") }
+                TextButton(onClick = { showHistory = true }) { Text(tr("See all history", "Se all historikk")) }
+                TextButton(onClick = { vm.undoLastLog() }) { Text(tr("Undo last log", "Angre siste logging")) }
             }
         }
 
         Text(
-            "Dette er generelle treningsforslag, ikke medisinsk rådgivning. Stopp hvis noe gjør vondt, og snakk med lege ved skader eller sykdom.",
+            tr(
+                "These are general training suggestions, not medical advice. Stop if anything hurts, and see a doctor about injuries or illness.",
+                "Dette er generelle treningsforslag, ikke medisinsk rådgivning. Stopp hvis noe gjør vondt, og snakk med lege ved skader eller sykdom.",
+            ),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -464,10 +481,10 @@ private fun HistoryDialog(logs: List<SessionLog>, onDismiss: () -> Unit, onDelet
     Dialog(onDismissRequest = onDismiss) {
         Card(Modifier.fillMaxWidth().heightIn(max = 560.dp)) {
             Column(Modifier.padding(16.dp)) {
-                Text("Alle økter", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(tr("All workouts", "Alle økter"), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
                 if (logs.isEmpty()) {
-                    Text("Ingen loggførte økter ennå.", style = MaterialTheme.typography.bodyMedium)
+                    Text(tr("No logged workouts yet.", "Ingen loggførte økter ennå."), style = MaterialTheme.typography.bodyMedium)
                 } else {
                     Column(Modifier.verticalScroll(rememberScrollState()).weight(1f, fill = false)) {
                         logs.asReversed().forEach { log ->
@@ -476,7 +493,7 @@ private fun HistoryDialog(logs: List<SessionLog>, onDismiss: () -> Unit, onDelet
                                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                         val suffix = if (log.durationMin > 0) " · ${log.durationMin} min" else ""
                                         Text("${log.date} · ${log.dayTitle}$suffix", fontWeight = FontWeight.Medium)
-                                        TextButton(onClick = { onDelete(log) }) { Text("Slett") }
+                                        TextButton(onClick = { onDelete(log) }) { Text(tr("Delete", "Slett")) }
                                     }
                                     log.results.forEach { res ->
                                         val name = ExerciseLibrary.get(res.exerciseId)?.name ?: res.exerciseId
@@ -495,7 +512,7 @@ private fun HistoryDialog(logs: List<SessionLog>, onDismiss: () -> Unit, onDelet
                     }
                 }
                 Spacer(Modifier.height(12.dp))
-                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text("Lukk") }
+                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text(tr("Close", "Lukk")) }
             }
         }
     }
@@ -529,12 +546,12 @@ private fun DayCard(vm: AppViewModel, day: WorkoutDay, requestNotificationPermis
                             onClick = { requestNotificationPermission(); vm.startRestTimer(pe.restSec) },
                             modifier = Modifier.size(36.dp),
                         ) {
-                            Icon(Icons.Filled.Timer, contentDescription = "Start hviletimer (${pe.restSec} sek)")
+                            Icon(Icons.Filled.Timer, contentDescription = tr("Start rest timer (${pe.restSec} s)", "Start hviletimer (${pe.restSec} sek)"))
                         }
                     }
                     if (expanded) {
                         Text(
-                            "Pause ${pe.restSec} sek" + if (pe.tip.isNotBlank()) " · ${pe.tip}" else "",
+                            tr("Rest ${pe.restSec} s", "Pause ${pe.restSec} sek") + if (pe.tip.isNotBlank()) " · ${pe.tip}" else "",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(start = if (ex != null) 50.dp else 0.dp),
@@ -546,21 +563,21 @@ private fun DayCard(vm: AppViewModel, day: WorkoutDay, requestNotificationPermis
             if (activeSession != null) {
                 // Egen linje for øktklokka, så knapperaden under ikke blir for bred på smale skjermer.
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Økt pågår", style = MaterialTheme.typography.bodyMedium)
+                    Text(tr("Workout in progress", "Økt pågår"), style = MaterialTheme.typography.bodyMedium)
                     Spacer(Modifier.width(8.dp))
                     SessionClock(activeSession)
                     Spacer(Modifier.weight(1f))
-                    TextButton(onClick = { confirmCancelSession = true }) { Text("Avbryt økt") }
+                    TextButton(onClick = { confirmCancelSession = true }) { Text(tr("Cancel workout", "Avbryt økt")) }
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 // Kort tekst: tre knapper skal få plass på én linje også på smale telefoner.
-                TextButton(onClick = { expanded = !expanded }) { Text(if (expanded) "Skjul" else "Detaljer") }
+                TextButton(onClick = { expanded = !expanded }) { Text(if (expanded) tr("Hide", "Skjul") else tr("Details", "Detaljer")) }
                 Spacer(Modifier.weight(1f))
                 if (activeSession == null) {
-                    OutlinedButton(onClick = { requestNotificationPermission(); vm.startSession(day.title) }) { Text("Start økt") }
+                    OutlinedButton(onClick = { requestNotificationPermission(); vm.startSession(day.title) }) { Text(tr("Start workout", "Start økt")) }
                 }
-                FilledTonalButton(onClick = { showLogDialog = true }) { Text("Logg økt") }
+                FilledTonalButton(onClick = { showLogDialog = true }) { Text(tr("Log workout", "Logg økt")) }
             }
         }
     }
@@ -577,7 +594,7 @@ private fun DayCard(vm: AppViewModel, day: WorkoutDay, requestNotificationPermis
                         Spacer(Modifier.height(12.dp))
                         Text(ex.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.height(4.dp))
-                        Text("${pe.sets} sett × ${pe.reps} · pause ${pe.restSec} sek", style = MaterialTheme.typography.bodyMedium)
+                        Text(tr("${pe.sets} ${if (pe.sets == 1) "set" else "sets"} × ${pe.reps} · rest ${pe.restSec} s", "${pe.sets} sett × ${pe.reps} · pause ${pe.restSec} sek"), style = MaterialTheme.typography.bodyMedium)
                         if (pe.tip.isNotBlank()) {
                             Spacer(Modifier.height(8.dp))
                             Text(pe.tip, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
@@ -595,15 +612,15 @@ private fun DayCard(vm: AppViewModel, day: WorkoutDay, requestNotificationPermis
                         }
                         Spacer(Modifier.height(12.dp))
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(onClick = { openExerciseVideo(context, ex) }) { Text("Se video") }
-                            OutlinedButton(onClick = { editFor = pe; detailFor = null }) { Text("Rediger") }
-                            OutlinedButton(onClick = { swapFor = pe; detailFor = null }) { Text("Bytt øvelse") }
+                            OutlinedButton(onClick = { openExerciseVideo(context, ex) }) { Text(tr("Watch video", "Se video")) }
+                            OutlinedButton(onClick = { editFor = pe; detailFor = null }) { Text(tr("Edit", "Rediger")) }
+                            OutlinedButton(onClick = { swapFor = pe; detailFor = null }) { Text(tr("Swap exercise", "Bytt øvelse")) }
                         }
                     } else {
                         Text(pe.exerciseId)
                     }
                     Spacer(Modifier.height(16.dp))
-                    TextButton(onClick = { detailFor = null }) { Text("Lukk") }
+                    TextButton(onClick = { detailFor = null }) { Text(tr("Close", "Lukk")) }
                 }
             }
         }
@@ -611,9 +628,9 @@ private fun DayCard(vm: AppViewModel, day: WorkoutDay, requestNotificationPermis
 
     if (confirmCancelSession) {
         ConfirmDialog(
-            title = "Avbryte økta?",
-            text = "Tiden som er brukt så langt blir ikke lagret.",
-            confirmLabel = "Avbryt økta",
+            title = tr("Cancel the workout?", "Avbryte økta?"),
+            text = tr("The time spent so far won't be saved.", "Tiden som er brukt så langt blir ikke lagret."),
+            confirmLabel = tr("Cancel workout", "Avbryt økta"),
             onConfirm = { vm.stopSession() },
             onDismiss = { confirmCancelSession = false },
         )
@@ -658,11 +675,14 @@ private fun SwapExerciseDialog(current: Exercise, alternatives: List<Exercise>, 
     Dialog(onDismissRequest = onDismiss) {
         Card(Modifier.fillMaxWidth().heightIn(max = 480.dp)) {
             Column(Modifier.padding(16.dp)) {
-                Text("Bytt ut «${current.name}»", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(tr("Replace “${current.name}”", "Bytt ut «${current.name}»"), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
                 if (alternatives.isEmpty()) {
                     Text(
-                        "Fant ingen andre øvelser med samme bevegelsesmønster og utstyret ditt.",
+                        tr(
+                            "No other exercises found with the same movement pattern and your equipment.",
+                            "Fant ingen andre øvelser med samme bevegelsesmønster og utstyret ditt.",
+                        ),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 } else {
@@ -683,7 +703,7 @@ private fun SwapExerciseDialog(current: Exercise, alternatives: List<Exercise>, 
                     }
                 }
                 Spacer(Modifier.height(12.dp))
-                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text("Avbryt") }
+                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text(tr("Cancel", "Avbryt")) }
             }
         }
     }
@@ -698,23 +718,23 @@ private fun EditExerciseDialog(pe: PlannedExercise, onDismiss: () -> Unit, onSav
     Dialog(onDismissRequest = onDismiss) {
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Rediger øvelse", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(tr("Edit exercise", "Rediger øvelse"), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 OutlinedTextField(
-                    value = sets, onValueChange = { sets = it }, label = { Text("Sett") },
+                    value = sets, onValueChange = { sets = it }, label = { Text(tr("Sets", "Sett")) },
                     singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
-                    value = reps, onValueChange = { reps = it }, label = { Text("Reps (f.eks. 8-12 eller 30-45 sek)") },
+                    value = reps, onValueChange = { reps = it }, label = { Text(tr("Reps (e.g. 8-12 or 30-45 s)", "Reps (f.eks. 8-12 eller 30-45 sek)")) },
                     singleLine = true, modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
-                    value = restSec, onValueChange = { restSec = it }, label = { Text("Pause (sekunder)") },
+                    value = restSec, onValueChange = { restSec = it }, label = { Text(tr("Rest (seconds)", "Pause (sekunder)")) },
                     singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(onClick = onDismiss) { Text("Avbryt") }
+                    TextButton(onClick = onDismiss) { Text(tr("Cancel", "Avbryt")) }
                     Spacer(Modifier.weight(1f))
                     Button(onClick = {
                         onSave(
@@ -722,7 +742,7 @@ private fun EditExerciseDialog(pe: PlannedExercise, onDismiss: () -> Unit, onSav
                             reps.ifBlank { pe.reps },
                             restSec.toIntOrNull()?.coerceIn(0, 600) ?: pe.restSec,
                         )
-                    }) { Text("Lagre") }
+                    }) { Text(tr("Save", "Lagre")) }
                 }
             }
         }
@@ -761,7 +781,7 @@ private fun LogSessionDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text("Logg ${day.title}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(tr("Log ${day.title}", "Logg ${day.title}"), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 day.exercises.forEach { pe ->
                     val ex = ExerciseLibrary.get(pe.exerciseId)
                     val (weighted, setsState) = state.getValue(pe.exerciseId)
@@ -769,11 +789,11 @@ private fun LogSessionDialog(
                         Text(ex?.name ?: pe.exerciseId, fontWeight = FontWeight.Medium)
                         setsState.forEachIndexed { i, (repsState, weightState) ->
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text("Sett ${i + 1}", modifier = Modifier.width(56.dp), style = MaterialTheme.typography.bodySmall)
+                                Text(tr("Set ${i + 1}", "Sett ${i + 1}"), modifier = Modifier.width(56.dp), style = MaterialTheme.typography.bodySmall)
                                 OutlinedTextField(
                                     value = repsState.value,
                                     onValueChange = { repsState.value = it },
-                                    label = { Text(if (ex?.timed == true) "sek" else "reps") },
+                                    label = { Text(if (ex?.timed == true) tr("sec", "sek") else "reps") },
                                     singleLine = true,
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                     modifier = Modifier.width(90.dp),
@@ -795,9 +815,9 @@ private fun LogSessionDialog(
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     // "Lukk", ikke "Avbryt": økta og klokka fortsetter, bare skjemaet lukkes.
-                    TextButton(onClick = onDismiss) { Text("Lukk") }
+                    TextButton(onClick = onDismiss) { Text(tr("Close", "Lukk")) }
                     Spacer(Modifier.weight(1f))
-                    Button(onClick = { showConfirm = true }) { Text("Lagre") }
+                    Button(onClick = { showConfirm = true }) { Text(tr("Save", "Lagre")) }
                 }
             }
         }
@@ -805,9 +825,9 @@ private fun LogSessionDialog(
 
     if (showConfirm) {
         ConfirmDialog(
-            title = "Logge økta?",
-            text = "Dette lagrer resultatene for «${day.title}» og avslutter øktklokka.",
-            confirmLabel = "Loggfør",
+            title = tr("Log the workout?", "Logge økta?"),
+            text = tr("This saves the results for “${day.title}” and stops the workout clock.", "Dette lagrer resultatene for «${day.title}» og avslutter øktklokka."),
+            confirmLabel = tr("Log", "Loggfør"),
             onConfirm = {
                 val results = day.exercises.map { pe ->
                     val (_, setsState) = state.getValue(pe.exerciseId)
@@ -840,7 +860,7 @@ private fun SettingsScreen(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Text("Innstillinger", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text(tr("Settings", "Innstillinger"), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
 
         ReminderSection(vm, requestNotificationPermission)
 
@@ -859,15 +879,18 @@ private fun DataSection(exportData: () -> Unit, importData: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Data", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text(
-            "Alt lagres kun lokalt på telefonen. Eksporter til fil før du bytter telefon, eller som en enkel backup.",
+            tr(
+                "Everything is stored only on this phone. Export to a file before switching phones, or as a simple backup.",
+                "Alt lagres kun lokalt på telefonen. Eksporter til fil før du bytter telefon, eller som en enkel backup.",
+            ),
             style = MaterialTheme.typography.bodyMedium,
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = exportData, modifier = Modifier.weight(1f)) { Text("Eksporter") }
-            OutlinedButton(onClick = importData, modifier = Modifier.weight(1f)) { Text("Importer") }
+            OutlinedButton(onClick = exportData, modifier = Modifier.weight(1f)) { Text(tr("Export", "Eksporter")) }
+            OutlinedButton(onClick = importData, modifier = Modifier.weight(1f)) { Text(tr("Import", "Importer")) }
         }
         Text(
-            "AI-nøkkelen din tas ikke med i eksporten.",
+            tr("Your AI key is not included in the export.", "AI-nøkkelen din tas ikke med i eksporten."),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -879,10 +902,10 @@ private fun DataSection(exportData: () -> Unit, importData: () -> Unit) {
 private fun ReminderSection(vm: AppViewModel, requestNotificationPermission: () -> Unit) {
     val r = vm.reminders
 
-    Text("Treningspåminnelser", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+    Text(tr("Workout reminders", "Treningspåminnelser"), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
 
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        Text("Skru på påminnelser", style = MaterialTheme.typography.bodyMedium)
+        Text(tr("Turn on reminders", "Skru på påminnelser"), style = MaterialTheme.typography.bodyMedium)
         Switch(
             checked = r.enabled,
             onCheckedChange = { checked ->
@@ -893,7 +916,7 @@ private fun ReminderSection(vm: AppViewModel, requestNotificationPermission: () 
     }
 
     if (r.enabled) {
-        Text("Hvilke dager?", style = MaterialTheme.typography.titleMedium)
+        Text(tr("Which days?", "Hvilke dager?"), style = MaterialTheme.typography.titleMedium)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             (1..7).forEach { iso ->
                 FilterChip(
@@ -907,9 +930,9 @@ private fun ReminderSection(vm: AppViewModel, requestNotificationPermission: () 
             }
         }
 
-        Text("Tidspunkt: %02d:%02d".format(r.hour, r.minute), style = MaterialTheme.typography.titleMedium)
+        Text(tr("Time: %02d:%02d", "Tidspunkt: %02d:%02d").format(r.hour, r.minute), style = MaterialTheme.typography.titleMedium)
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("Time", style = MaterialTheme.typography.bodySmall)
+            Text(tr("Hour", "Time"), style = MaterialTheme.typography.bodySmall)
             IconButton(onClick = { vm.updateReminders(r.copy(hour = (r.hour + 23) % 24)) }) { Text("−") }
             IconButton(onClick = { vm.updateReminders(r.copy(hour = (r.hour + 1) % 24)) }) { Text("+") }
             Spacer(Modifier.width(8.dp))
@@ -919,7 +942,10 @@ private fun ReminderSection(vm: AppViewModel, requestNotificationPermission: () 
         }
 
         Text(
-            "Minuttene hopper i kvarter. Varselet kan komme noen minutter etter valgt tid hvis telefonen sparer strøm.",
+            tr(
+                "Minutes change in 15-minute steps. The notification may arrive a few minutes late if the phone is saving battery.",
+                "Minuttene hopper i kvarter. Varselet kan komme noen minutter etter valgt tid hvis telefonen sparer strøm.",
+            ),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -931,15 +957,20 @@ private fun ReminderSection(vm: AppViewModel, requestNotificationPermission: () 
 private fun AiSection(vm: AppViewModel) {
     val s = vm.ai
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text("AI-modell", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text(tr("AI model", "AI-modell"), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text(
-            "Innloggingen din i chat-appen kan ikke gjenbrukes i en annen app. For å kalle en modell direkte trenger du en API-nøkkel " +
-                "(opprettes gratis hos leverandøren, betalt per bruk. Et program koster typisk noen øre). " +
-                "Vil du slippe nøkkel, bruk «Kopier prompt» og «Lim inn svar» på oppsettsiden med chatten du allerede er logget inn på.",
+            tr(
+                "Your sign-in to the chat app can't be reused in another app. To call a model directly you need an API key " +
+                    "(created for free at the provider, paid per use. A plan typically costs less than a cent). " +
+                    "To skip the key, use “Copy prompt” and “Paste reply” on the Setup page with the chat you're already signed in to.",
+                "Innloggingen din i chat-appen kan ikke gjenbrukes i en annen app. For å kalle en modell direkte trenger du en API-nøkkel " +
+                    "(opprettes gratis hos leverandøren, betalt per bruk. Et program koster typisk noen øre). " +
+                    "Vil du slippe nøkkel, bruk «Kopier prompt» og «Lim inn svar» på oppsettsiden med chatten du allerede er logget inn på.",
+            ),
             style = MaterialTheme.typography.bodyMedium,
         )
 
-        Text("Leverandør", style = MaterialTheme.typography.titleMedium)
+        Text(tr("Provider", "Leverandør"), style = MaterialTheme.typography.titleMedium)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Provider.values().forEach { pr ->
                 FilterChip(
@@ -953,7 +984,7 @@ private fun AiSection(vm: AppViewModel) {
         OutlinedTextField(
             value = s.apiKey,
             onValueChange = { vm.updateAi(s.copy(apiKey = it.trim())) },
-            label = { Text("API-nøkkel") },
+            label = { Text(tr("API key", "API-nøkkel")) },
             visualTransformation = PasswordVisualTransformation(),
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
@@ -961,12 +992,15 @@ private fun AiSection(vm: AppViewModel) {
         OutlinedTextField(
             value = s.model,
             onValueChange = { vm.updateAi(s.copy(model = it.trim())) },
-            label = { Text("Modell (tom = ${s.provider.defaultModel})") },
+            label = { Text(tr("Model (empty = ${s.provider.defaultModel})", "Modell (tom = ${s.provider.defaultModel})")) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
         Text(
-            "Nøkkelen lagres kun lokalt på telefonen. Kun profilen din (utstyr, mål, nivå, notater) sendes til leverandøren.",
+            tr(
+                "The key is stored only on this phone. Only your profile (equipment, goal, level, notes) is sent to the provider.",
+                "Nøkkelen lagres kun lokalt på telefonen. Kun profilen din (utstyr, mål, nivå, notater) sendes til leverandøren.",
+            ),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

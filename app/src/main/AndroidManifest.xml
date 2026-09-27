@@ -32,7 +32,7 @@
             android:foregroundServiceType="specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Treningsøkt: hviletimer med lydsignal og øktklokke mens skjermen er av" />
+                android:value="Workout session: rest timer with sound and session clock while the screen is off" />
         </service>
 
         <receiver android:name=".ReminderReceiver" android:exported="false" />

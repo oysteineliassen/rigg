@@ -22,7 +22,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
-        android:text="Ingen program ennå"
+        android:text="@string/widget_no_program"
         android:textColor="#555555"
         android:textSize="13sp" />
 

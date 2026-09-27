@@ -82,7 +82,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             AiClient.generate(ai, profile)
                 .onSuccess { setPlan(it) }
-                .onFailure { error = it.message ?: "Ukjent feil" }
+                .onFailure { error = it.message ?: tr("Unknown error", "Ukjent feil") }
             busy = false
         }
     }
@@ -93,7 +93,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun importPlan(raw: String): Boolean {
         error = null
         val r = AiClient.parsePlan(raw, profile)
-        r.onSuccess { setPlan(it) }.onFailure { error = it.message ?: "Kunne ikke lese svaret" }
+        r.onSuccess { setPlan(it) }.onFailure { error = it.message ?: tr("Couldn't read the response", "Kunne ikke lese svaret") }
         return r.isSuccess
     }
 
@@ -196,15 +196,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun exportTo(uri: Uri) {
         runCatching {
             getApplication<Application>().contentResolver.openOutputStream(uri)?.use { it.write(exportJson().toByteArray()) }
-                ?: throw IllegalStateException("Fikk ikke skrivetilgang til filen")
-        }.onFailure { error = "Kunne ikke eksportere: ${it.message}" }
+                ?: throw IllegalStateException(tr("Couldn't get write access to the file", "Fikk ikke skrivetilgang til filen"))
+        }.onFailure { error = tr("Export failed: ${it.message}", "Kunne ikke eksportere: ${it.message}") }
     }
 
     fun importFrom(uri: Uri) {
         runCatching {
             val text = getApplication<Application>().contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
-                ?: throw IllegalStateException("Fant ingen data i filen")
-            if (!importJson(text)) throw IllegalStateException("Filen så ikke ut som en gyldig backup")
-        }.onFailure { error = it.message ?: "Kunne ikke importere" }
+                ?: throw IllegalStateException(tr("No data found in the file", "Fant ingen data i filen"))
+            if (!importJson(text)) throw IllegalStateException(tr("The file doesn't look like a valid backup", "Filen så ikke ut som en gyldig backup"))
+        }.onFailure { error = it.message ?: tr("Import failed", "Kunne ikke importere") }
     }
 }

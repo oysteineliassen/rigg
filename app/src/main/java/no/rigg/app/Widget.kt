@@ -35,12 +35,16 @@ class WorkoutWidgetProvider : AppWidgetProvider() {
 
             if (plan == null) {
                 views.setTextViewText(R.id.widget_title, "Rigg")
-                views.setTextViewText(R.id.widget_subtitle, "Ingen program ennå")
+                views.setTextViewText(R.id.widget_subtitle, tr("No program yet", "Ingen program ennå"))
             } else {
                 val weekStart = LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
                 val done = logs.count { runCatching { !LocalDate.parse(it.date).isBefore(weekStart) }.getOrDefault(false) }
                 views.setTextViewText(R.id.widget_title, plan.name)
-                views.setTextViewText(R.id.widget_subtitle, "Denne uka: $done/${plan.days.size} økter")
+                val total = plan.days.size
+                views.setTextViewText(
+                    R.id.widget_subtitle,
+                    tr("This week: $done/$total ${if (total == 1) "workout" else "workouts"}", "Denne uka: $done/$total økter"),
+                )
             }
 
             val openIntent = Intent(context, MainActivity::class.java)

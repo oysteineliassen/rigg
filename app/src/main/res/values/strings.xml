@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">Rigg</string>
+    <!-- Bare tekster Android selv viser før appens kode kjører (widgeten). Resten av teksten ligger i koden, se I18n.kt. -->
+    <string name="widget_no_program">No program yet</string>
 </resources>
