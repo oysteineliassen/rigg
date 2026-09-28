@@ -88,6 +88,8 @@ object ProgramGenerator {
             Level.ADVANCED -> if (profile.goal == Goal.FITNESS) baseSets else baseSets + 1
         }
         val budget = (profile.minutesPerSession - 5).coerceAtLeast(10) // 5 min oppvarming
+        // Kort økt: øvelsene kjøres i supersett (to og to), så pausene deles og det blir plass til mer.
+        val supersets = profile.minutesPerSession <= 30
 
         for ((title, rawSlots) in template(profile.daysPerWeek)) {
             val slots = if (profile.goal == Goal.FITNESS) rawSlots + Slot(CARDIO) else rawSlots
@@ -106,14 +108,15 @@ object ProgramGenerator {
                     ex.pattern == CORE || ex.pattern == CARDIO -> 45
                     else -> baseRest
                 }
-                val cost = sets * (if (ex.timed) 45.0 else 40.0) / 60.0 + (sets - 1) * rest / 60.0
+                val restShare = if (supersets) 0.5 else 1.0
+                val cost = sets * (if (ex.timed) 45.0 else 40.0) / 60.0 + (sets - 1) * rest * restShare / 60.0
                 if (picked.size >= 3 && minutes + cost > budget) continue
                 minutes += cost
                 usedToday += ex.id
                 usage[ex.id] = (usage[ex.id] ?: 0) + 1
                 picked += PlannedExercise(ex.id, sets, reps, rest, ex.note)
             }
-            days += WorkoutDay(title, picked)
+            days += WorkoutDay(title, if (supersets) pairSupersets(picked) else picked)
         }
 
         // Mangler vi hele bevegelsesmønstre?

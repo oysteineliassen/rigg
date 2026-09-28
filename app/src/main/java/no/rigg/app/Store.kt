@@ -40,6 +40,11 @@ class Store(context: Context) {
     fun saveActiveSession(s: ActiveSession?) =
         if (s == null) prefs.edit().remove("active_session").apply() else put("active_session", json.encodeToString(s))
 
+    /** Økta som gjennomføres i øktmodus, så den ikke går tapt om Android lukker appen. */
+    fun loadGuided(): GuidedWorkout? = decode("guided")
+    fun saveGuided(g: GuidedWorkout?) =
+        if (g == null) prefs.edit().remove("guided").apply() else put("guided", json.encodeToString(g))
+
     private fun put(key: String, value: String) = prefs.edit().putString(key, value).apply()
 
     private inline fun <reified T> decode(key: String): T? =

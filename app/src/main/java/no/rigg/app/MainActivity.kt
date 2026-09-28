@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
@@ -36,7 +37,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.health.connect.client.HealthConnectClient
+import androidx.health.connect.client.PermissionController
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.temporal.TemporalAdjusters
@@ -82,7 +86,7 @@ private enum class Tab(val en: String, val no: String) {
     val label: String get() = tr(en, no)
 }
 
-private fun formatDuration(totalSeconds: Int): String {
+internal fun formatDuration(totalSeconds: Int): String {
     val m = totalSeconds / 60
     val s = totalSeconds % 60
     return "%d:%02d".format(m, s)
@@ -102,7 +106,7 @@ fun openExerciseVideo(context: android.content.Context, exercise: Exercise) {
 
 /** Enkel ja/nei-bekreftelse, brukt før man avslutter eller avbryter en økt. */
 @Composable
-private fun ConfirmDialog(title: String, text: String, confirmLabel: String, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+internal fun ConfirmDialog(title: String, text: String, confirmLabel: String, onConfirm: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
@@ -124,6 +128,26 @@ private fun App(
 
     LaunchedEffect(vm.error) {
         vm.error?.let { snackbar.showSnackbar(it, duration = SnackbarDuration.Long); vm.dismissError() }
+    }
+
+    // Øktmodus tar hele skjermen (uten fanene) mens den er åpen.
+    val guided = vm.guided
+    val guidedDay = guided?.let { g -> vm.plan?.days?.find { it.title == g.dayTitle } }
+    if (guided != null && guidedDay != null && vm.guidedVisible) {
+        Scaffold(snackbarHost = { SnackbarHost(snackbar) }) { pad ->
+            Box(Modifier.padding(pad).fillMaxSize()) {
+                WorkoutSessionScreen(vm, guidedDay, guided)
+                vm.restTimer?.let { timer ->
+                    RestTimerBar(
+                        timer = timer,
+                        onAddSeconds = { vm.addRestSeconds(it) },
+                        onStop = { vm.stopRestTimer() },
+                        modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(12.dp),
+                    )
+                }
+            }
+        }
+        return
     }
 
     Scaffold(
@@ -177,7 +201,7 @@ private fun App(
  * så visningen er alltid riktig selv om appen har vært i bakgrunnen.
  */
 @Composable
-private fun rememberTick(active: Boolean, periodMs: Long = 250L): Long {
+internal fun rememberTick(active: Boolean, periodMs: Long = 250L): Long {
     var tick by remember { mutableLongStateOf(0L) }
     LaunchedEffect(active) {
         while (active) {
@@ -190,14 +214,14 @@ private fun rememberTick(active: Boolean, periodMs: Long = 250L): Long {
 
 /** Egen liten composable så bare klokketeksten tegnes på nytt hvert sekund, ikke hele dagskortet. */
 @Composable
-private fun SessionClock(session: ActiveSession) {
+internal fun SessionClock(session: ActiveSession) {
     @Suppress("UNUSED_VARIABLE")
     val tick = rememberTick(active = true, periodMs = 500L)
     Text(formatDuration(session.elapsedSec()), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
 }
 
 @Composable
-private fun RestTimerBar(timer: RestTimer, onAddSeconds: (Int) -> Unit, onStop: () -> Unit, modifier: Modifier = Modifier) {
+internal fun RestTimerBar(timer: RestTimer, onAddSeconds: (Int) -> Unit, onStop: () -> Unit, modifier: Modifier = Modifier) {
     @Suppress("UNUSED_VARIABLE")
     val tick = rememberTick(active = true) // leses her så baren tegnes på nytt hvert kvarte sekund
     val left = timer.secondsLeft() // regnes i samme scope som tick leses, ikke inne i Card-lambdaen
@@ -253,6 +277,21 @@ private fun SetupScreen(vm: AppViewModel, goToPlan: () -> Unit, goToSettings: ()
             placeholder = { Text(tr("E.g. 2 × 12 kg dumbbells, yellow and red bands", "F.eks. 2 manualer à 12 kg, gul og rød strikk")) },
             modifier = Modifier.fillMaxWidth(),
         )
+
+        if (Equipment.DUMBBELLS in p.equipment) {
+            WeightsField(
+                label = tr("Dumbbell weights you have (kg)", "Manualvekter du har (kg)"),
+                value = p.dumbbellWeights,
+                onChange = { vm.updateProfile(p.copy(dumbbellWeights = it)) },
+            )
+        }
+        if (Equipment.KETTLEBELL in p.equipment) {
+            WeightsField(
+                label = tr("Kettlebells you have (kg)", "Kettlebeller du har (kg)"),
+                value = p.kettlebellWeights,
+                onChange = { vm.updateProfile(p.copy(kettlebellWeights = it)) },
+            )
+        }
 
         OutlinedTextField(
             value = p.customEquipment,
@@ -371,6 +410,32 @@ private fun SetupScreen(vm: AppViewModel, goToPlan: () -> Unit, goToSettings: ()
     }
 }
 
+/** Tekstfelt for vektene man har, med tolkningen vist under så man ser at den ble forstått riktig. */
+@Composable
+private fun WeightsField(label: String, value: String, onChange: (String) -> Unit) {
+    val parsed = parseWeights(value)
+    OutlinedTextField(
+        value = value,
+        onValueChange = onChange,
+        label = { Text(label) },
+        placeholder = { Text(tr("E.g. 2-20/2 or 4 6 8 12.5", "F.eks. 2-20/2 eller 4 6 8 12,5")) },
+        supportingText = {
+            Text(
+                when {
+                    value.isBlank() -> tr(
+                        "Used to suggest the exact next weight when you progress.",
+                        "Brukes til å foreslå nøyaktig neste vekt når du går opp.",
+                    )
+                    parsed.isEmpty() -> tr("Couldn't read any weights.", "Fant ingen vekter.")
+                    else -> tr("Read as: ", "Tolket som: ") + parsed.joinToString(", ") { formatWeight(it) } + " kg"
+                },
+            )
+        },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth(),
+    )
+}
+
 // ---------------------------------------------------------------- PROGRAM
 
 @Composable
@@ -393,6 +458,7 @@ private fun PlanScreen(vm: AppViewModel, goToSetup: () -> Unit, requestNotificat
     val weekStart = LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
     val doneThisWeek = vm.logs.count { runCatching { !LocalDate.parse(it.date).isBefore(weekStart) }.getOrDefault(false) }
     var showHistory by remember { mutableStateOf(false) }
+    var confirmNextBlock by remember { mutableStateOf(false) }
 
     val weeksElapsed = remember(plan.createdAt) {
         runCatching { java.time.temporal.ChronoUnit.WEEKS.between(LocalDate.parse(plan.createdAt), LocalDate.now()) }.getOrDefault(0L)
@@ -424,7 +490,10 @@ private fun PlanScreen(vm: AppViewModel, goToSetup: () -> Unit, requestNotificat
                         ),
                         style = MaterialTheme.typography.bodyMedium,
                     )
-                    TextButton(onClick = goToSetup, modifier = Modifier.align(Alignment.End)) { Text(tr("Go to setup", "Gå til oppsett")) }
+                    Row(Modifier.align(Alignment.End), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(onClick = goToSetup) { Text(tr("Go to setup", "Gå til oppsett")) }
+                        Button(onClick = { confirmNextBlock = true }) { Text(tr("Next block", "Neste blokk")) }
+                    }
                 }
             }
         }
@@ -446,6 +515,12 @@ private fun PlanScreen(vm: AppViewModel, goToSetup: () -> Unit, requestNotificat
                     Text(tr("Progression", "Progresjon"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Text(plan.progression, style = MaterialTheme.typography.bodyMedium)
                 }
+            }
+        }
+
+        if (vm.logs.isNotEmpty() && weeksElapsed < plan.weeks) {
+            OutlinedButton(onClick = { confirmNextBlock = true }, modifier = Modifier.fillMaxWidth()) {
+                Text(tr("Create the next block from your logs", "Lag neste blokk ut fra loggene"))
             }
         }
 
@@ -473,6 +548,21 @@ private fun PlanScreen(vm: AppViewModel, goToSetup: () -> Unit, requestNotificat
 
     if (showHistory) {
         HistoryDialog(logs = vm.logs, onDismiss = { showHistory = false }, onDelete = { vm.deleteLog(it) })
+    }
+
+    if (confirmNextBlock) {
+        ConfirmDialog(
+            title = tr("Create the next block?", "Lage neste blokk?"),
+            text = tr(
+                "The plan is replaced by a new 4-week block. Exercises where you reached the top of the rep range get a heavier " +
+                    "weight or a harder variation; the rest are kept. Your logs are kept.",
+                "Programmet erstattes av en ny 4-ukersblokk. Øvelser der du nådde toppen av repetisjonsintervallet får tyngre " +
+                    "vekt eller en vanskeligere variant; resten beholdes. Loggene dine beholdes.",
+            ),
+            confirmLabel = tr("Create", "Lag"),
+            onConfirm = { vm.startNextBlock() },
+            onDismiss = { confirmNextBlock = false },
+        )
     }
 }
 
@@ -532,13 +622,30 @@ private fun DayCard(vm: AppViewModel, day: WorkoutDay, requestNotificationPermis
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(day.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            day.exercises.forEach { pe ->
+            if (expanded) {
+                val warmup = warmupFor(day, vm.profile.equipment)
+                Text(
+                    tr("Warm-up (~${(warmup.sumOf { it.seconds } + 30) / 60} min): ", "Oppvarming (~${(warmup.sumOf { it.seconds } + 30) / 60} min): ") +
+                        warmup.joinToString(" · ") { it.name },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            day.exercises.forEachIndexed { index, pe ->
                 val ex = ExerciseLibrary.get(pe.exerciseId)
+                // Supersett: A1, A2 ... (nummeret innen gruppa).
+                val supersetLabel = if (pe.group.isNotEmpty()) {
+                    pe.group + (day.exercises.take(index + 1).count { it.group == pe.group })
+                } else null
                 Column(Modifier.clickable { detailFor = pe }) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         if (ex != null) {
                             ExerciseThumbnail(ex, size = 40.dp)
                             Spacer(Modifier.width(10.dp))
+                        }
+                        if (supersetLabel != null) {
+                            Text(supersetLabel, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                            Spacer(Modifier.width(6.dp))
                         }
                         Text(ex?.name ?: pe.exerciseId, Modifier.weight(1f), fontWeight = FontWeight.Medium)
                         Text("${pe.sets} × ${pe.reps}")
@@ -574,10 +681,11 @@ private fun DayCard(vm: AppViewModel, day: WorkoutDay, requestNotificationPermis
                 // Kort tekst: tre knapper skal få plass på én linje også på smale telefoner.
                 TextButton(onClick = { expanded = !expanded }) { Text(if (expanded) tr("Hide", "Skjul") else tr("Details", "Detaljer")) }
                 Spacer(Modifier.weight(1f))
-                if (activeSession == null) {
-                    OutlinedButton(onClick = { requestNotificationPermission(); vm.startSession(day.title) }) { Text(tr("Start workout", "Start økt")) }
+                // Start økt åpner øktmodus (sett for sett). "Logg" er for å føre en økt i ettertid.
+                Button(onClick = { requestNotificationPermission(); vm.openGuided(day) }) {
+                    Text(if (activeSession == null) tr("Start", "Start økt") else tr("Open", "Åpne økta"))
                 }
-                FilledTonalButton(onClick = { showLogDialog = true }) { Text(tr("Log workout", "Logg økt")) }
+                OutlinedButton(onClick = { showLogDialog = true }) { Text(tr("Log", "Logg")) }
             }
         }
     }
@@ -585,7 +693,7 @@ private fun DayCard(vm: AppViewModel, day: WorkoutDay, requestNotificationPermis
     val pe = detailFor
     if (pe != null) {
         val ex = ExerciseLibrary.get(pe.exerciseId)
-        val suggestion = ex?.let { ProgressionAdvisor.suggestion(it, pe, vm.logs) }
+        val suggestion = ex?.let { ProgressionAdvisor.suggestion(it, pe, vm.logs, weightOptions(it, vm.profile)) }
         Dialog(onDismissRequest = { detailFor = null }) {
             Card {
                 Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -631,7 +739,7 @@ private fun DayCard(vm: AppViewModel, day: WorkoutDay, requestNotificationPermis
             title = tr("Cancel the workout?", "Avbryte økta?"),
             text = tr("The time spent so far won't be saved.", "Tiden som er brukt så langt blir ikke lagret."),
             confirmLabel = tr("Cancel workout", "Avbryt økta"),
-            onConfirm = { vm.stopSession() },
+            onConfirm = { vm.discardGuided() },
             onDismiss = { confirmCancelSession = false },
         )
     }
@@ -870,6 +978,13 @@ private fun SettingsScreen(
 
         HorizontalDivider()
 
+        // Health Connect finnes fra Android 9.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            HealthConnectSection(vm)
+
+            HorizontalDivider()
+        }
+
         AiSection(vm)
     }
 }
@@ -1004,5 +1119,75 @@ private fun AiSection(vm: AppViewModel) {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+}
+
+@Composable
+private fun HealthConnectSection(vm: AppViewModel) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val p = vm.profile
+    val status = HealthConnectSync.status(context)
+    var note by remember { mutableStateOf<String?>(null) }
+    val launcher = rememberLauncherForActivityResult(PermissionController.createRequestPermissionResultContract()) { granted ->
+        if (granted.containsAll(HealthConnectSync.permissions)) {
+            note = null
+            vm.updateProfile(vm.profile.copy(healthConnect = true))
+        } else {
+            note = tr("Permission wasn't granted.", "Tillatelsen ble ikke gitt.")
+        }
+    }
+    // Er tillatelsen fjernet i Health Connect, slås bryteren av her også.
+    LaunchedEffect(p.healthConnect) {
+        if (p.healthConnect && !HealthConnectSync.hasPermission(context)) vm.updateProfile(vm.profile.copy(healthConnect = false))
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Health Connect", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text(
+            tr(
+                "Save logged workouts (strength training with start and end time) to Health Connect, so they show up in other health and fitness apps.",
+                "Lagre loggførte økter (styrketrening med start- og sluttid) i Health Connect, så de vises i andre helse- og treningsapper.",
+            ),
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(tr("Save workouts to Health Connect", "Lagre økter i Health Connect"), Modifier.weight(1f))
+            Switch(
+                checked = p.healthConnect,
+                onCheckedChange = { on ->
+                    when {
+                        !on -> vm.updateProfile(p.copy(healthConnect = false))
+                        status == HealthConnectClient.SDK_AVAILABLE -> scope.launch {
+                            if (HealthConnectSync.hasPermission(context)) {
+                                vm.updateProfile(vm.profile.copy(healthConnect = true))
+                            } else {
+                                launcher.launch(HealthConnectSync.permissions)
+                            }
+                        }
+                        else -> HealthConnectSync.openInstall(context)
+                    }
+                },
+            )
+        }
+        if (status != HealthConnectClient.SDK_AVAILABLE) {
+            Text(
+                tr(
+                    "Health Connect needs to be installed or updated on this phone. The switch opens Google Play.",
+                    "Health Connect må installeres eller oppdateres på denne telefonen. Bryteren åpner Google Play.",
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Text(
+            tr(
+                "Only workouts timed with the workout clock are saved, since Health Connect needs a start and end time.",
+                "Bare økter som er tatt tid på med øktklokka lagres, fordi Health Connect trenger start- og sluttid.",
+            ),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        note?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
     }
 }

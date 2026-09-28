@@ -80,6 +80,11 @@ data class Profile(
     val daysPerWeek: Int = 3,
     val minutesPerSession: Int = 45,
     val notes: String = "", // skader, ønsker osv.
+    /** Vektene man faktisk har, som fritekst: "2-20/2", "4 6 8 12,5" osv. Tolkes av [parseWeights]. */
+    val dumbbellWeights: String = "",
+    val kettlebellWeights: String = "",
+    /** Skriv fullførte økter til Health Connect (krever tillatelse). */
+    val healthConnect: Boolean = false,
 )
 
 @Serializable
@@ -89,6 +94,8 @@ data class PlannedExercise(
     val reps: String,
     val restSec: Int,
     val tip: String = "",
+    /** Supersett: øvelser i samme dag med samme bokstav kjøres vekselvis, med pause etter siste i gruppa. Tom = alene. */
+    val group: String = "",
 )
 
 @Serializable
@@ -104,6 +111,8 @@ data class Plan(
     val days: List<WorkoutDay>,
     val progression: String = "",
     val createdAt: String = "", // ISO-dato, satt når planen tas i bruk (se AppViewModel.setPlan)
+    /** Hvilken 4-ukersblokk dette er (1 = første program, 2 = laget med "Neste blokk" osv.). */
+    val block: Int = 1,
 )
 
 /** dagen 1 (mandag) til 7 (søndag), samme som java.time.DayOfWeek.value. */
@@ -133,6 +142,26 @@ data class SessionLog(
     val dayTitle: String,
     val results: List<ExerciseResult> = emptyList(),
     val durationMin: Int = 0, // 0 = ukjent/ikke tidtatt (eldre logger, eller logget uten å bruke øktklokka)
+)
+
+/** Ett gjennomført sett i øktmodus. */
+@Serializable
+data class DoneSet(
+    val exerciseId: String,
+    /** Plassen i dagens øvelsesliste (0, 1, 2 ...), i tilfelle samme øvelse står to ganger. */
+    val slot: Int,
+    val setIndex: Int,
+    val reps: Int,
+    val weightKg: Double? = null,
+)
+
+/** Pågående økt i øktmodus: hvor man er, og settene som er gjort. Lagres så den overlever at appen lukkes. */
+@Serializable
+data class GuidedWorkout(
+    val dayTitle: String,
+    val step: Int = 0,
+    val done: List<DoneSet> = emptyList(),
+    val warmupDone: Boolean = false,
 )
 
 /** Alt appen lagrer, samlet til én fil for backup/eksport. Ekskluderer AI-nøkkelen med vilje. */

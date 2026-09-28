@@ -53,7 +53,8 @@ object ProgressionAdvisor {
     fun lastResult(logs: List<SessionLog>, exerciseId: String): ExerciseResult? =
         logs.asReversed().firstNotNullOfOrNull { log -> log.results.find { it.exerciseId == exerciseId } }
 
-    fun suggestion(exercise: Exercise, planned: PlannedExercise, logs: List<SessionLog>): String? {
+    /** [weights]: vektene man har for øvelsen (se [weightOptions]); da kan forslaget si nøyaktig hvilken vekt. */
+    fun suggestion(exercise: Exercise, planned: PlannedExercise, logs: List<SessionLog>, weights: List<Double> = emptyList()): String? {
         val last = lastResult(logs, exercise.id) ?: return null
         if (last.sets.isEmpty()) return null
 
@@ -65,7 +66,13 @@ object ProgressionAdvisor {
 
         val allHitTop = range != null && last.sets.all { it.reps >= range.last }
 
+        val nextWeight = nextWeightUp(lastWeight, weights)
         return when {
+            allHitTop && exercise.isWeighted() && nextWeight != null ->
+                tr(
+                    "Last time: every set reached ${range!!.last}+ $unit$weightText. Go up to ${formatWeight(nextWeight)} kg next time.",
+                    "Sist: alle sett nådde ${range!!.last}+ $unit$weightText. Gå opp til ${formatWeight(nextWeight)} kg neste gang.",
+                )
             allHitTop && exercise.isWeighted() && lastWeight != null ->
                 tr(
                     "Last time: every set reached ${range!!.last}+ $unit$weightText. Add a little weight next time, or try a harder variation.",

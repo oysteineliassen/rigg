@@ -13,14 +13,51 @@ android {
         applicationId = "no.rigg.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1"
+        // Antall commits i git: stiger for hver endring og blir det samme på din PC og på GitHub,
+        // så en nyere versjon alltid kan installeres over en eldre, uansett hvor den ble bygget.
+        versionCode = runCatching {
+            providers.exec { commandLine("git", "rev-list", "--count", "HEAD") }.standardOutput.asText.get().trim().toInt()
+        }.getOrDefault(1)
+        versionName = "0.2"
+    }
+
+    // Felles debug-nøkkel i prosjektet (app/rigg-debug.keystore), så apper bygget på GitHub og i Android Studio
+    // kan installeres over hverandre. Mangler filen, brukes Android Studios vanlige debug-nøkkel.
+    val sharedDebugKey = file("rigg-debug.keystore")
+    // Release-nøkkel: fra miljøvariabler (GitHub-hemmeligheter) eller keystore.properties (ikke i git).
+    val releaseProps = java.util.Properties().apply {
+        rootProject.file("keystore.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+    }
+    val releaseStore = System.getenv("RIGG_KEYSTORE") ?: releaseProps.getProperty("storeFile")
+
+    signingConfigs {
+        if (sharedDebugKey.exists()) {
+            getByName("debug") {
+                storeFile = sharedDebugKey
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
+        if (releaseStore != null) {
+            create("release") {
+                storeFile = rootProject.file(releaseStore)
+                storePassword = System.getenv("RIGG_KEYSTORE_PASSWORD") ?: releaseProps.getProperty("storePassword")
+                keyAlias = System.getenv("RIGG_KEY_ALIAS") ?: releaseProps.getProperty("keyAlias")
+                keyPassword = System.getenv("RIGG_KEY_PASSWORD") ?: releaseProps.getProperty("keyPassword")
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (releaseStore != null) signingConfig = signingConfigs.getByName("release")
         }
+    }
+    testOptions {
+        // Android-klasser i vanlige enhetstester returnerer standardverdier i stedet for å kaste unntak.
+        unitTests.isReturnDefaultValues = true
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -47,4 +84,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.6")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    implementation("androidx.health.connect:connect-client:1.1.0")
+
+    testImplementation("junit:junit:4.13.2")
 }

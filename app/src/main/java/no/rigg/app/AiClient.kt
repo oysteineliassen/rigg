@@ -60,6 +60,7 @@ RULES
 - Fit the number of exercises, sets and rest periods to the time per session.
 - With little equipment you can't just add weight. Describe progression through reps, tempo, rest, unilateral variations and harder exercises, and add weight where the equipment allows.
 - Be careful with injuries and level. Don't pick exercises that are unrealistically hard.
+- If the time per session is 30 minutes or less, pair exercises into supersets: give both exercises in a pair the same "group" letter ("A", "B", ...) and list them next to each other; the rest applies after the second one. Pair exercises that don't tire the same muscles (e.g. push + pull, legs + upper body). Otherwise leave "group" empty.
 - $languageRule
 
 AVAILABLE EXERCISES (id | name | pattern | muscles | level)
@@ -75,7 +76,7 @@ Respond with ONLY valid JSON, no explanation and no markdown code block, in this
     {
       "title": "$exampleTitle",
       "exercises": [
-        { "exerciseId": "goblet_squat", "sets": 3, "reps": "8-12", "restSec": 75, "tip": "Short tip for this particular person" }
+        { "exerciseId": "goblet_squat", "sets": 3, "reps": "8-12", "restSec": 75, "tip": "Short tip for this particular person", "group": "" }
       ]
     }
   ]

@@ -27,6 +27,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var busy by mutableStateOf(false); private set
     var error by mutableStateOf<String?>(null); private set
 
+    /** Øktmodus: økta som gjennomføres sett for sett, og om skjermen for den vises akkurat nå. */
+    var guided by mutableStateOf(store.loadGuided()); private set
+    var guidedVisible by mutableStateOf(true); private set
+
     /** Økes hver gang et nytt program er lagt inn, slik at UI kan navigere til programmet. */
     var planVersion by mutableStateOf(0); private set
 
@@ -37,6 +41,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     init {
         WorkoutTimers.init(app)
         dropOrphanSession()
+        // Øktmodus uten øktklokke er en gammel, glemt økt (klokka forkastes etter 12 timer).
+        if (guided != null && WorkoutTimers.session == null) setGuided(null)
         // Hvis Android lukket appen midt i en økt: få tjenesten og varselet tilbake.
         if (WorkoutTimers.isActive) WorkoutTimers.ensureService(app)
     }
@@ -56,6 +62,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Hvis programmet byttes midt i en økt, finnes ikke dagen (og Avbryt-knappen) lenger: stopp klokka. */
     private fun dropOrphanSession() {
+        val g = guided
+        if (g != null && plan?.days?.none { it.title == g.dayTitle } != false) setGuided(null)
         val s = WorkoutTimers.session ?: return
         if (plan?.days?.none { it.title == s.dayTitle } != false) stopSession()
     }
@@ -101,12 +109,76 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun logSession(dayTitle: String, results: List<ExerciseResult> = emptyList()) {
         // Bruker øktklokka hvis den kjører for denne dagen, ellers 0 (ukjent varighet).
-        val durationMin = sessionTimer?.takeIf { it.dayTitle == dayTitle }?.let { (it.elapsedSec() + 30) / 60 } ?: 0
+        val running = sessionTimer?.takeIf { it.dayTitle == dayTitle }
+        val durationMin = running?.let { (it.elapsedSec() + 30) / 60 } ?: 0
         val updated = logs + SessionLog(LocalDate.now().toString(), dayTitle, results, durationMin)
         logs = updated
         store.saveLogs(updated)
-        if (sessionTimer?.dayTitle == dayTitle) stopSession()
+        if (running != null) stopSession()
+        if (guided?.dayTitle == dayTitle) setGuided(null)
         refreshWidget()
+        if (running != null && durationMin > 0 && profile.healthConnect) writeToHealthConnect(dayTitle, running.startedAtMs)
+    }
+
+    private fun writeToHealthConnect(title: String, startedAtMs: Long) {
+        val start = java.time.Instant.ofEpochMilli(startedAtMs)
+        val end = java.time.Instant.now()
+        viewModelScope.launch {
+            HealthConnectSync.writeWorkout(getApplication(), title, start, end).onFailure {
+                error = tr("Couldn't save the workout to Health Connect: ${it.message}", "Kunne ikke lagre økta i Health Connect: ${it.message}")
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------- ØKTMODUS
+
+    private fun setGuided(g: GuidedWorkout?) {
+        guided = g
+        store.saveGuided(g)
+    }
+
+    /** Starter (eller åpner igjen) øktmodus for en dag. Øktklokka startes samtidig. */
+    fun openGuided(day: WorkoutDay) {
+        // En annen dag var i gang: lagre settene som ble gjort der før den nye starter.
+        val old = guided
+        if (old != null && old.dayTitle != day.title && old.done.isNotEmpty()) {
+            plan?.days?.find { it.title == old.dayTitle }?.let { finishGuided(it) }
+        }
+        if (sessionTimer?.dayTitle != day.title) startSession(day.title)
+        if (guided?.dayTitle != day.title) setGuided(GuidedWorkout(day.title))
+        guidedVisible = true
+    }
+
+    fun updateGuided(g: GuidedWorkout) = setGuided(g)
+
+    /** Skjuler øktmodus uten å avslutte økta (klokka og settene beholdes). */
+    fun hideGuided() { guidedVisible = false }
+
+    /** Lagrer settene som er gjort som en vanlig logg, og avslutter økta. */
+    fun finishGuided(day: WorkoutDay) {
+        val g = guided ?: return
+        val results = day.exercises.mapIndexedNotNull { slot, pe ->
+            val sets = g.done.filter { it.slot == slot }.sortedBy { it.setIndex }.map { SetResult(it.reps, it.weightKg) }
+            if (sets.isEmpty()) null else ExerciseResult(pe.exerciseId, sets)
+        }
+        stopRestTimer()
+        logSession(day.title, results)
+    }
+
+    /** Avbryter økta uten å logge noe. */
+    fun discardGuided() {
+        setGuided(null)
+        stopRestTimer()
+        stopSession()
+    }
+
+    // ---------------------------------------------------------------- NESTE BLOKK
+
+    fun startNextBlock() {
+        val current = plan ?: return
+        // Øvelsene byttes ut, så en påbegynt økt i øktmodus passer ikke lenger.
+        if (guided != null) setGuided(null)
+        setPlan(nextBlock(current, logs, profile))
     }
 
     fun undoLastLog() {

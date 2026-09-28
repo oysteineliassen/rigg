@@ -19,6 +19,9 @@ captures/
 *.aab
 *.jks
 *.keystore
+# ... unntatt den felles debug-nøkkelen (ikke hemmelig, se app/build.gradle.kts)
+!app/rigg-debug.keystore
+keystore.properties
 
 # OS
 .DS_Store
