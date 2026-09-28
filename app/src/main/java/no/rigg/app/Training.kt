@@ -270,3 +270,12 @@ fun nextBlock(plan: Plan, logs: List<SessionLog>, profile: Profile): Generated {
     }
     return Generated(plan.copy(name = name, days = days, block = block), notes)
 }
+
+/** Opptil [count] vekter rundt [current] til knapperaden i øktmodus, sortert stigende. */
+fun weightWindow(options: List<Double>, current: Double?, count: Int = 5): List<Double> {
+    val sorted = options.distinct().sorted()
+    if (sorted.size <= count) return sorted
+    val idx = if (current == null) sorted.size / 2 else sorted.indices.minBy { kotlin.math.abs(sorted[it] - current) }
+    val start = (idx - count / 2).coerceIn(0, sorted.size - count)
+    return sorted.subList(start, start + count)
+}

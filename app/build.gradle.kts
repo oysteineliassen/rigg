@@ -1,3 +1,4 @@
+import java.net.URI
 import java.util.Properties
 
 plugins {
@@ -92,3 +93,29 @@ dependencies {
 
     testImplementation("junit:junit:4.13.2")
 }
+
+// Skriftene Barlow og Barlow Condensed (SIL Open Font License) hentes fra Google Fonts sitt GitHub-arkiv
+// første gang appen bygges, og legges i res/font. Commit dem etterpå, så trengs ikke nedlastingen igjen.
+val downloadFonts by tasks.registering {
+    val fontDir = file("src/main/res/font")
+    val fonts = mapOf(
+        "barlow_regular.ttf" to "ofl/barlow/Barlow-Regular.ttf",
+        "barlow_medium.ttf" to "ofl/barlow/Barlow-Medium.ttf",
+        "barlow_semibold.ttf" to "ofl/barlow/Barlow-SemiBold.ttf",
+        "barlow_condensed_semibold.ttf" to "ofl/barlowcondensed/BarlowCondensed-SemiBold.ttf",
+        "barlow_condensed_bold.ttf" to "ofl/barlowcondensed/BarlowCondensed-Bold.ttf",
+    )
+    onlyIf { fonts.keys.any { !File(fontDir, it).exists() } }
+    doLast {
+        fontDir.mkdirs()
+        fonts.forEach { (name, path) ->
+            val target = File(fontDir, name)
+            if (!target.exists()) {
+                val url = "https://raw.githubusercontent.com/google/fonts/main/$path"
+                logger.lifecycle("Laster ned $name")
+                URI(url).toURL().openStream().use { input -> target.outputStream().use { input.copyTo(it) } }
+            }
+        }
+    }
+}
+tasks.named("preBuild") { dependsOn(downloadFonts) }

@@ -48,6 +48,12 @@ miljøvariablene `RIGG_KEYSTORE`, `RIGG_KEYSTORE_PASSWORD`, `RIGG_KEY_ALIAS` og 
 Enhetstestene ligger i `app/src/test`. Kjør dem i Android Studio (høyreklikk mappen > Run Tests) eller
 med `gradle testDebugUnitTest`. De kjøres også automatisk på GitHub.
 
+## Utseende og skrifter
+
+Farger, skrifter og felles byggeklosser (store knapper, ikoner, øvelsesfliser) ligger i `Theme.kt`. Appen følger telefonens lyse eller mørke tema.
+
+Skriftene er Barlow og Barlow Condensed (SIL Open Font License). Første gang appen bygges, lastes de ned fra Google Fonts sitt GitHub-arkiv til `app/src/main/res/font/`. Commit dem etterpå (`git add app/src/main/res/font`), så trengs ikke nedlastingen igjen, heller ikke på GitHub.
+
 ## Health Connect
 Kan slås på under Mer. Da lagres hver loggførte økt som er tatt tid på, som en styrketreningsøkt.
 Appen ber bare om å skrive. På Android 13 og eldre må Health Connect-appen være installert.

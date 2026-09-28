@@ -11,7 +11,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -28,6 +32,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -36,6 +43,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
@@ -60,7 +68,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            MaterialTheme(colorScheme = if (androidx.compose.foundation.isSystemInDarkTheme()) darkColorScheme() else lightColorScheme()) {
+            RiggTheme {
                 App(
                     vm,
                     requestNotificationPermission = {
@@ -136,15 +144,8 @@ private fun App(
     if (guided != null && guidedDay != null && vm.guidedVisible) {
         Scaffold(snackbarHost = { SnackbarHost(snackbar) }) { pad ->
             Box(Modifier.padding(pad).fillMaxSize()) {
+                // Hvilen vises som egen skjerm inne i øktmodus, så her trengs ikke baren nederst.
                 WorkoutSessionScreen(vm, guidedDay, guided)
-                vm.restTimer?.let { timer ->
-                    RestTimerBar(
-                        timer = timer,
-                        onAddSeconds = { vm.addRestSeconds(it) },
-                        onStop = { vm.stopRestTimer() },
-                        modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(12.dp),
-                    )
-                }
             }
         }
         return
@@ -153,7 +154,7 @@ private fun App(
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
-            NavigationBar {
+            NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainerLow) {
                 Tab.values().forEach { t ->
                     NavigationBarItem(
                         selected = tab == t,
@@ -161,16 +162,23 @@ private fun App(
                         icon = {
                             Icon(
                                 when (t) {
-                                    Tab.SETUP -> Icons.Filled.Tune
-                                    Tab.PLAN -> Icons.Filled.FitnessCenter
-                                    Tab.EXERCISES -> Icons.AutoMirrored.Filled.List
-                                    Tab.PROGRESS -> Icons.AutoMirrored.Filled.ShowChart
-                                    Tab.SETTINGS -> Icons.Filled.Settings
+                                    Tab.SETUP -> RiggIcons.Sliders
+                                    Tab.PLAN -> RiggIcons.Dumbbell
+                                    Tab.EXERCISES -> RiggIcons.Lines
+                                    Tab.PROGRESS -> RiggIcons.Trend
+                                    Tab.SETTINGS -> RiggIcons.More
                                 },
                                 contentDescription = t.label,
                             )
                         },
-                        label = { Text(t.label, maxLines = 1) },
+                        label = { Text(t.label, maxLines = 1, style = MaterialTheme.typography.labelMedium) },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            selectedTextColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        ),
                     )
                 }
             }
@@ -214,10 +222,14 @@ internal fun rememberTick(active: Boolean, periodMs: Long = 250L): Long {
 
 /** Egen liten composable så bare klokketeksten tegnes på nytt hvert sekund, ikke hele dagskortet. */
 @Composable
-internal fun SessionClock(session: ActiveSession) {
+internal fun SessionClock(
+    session: ActiveSession,
+    style: TextStyle = MaterialTheme.typography.bodyMedium,
+    color: Color = Color.Unspecified,
+) {
     @Suppress("UNUSED_VARIABLE")
     val tick = rememberTick(active = true, periodMs = 500L)
-    Text(formatDuration(session.elapsedSec()), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+    Text(formatDuration(session.elapsedSec()), style = style, fontWeight = FontWeight.Bold, color = color)
 }
 
 @Composable
@@ -242,136 +254,104 @@ internal fun RestTimerBar(timer: RestTimer, onAddSeconds: (Int) -> Unit, onStop:
 
 // ---------------------------------------------------------------- OPPSETT
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun SetupScreen(vm: AppViewModel, goToPlan: () -> Unit, goToSettings: () -> Unit) {
     val p = vm.profile
     val clipboard = LocalClipboardManager.current
     var showImport by remember { mutableStateOf(false) }
     var copied by remember { mutableStateOf(false) }
+    var moreOptions by remember { mutableStateOf(false) }
+    var editWeights by remember { mutableStateOf<Equipment?>(null) }
 
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-        Text(tr("What do you have at home?", "Hva har du hjemme?"), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        Text(tr("Bodyweight is always included. Pick what you actually have available.", "Kroppsvekt er alltid med. Velg det du faktisk har tilgjengelig."), style = MaterialTheme.typography.bodyMedium)
-
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Equipment.selectable.forEach { e ->
-                FilterChip(
-                    selected = e in p.equipment,
-                    onClick = {
-                        val next = if (e in p.equipment) p.equipment - e else p.equipment + e
-                        vm.updateProfile(p.copy(equipment = next))
-                    },
-                    label = { Text(e.label) },
-                )
-            }
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(tr("Your equipment", "Utstyret ditt"), style = MaterialTheme.typography.headlineMedium)
+            Text(
+                tr("Bodyweight is always included. Tap what you have.", "Kroppsvekt er alltid med. Trykk på det du har."),
+                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
 
-        OutlinedTextField(
-            value = p.equipmentDetails,
-            onValueChange = { vm.updateProfile(p.copy(equipmentDetails = it)) },
-            label = { Text(tr("Details (optional)", "Detaljer (valgfritt)")) },
-            placeholder = { Text(tr("E.g. 2 × 12 kg dumbbells, yellow and red bands", "F.eks. 2 manualer à 12 kg, gul og rød strikk")) },
-            modifier = Modifier.fillMaxWidth(),
-        )
+        // Utstyret som fliser med ikon, fire i bredden.
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Equipment.selectable.chunked(4).forEach { row ->
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    row.forEach { e ->
+                        EquipmentTile(
+                            e, selected = e in p.equipment, modifier = Modifier.weight(1f),
+                            onClick = { vm.updateProfile(p.copy(equipment = if (e in p.equipment) p.equipment - e else p.equipment + e)) },
+                        )
+                    }
+                    repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+                }
+            }
+        }
 
         if (Equipment.DUMBBELLS in p.equipment) {
-            WeightsField(
-                label = tr("Dumbbell weights you have (kg)", "Manualvekter du har (kg)"),
-                value = p.dumbbellWeights,
-                onChange = { vm.updateProfile(p.copy(dumbbellWeights = it)) },
-            )
+            WeightsRow(Equipment.DUMBBELLS, tr("Dumbbell weights you have", "Manualvekter du har"), p.dumbbellWeights) { editWeights = Equipment.DUMBBELLS }
         }
         if (Equipment.KETTLEBELL in p.equipment) {
-            WeightsField(
-                label = tr("Kettlebells you have (kg)", "Kettlebeller du har (kg)"),
-                value = p.kettlebellWeights,
-                onChange = { vm.updateProfile(p.copy(kettlebellWeights = it)) },
-            )
+            WeightsRow(Equipment.KETTLEBELL, tr("Kettlebells you have", "Kettlebeller du har"), p.kettlebellWeights) { editWeights = Equipment.KETTLEBELL }
         }
 
-        OutlinedTextField(
-            value = p.customEquipment,
-            onValueChange = { vm.updateProfile(p.copy(customEquipment = it)) },
-            label = { Text(tr("Other equipment (optional)", "Annet utstyr (valgfritt)")) },
-            placeholder = { Text(tr("Anything not listed above? E.g. sandbag, punching bag, door-frame straps", "Har du noe som ikke står over? F.eks. sandsekk, boksesekk, dørbøyle-slynger")) },
-            modifier = Modifier.fillMaxWidth(),
-        )
-        if (p.customEquipment.isNotBlank()) {
-            Text(
-                tr(
-                    "Used in AI-generated plans. The rule-based (offline) generator currently only knows its own " +
-                        "exercise library and can't create exercises for equipment it doesn't know about.",
-                    "Brukes i AI-genererte program. Det regelbaserte (offline) programmet kjenner foreløpig bare " +
-                        "øvelsesbiblioteket sitt og kan ikke automatisk lage øvelser for utstyr det ikke vet om.",
-                ),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SectionLabel(tr("Goal", "Mål"))
+            Segmented(Goal.values().toList(), p.goal, { it.shortLabel }) { vm.updateProfile(p.copy(goal = it)) }
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SectionLabel(tr("Level", "Nivå"))
+            Segmented(Level.values().toList(), p.level, { it.label }) { vm.updateProfile(p.copy(level = it)) }
         }
 
-        HorizontalDivider()
-
-        Text(tr("Goal", "Mål"), style = MaterialTheme.typography.titleMedium)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Goal.values().forEach { g ->
-                FilterChip(selected = p.goal == g, onClick = { vm.updateProfile(p.copy(goal = g)) }, label = { Text(g.label) })
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                SectionLabel(tr("Days a week", "Dager i uka"))
+                SectionLabel(tr("Time per workout", "Tid per økt"))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    (1..6).forEach { d ->
+                        Pill(d.toString(), selected = p.daysPerWeek == d, modifier = Modifier.weight(1f)) { vm.updateProfile(p.copy(daysPerWeek = d)) }
+                    }
+                }
+                Row(
+                    Modifier.clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceContainer),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TextButton(
+                        onClick = { vm.updateProfile(p.copy(minutesPerSession = (p.minutesPerSession - 5).coerceAtLeast(20))) },
+                        modifier = Modifier.size(40.dp), contentPadding = PaddingValues(0.dp),
+                    ) { Text("−", style = MaterialTheme.typography.titleLarge) }
+                    Text("${p.minutesPerSession}", style = MaterialTheme.typography.titleLarge)
+                    Text(" min", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    TextButton(
+                        onClick = { vm.updateProfile(p.copy(minutesPerSession = (p.minutesPerSession + 5).coerceAtMost(90))) },
+                        modifier = Modifier.size(40.dp), contentPadding = PaddingValues(0.dp),
+                    ) { Text("+", style = MaterialTheme.typography.titleLarge) }
+                }
             }
         }
 
-        Text(tr("Level", "Nivå"), style = MaterialTheme.typography.titleMedium)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Level.values().forEach { l ->
-                FilterChip(selected = p.level == l, onClick = { vm.updateProfile(p.copy(level = l)) }, label = { Text(l.label) })
-            }
-        }
-
-        Text(tr("Days per week: ${p.daysPerWeek}", "Dager i uka: ${p.daysPerWeek}"), style = MaterialTheme.typography.titleMedium)
-        Slider(
-            value = p.daysPerWeek.toFloat(),
-            onValueChange = { vm.updateProfile(p.copy(daysPerWeek = it.toInt())) },
-            valueRange = 1f..6f, steps = 4,
-        )
-
-        Text(tr("Time per workout: ${p.minutesPerSession} min", "Tid per økt: ${p.minutesPerSession} min"), style = MaterialTheme.typography.titleMedium)
-        Slider(
-            value = p.minutesPerSession.toFloat(),
-            onValueChange = { vm.updateProfile(p.copy(minutesPerSession = (it / 5).toInt() * 5)) },
-            valueRange = 20f..90f, steps = 13,
-        )
-
-        OutlinedTextField(
-            value = p.notes,
-            onValueChange = { vm.updateProfile(p.copy(notes = it)) },
-            label = { Text(tr("Injuries and wishes (optional)", "Skader og ønsker (valgfritt)")) },
-            placeholder = { Text(tr("E.g. sore left knee, want a stronger back", "F.eks. vondt i venstre kne, vil ha sterkere rygg")) },
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        HorizontalDivider()
-
-        Button(
-            onClick = { vm.generateWithRules(); goToPlan() },
-            modifier = Modifier.fillMaxWidth(),
-        ) { Text(tr("Create plan (rule-based, offline)", "Lag program (regelbasert, offline)")) }
-
-        Button(
-            onClick = {
-                if (vm.ai.apiKey.isBlank()) goToSettings() else { vm.generateWithAi() }
-            },
-            enabled = !vm.busy,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.filledTonalButtonColors(),
-        ) {
-            if (vm.busy) {
-                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                Spacer(Modifier.width(8.dp))
-                Text(tr("AI is creating the plan ...", "AI lager programmet ..."))
-            } else {
-                Text(if (vm.ai.apiKey.isBlank()) tr("Create plan with AI (add API key)", "Lag program med AI (legg inn API-nøkkel)") else tr("Create plan with AI", "Lag program med AI"))
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            BigButton(tr("Create plan", "Lag program"), onClick = { vm.generateWithRules(); goToPlan() })
+            OutlinedButton(
+                onClick = { if (vm.ai.apiKey.isBlank()) goToSettings() else vm.generateWithAi() },
+                enabled = !vm.busy,
+                modifier = Modifier.fillMaxWidth().height(50.dp),
+                shape = RoundedCornerShape(16.dp),
+            ) {
+                if (vm.busy) {
+                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(8.dp))
+                    Text(tr("AI is creating the plan ...", "AI lager programmet ..."))
+                } else {
+                    Icon(RiggIcons.Sparkle, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(if (vm.ai.apiKey.isBlank()) tr("Create with AI (add API key)", "Lag med AI (legg inn API-nøkkel)") else tr("Create with AI instead", "Lag med AI i stedet"))
+                }
             }
         }
         // Naviger til programmet når et nytt program er lagt inn (f.eks. etter AI-kall).
@@ -380,12 +360,72 @@ private fun SetupScreen(vm: AppViewModel, goToPlan: () -> Unit, goToSettings: ()
             if (firstComposition) firstComposition = false else goToPlan()
         }
 
-        Text(tr("Prefer a chat you're already signed in to?", "Bruker du heller en chat du allerede er logget inn på?"), style = MaterialTheme.typography.bodyMedium)
-        OutlinedButton(
-            onClick = { clipboard.setText(AnnotatedString(vm.promptForClipboard())); copied = true },
-            modifier = Modifier.fillMaxWidth(),
-        ) { Text(if (copied) tr("Prompt copied. Paste it into the chat", "Prompt kopiert. Lim den inn i chatten") else tr("1. Copy prompt for chat", "1. Kopier prompt til chat")) }
-        OutlinedButton(onClick = { showImport = true }, modifier = Modifier.fillMaxWidth()) { Text(tr("2. Paste the reply from the chat", "2. Lim inn svaret fra chatten")) }
+        // Det som sjelden trengs, samlet bak én knapp så skjermen holder seg ryddig.
+        TextButton(onClick = { moreOptions = !moreOptions }) {
+            Text(if (moreOptions) tr("Fewer options", "Færre valg") else tr("More options", "Flere valg"))
+            Spacer(Modifier.width(4.dp))
+            Icon(RiggIcons.ChevronDown, contentDescription = null, modifier = Modifier.size(18.dp))
+        }
+        if (moreOptions) {
+            OutlinedTextField(
+                value = p.equipmentDetails,
+                onValueChange = { vm.updateProfile(p.copy(equipmentDetails = it)) },
+                label = { Text(tr("Equipment details (optional)", "Detaljer om utstyret (valgfritt)")) },
+                placeholder = { Text(tr("E.g. yellow and red bands", "F.eks. gul og rød strikk")) },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = p.customEquipment,
+                onValueChange = { vm.updateProfile(p.copy(customEquipment = it)) },
+                label = { Text(tr("Other equipment (optional)", "Annet utstyr (valgfritt)")) },
+                placeholder = { Text(tr("E.g. sandbag, punching bag", "F.eks. sandsekk, boksesekk")) },
+                supportingText = if (p.customEquipment.isNotBlank()) {
+                    { Text(tr("Only used by AI-generated plans.", "Brukes bare av AI-genererte program.")) }
+                } else null,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = p.notes,
+                onValueChange = { vm.updateProfile(p.copy(notes = it)) },
+                label = { Text(tr("Injuries and wishes (optional)", "Skader og ønsker (valgfritt)")) },
+                placeholder = { Text(tr("E.g. sore left knee, want a stronger back", "F.eks. vondt i venstre kne, vil ha sterkere rygg")) },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Text(
+                tr("Prefer a chat you're already signed in to?", "Bruker du heller en chat du allerede er logget inn på?"),
+                style = MaterialTheme.typography.titleSmall,
+            )
+            OutlinedButton(
+                onClick = { clipboard.setText(AnnotatedString(vm.promptForClipboard())); copied = true },
+                modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp),
+            ) { Text(if (copied) tr("Prompt copied. Paste it into the chat", "Prompt kopiert. Lim den inn i chatten") else tr("1. Copy prompt for chat", "1. Kopier prompt til chat")) }
+            OutlinedButton(onClick = { showImport = true }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+                Text(tr("2. Paste the reply from the chat", "2. Lim inn svaret fra chatten"))
+            }
+        }
+    }
+
+    editWeights?.let { eq ->
+        val dumbbells = eq == Equipment.DUMBBELLS
+        var text by remember(eq) { mutableStateOf(if (dumbbells) p.dumbbellWeights else p.kettlebellWeights) }
+        AlertDialog(
+            onDismissRequest = { editWeights = null },
+            title = { Text(if (dumbbells) tr("Dumbbell weights", "Manualvekter") else tr("Kettlebells", "Kettlebeller")) },
+            text = {
+                WeightsField(
+                    label = tr("Weights you have (kg)", "Vektene du har (kg)"),
+                    value = text,
+                    onChange = { text = it },
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    vm.updateProfile(if (dumbbells) vm.profile.copy(dumbbellWeights = text) else vm.profile.copy(kettlebellWeights = text))
+                    editWeights = null
+                }) { Text(tr("Save", "Lagre")) }
+            },
+            dismissButton = { TextButton(onClick = { editWeights = null }) { Text(tr("Cancel", "Avbryt")) } },
+        )
     }
 
     if (showImport) {
@@ -406,6 +446,122 @@ private fun SetupScreen(vm: AppViewModel, goToPlan: () -> Unit, goToSettings: ()
                 }) { Text(tr("Import", "Importer")) }
             },
             dismissButton = { TextButton(onClick = { showImport = false }) { Text(tr("Cancel", "Avbryt")) } },
+        )
+    }
+}
+
+/** Kort navn på målene, så de får plass i en knapperad. */
+private val Goal.shortLabel: String
+    get() = when (this) {
+        Goal.STRENGTH -> tr("Strength", "Styrke")
+        Goal.HYPERTROPHY -> tr("Muscle", "Muskelvekst")
+        Goal.FITNESS -> tr("Fitness", "Form")
+    }
+
+@Composable
+private fun EquipmentTile(e: Equipment, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    Column(
+        modifier
+            .height(78.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(if (selected) colors.primaryContainer else colors.surface)
+            .border(1.5.dp, if (selected) colors.secondary else colors.outlineVariant, RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick)
+            .padding(4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically),
+    ) {
+        Icon(RiggIcons.forEquipment(e), contentDescription = null, tint = if (selected) colors.onPrimaryContainer else colors.onSurfaceVariant, modifier = Modifier.size(26.dp))
+        Text(
+            e.shortLabel,
+            style = MaterialTheme.typography.labelMedium,
+            color = if (selected) colors.onSurface else colors.onSurfaceVariant,
+            maxLines = 1,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+/** Korte utstyrsnavn til flisene (de lange står i øvelseslista). */
+private val Equipment.shortLabel: String
+    get() = when (this) {
+        Equipment.BODYWEIGHT -> tr("Bodyweight", "Kroppsvekt")
+        Equipment.DUMBBELLS -> tr("Dumbbells", "Manualer")
+        Equipment.KETTLEBELL -> "Kettlebell"
+        Equipment.RESISTANCE_BANDS -> tr("Bands", "Strikk")
+        Equipment.PULL_UP_BAR -> tr("Pull-up bar", "Tverrligger")
+        Equipment.BENCH -> tr("Bench", "Benk")
+        Equipment.PLYO_BOX -> tr("Plyo box", "Hoppekasse")
+        Equipment.BARBELL -> tr("Barbell", "Stang")
+        Equipment.CHAIR -> tr("Chair/sofa", "Stol/sofa")
+        Equipment.TABLE -> tr("Table", "Bord")
+        Equipment.TRX -> tr("Straps", "Slynger")
+        Equipment.JUMP_ROPE -> tr("Jump rope", "Hoppetau")
+    }
+
+@Composable
+private fun WeightsRow(e: Equipment, label: String, value: String, onEdit: () -> Unit) {
+    val parsed = parseWeights(value)
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceContainer).clickable(onClick = onEdit)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Icon(RiggIcons.forEquipment(e), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(22.dp))
+        Column(Modifier.weight(1f)) {
+            Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                when {
+                    parsed.isEmpty() -> tr("Not set: tap to add", "Ikke lagt inn: trykk for å legge til")
+                    parsed.size > 4 -> "${formatWeight(parsed.first())}–${formatWeight(parsed.last())} kg · ${parsed.size} " + tr("weights", "vekter")
+                    else -> parsed.joinToString(", ") { formatWeight(it) } + " kg"
+                },
+                style = MaterialTheme.typography.titleSmall,
+            )
+        }
+        Text(tr("Edit", "Endre"), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.tertiary)
+    }
+}
+
+/** Knapperad der ett valg er markert (mål, nivå). */
+@Composable
+private fun <T> Segmented(options: List<T>, selected: T, label: (T) -> String, onSelect: (T) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(MaterialTheme.colorScheme.surfaceContainer).padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        options.forEach { o ->
+            val on = o == selected
+            Box(
+                Modifier.weight(1f).height(40.dp).clip(RoundedCornerShape(10.dp))
+                    .background(if (on) MaterialTheme.colorScheme.inverseSurface else androidx.compose.ui.graphics.Color.Transparent)
+                    .clickable { onSelect(o) },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    label(o),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = if (on) MaterialTheme.colorScheme.inverseOnSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun Pill(text: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Box(
+        modifier.height(40.dp).clip(RoundedCornerShape(10.dp))
+            .background(if (selected) MaterialTheme.colorScheme.inverseSurface else androidx.compose.ui.graphics.Color.Transparent)
+            .border(1.dp, if (selected) androidx.compose.ui.graphics.Color.Transparent else MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text, style = MaterialTheme.typography.titleLarge.copy(fontSize = 18.sp),
+            color = if (selected) MaterialTheme.colorScheme.inverseOnSurface else MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
@@ -446,52 +602,87 @@ private fun PlanScreen(vm: AppViewModel, goToSetup: () -> Unit, requestNotificat
             Modifier.fillMaxSize().padding(24.dp),
             verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text(tr("No plan yet", "Ingen program ennå"), style = MaterialTheme.typography.titleLarge)
-            Spacer(Modifier.height(8.dp))
-            Text(tr("Choose equipment and goals, then create a plan.", "Velg utstyr og mål, og lag et program."), style = MaterialTheme.typography.bodyMedium)
+            Text("RIGG", style = MaterialTheme.typography.headlineLarge.copy(letterSpacing = 4.sp))
             Spacer(Modifier.height(16.dp))
-            Button(onClick = goToSetup) { Text(tr("Go to setup", "Gå til oppsett")) }
+            Text(tr("No plan yet", "Ingen program ennå"), style = MaterialTheme.typography.titleLarge)
+            Spacer(Modifier.height(6.dp))
+            Text(
+                tr("Choose your equipment and goal, then create a plan.", "Velg utstyr og mål, og lag et program."),
+                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(20.dp))
+            BigButton(tr("Go to setup", "Gå til oppsett"), onClick = goToSetup)
         }
         return
     }
 
-    val weekStart = LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-    val doneThisWeek = vm.logs.count { runCatching { !LocalDate.parse(it.date).isBefore(weekStart) }.getOrDefault(false) }
+    val today = LocalDate.now()
+    val doneThisWeek = logsThisWeek(vm.logs, today)
+    val next = nextDay(plan, vm.logs, today)
     var showHistory by remember { mutableStateOf(false) }
     var confirmNextBlock by remember { mutableStateOf(false) }
+    var showProgression by remember { mutableStateOf(false) }
 
     val weeksElapsed = remember(plan.createdAt) {
         runCatching { java.time.temporal.ChronoUnit.WEEKS.between(LocalDate.parse(plan.createdAt), LocalDate.now()) }.getOrDefault(0L)
     }
+    val weekNo = (weeksElapsed + 1).coerceAtMost(plan.weeks.toLong())
 
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-        Text(plan.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        Text(
-            tr(
-                "${plan.weeks} ${if (plan.weeks == 1) "week" else "weeks"} · ${plan.days.size} ${if (plan.days.size == 1) "workout" else "workouts"} per week · done this week: $doneThisWeek/${plan.days.size}",
-                "${plan.weeks} uker · ${plan.days.size} økter i uka · fullført denne uka: $doneThisWeek/${plan.days.size}",
-            ),
-            style = MaterialTheme.typography.bodyMedium,
-        )
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text("RIGG", style = MaterialTheme.typography.titleLarge.copy(letterSpacing = 4.sp))
+            Text(
+                tr("Week $weekNo of ${plan.weeks}", "Uke $weekNo av ${plan.weeks}") + if (plan.block > 1) tr(" · block ${plan.block}", " · blokk ${plan.block}") else "",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
+                Text(tr("This week", "Denne uka"), style = MaterialTheme.typography.headlineSmall)
+                Text(
+                    tr("${doneThisWeek.size} of ${plan.days.size} workouts", "${doneThisWeek.size} av ${plan.days.size} økter"),
+                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            WeekStrip(trainedWeekdays(vm.logs, today), today.dayOfWeek.value)
+        }
+
+        if (next != null) {
+            NextWorkoutCard(vm, next, onStart = { requestNotificationPermission(); vm.openGuided(next) })
+        } else {
+            Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    SectionLabel(tr("Week done", "Uka er i boks"), color = MaterialTheme.colorScheme.tertiary)
+                    Text(tr("All workouts done this week", "Alle øktene er gjort denne uka"), style = MaterialTheme.typography.headlineSmall)
+                    Text(
+                        tr("Rest up. The plan starts over on Monday.", "Hvil godt. Programmet starter på nytt mandag."),
+                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+
+        nudgeFor(next ?: plan.days.first(), vm.logs, vm.profile)?.let { NudgeCard(it) }
 
         if (weeksElapsed >= plan.weeks) {
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
-                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(tr("Time for a lighter week?", "Tid for en lettere uke?"), fontWeight = FontWeight.Bold)
+            Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(tr("Block done: time for the next one", "Blokka er ferdig: tid for neste"), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
                     Text(
                         tr(
-                            "You've been on this plan for $weeksElapsed ${if (weeksElapsed == 1L) "week" else "weeks"}. Consider a lighter week (50-60% of your usual weight/reps), " +
-                                "or create a new plan on the Setup tab to keep progressing.",
-                            "Du har kjørt dette programmet i $weeksElapsed uker. Vurder en lettere uke (50-60 % av vanlig vekt/reps), " +
-                                "eller lag et nytt program på Oppsett-fanen for fortsatt fremgang.",
+                            "You've been on this plan for $weeksElapsed ${if (weeksElapsed == 1L) "week" else "weeks"}. Take a lighter week (50-60% of your usual weight/reps), " +
+                                "or create the next block from your logs.",
+                            "Du har kjørt dette programmet i $weeksElapsed uker. Ta en lettere uke (50-60 % av vanlig vekt/reps), " +
+                                "eller lag neste blokk ut fra loggene dine.",
                         ),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Row(Modifier.align(Alignment.End), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TextButton(onClick = goToSetup) { Text(tr("Go to setup", "Gå til oppsett")) }
+                        TextButton(onClick = goToSetup) { Text(tr("New plan", "Nytt program")) }
                         Button(onClick = { confirmNextBlock = true }) { Text(tr("Next block", "Neste blokk")) }
                     }
                 }
@@ -499,39 +690,64 @@ private fun PlanScreen(vm: AppViewModel, goToSetup: () -> Unit, requestNotificat
         }
 
         if (vm.warnings.isNotEmpty()) {
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
-                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(tr("Note", "Merk"), fontWeight = FontWeight.Bold)
-                    vm.warnings.forEach { Text("• $it", style = MaterialTheme.typography.bodyMedium) }
+            Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    SectionLabel(tr("Note", "Merk"), color = MaterialTheme.colorScheme.tertiary)
+                    vm.warnings.forEach { Text(it, style = MaterialTheme.typography.bodyMedium) }
                 }
             }
         }
 
-        plan.days.forEach { day -> DayCard(vm, day, requestNotificationPermission) }
+        if (doneThisWeek.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                SectionLabel(tr("Done this week", "Gjort denne uka"))
+                doneThisWeek.forEach { log ->
+                    Row(
+                        Modifier.fillMaxWidth().border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp)).padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        CheckDot(28.dp)
+                        Text(log.dayTitle, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                        val day = runCatching { LocalDate.parse(log.date).dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault()) }.getOrDefault("")
+                        Text(
+                            day + if (log.durationMin > 0) " · ${log.durationMin} min" else "",
+                            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            SectionLabel(tr("All days", "Alle dagene"))
+            plan.days.forEach { day -> DayCard(vm, day, requestNotificationPermission) }
+        }
 
         if (plan.progression.isNotBlank()) {
-            Card {
-                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(tr("Progression", "Progresjon"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text(plan.progression, style = MaterialTheme.typography.bodyMedium)
+            Card(
+                Modifier.fillMaxWidth().clickable { showProgression = !showProgression },
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+            ) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(tr("How to progress", "Slik blir du sterkere"), Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                        Icon(RiggIcons.ChevronDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    if (showProgression) Text(plan.progression, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
 
         if (vm.logs.isNotEmpty() && weeksElapsed < plan.weeks) {
-            OutlinedButton(onClick = { confirmNextBlock = true }, modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(onClick = { confirmNextBlock = true }, modifier = Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(16.dp)) {
                 Text(tr("Create the next block from your logs", "Lag neste blokk ut fra loggene"))
             }
         }
 
         if (vm.logs.isNotEmpty()) {
-            Text(tr("Recent workouts", "Siste økter"), style = MaterialTheme.typography.titleMedium)
-            vm.logs.takeLast(5).reversed().forEach {
-                val suffix = if (it.durationMin > 0) " · ${it.durationMin} min" else ""
-                Text("${it.date} · ${it.dayTitle}$suffix", style = MaterialTheme.typography.bodyMedium)
-            }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = { showHistory = true }) { Text(tr("See all history", "Se all historikk")) }
+                TextButton(onClick = { showHistory = true }) { Text(tr("All history", "All historikk")) }
                 TextButton(onClick = { vm.undoLastLog() }) { Text(tr("Undo last log", "Angre siste logging")) }
             }
         }
@@ -563,6 +779,100 @@ private fun PlanScreen(vm: AppViewModel, goToSetup: () -> Unit, requestNotificat
             onConfirm = { vm.startNextBlock() },
             onDismiss = { confirmNextBlock = false },
         )
+    }
+}
+
+/** Liten fylt sirkel med hake, for gjennomførte økter og dager. */
+@Composable
+internal fun CheckDot(size: androidx.compose.ui.unit.Dp) {
+    Box(
+        Modifier.size(size).clip(CircleShape).background(MaterialTheme.colorScheme.secondary),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(RiggIcons.Check, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondary, modifier = Modifier.size(size * 0.5f))
+    }
+}
+
+/** Uka som sju sirkler: fylt med hake for dager det er trent, ring rundt i dag. */
+@Composable
+private fun WeekStrip(trained: Set<Int>, today: Int) {
+    val letters = if (Lang.isNorwegian) listOf("M", "T", "O", "T", "F", "L", "S") else listOf("M", "T", "W", "T", "F", "S", "S")
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        (1..7).forEach { d ->
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    letters[d - 1],
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (d == today) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                when {
+                    d in trained -> CheckDot(38.dp)
+                    else -> Box(
+                        Modifier.size(38.dp).border(
+                            if (d == today) 2.dp else 1.5.dp,
+                            if (d == today) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.outlineVariant,
+                            CircleShape,
+                        ),
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Kortet med neste økt: navn, omfang, figurene og én stor startknapp. */
+@Composable
+private fun NextWorkoutCard(vm: AppViewModel, day: WorkoutDay, onStart: () -> Unit) {
+    val active = vm.sessionTimer?.dayTitle == day.title
+    val minutes = remember(day) { estimateMinutes(day) }
+    val warmupMin = remember(day, vm.profile.equipment) { (warmupFor(day, vm.profile.equipment).sumOf { it.seconds } + 30) / 60 }
+    val exercises = day.exercises.mapNotNull { ExerciseLibrary.get(it.exerciseId) }
+    Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            SectionLabel(if (active) tr("In progress", "Pågår") else tr("Next workout", "Neste økt"), color = MaterialTheme.colorScheme.tertiary)
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(day.title, style = MaterialTheme.typography.headlineLarge)
+                Text(
+                    tr(
+                        "${day.exercises.size} exercises · about $minutes min · $warmupMin min warm-up",
+                        "${day.exercises.size} øvelser · ca. $minutes min · $warmupMin min oppvarming",
+                    ),
+                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                val shown = if (exercises.size > 6) exercises.take(5) else exercises
+                shown.forEach { ExerciseTile(it, size = 48.dp) }
+                if (exercises.size > shown.size) {
+                    Box(
+                        Modifier.size(48.dp).clip(RoundedCornerShape(14.dp)).background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text("+${exercises.size - shown.size}", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+            BigButton(if (active) tr("Continue", "Fortsett økta") else tr("Start workout", "Start økt"), onClick = onStart, icon = RiggIcons.Play)
+        }
+    }
+}
+
+@Composable
+private fun NudgeCard(nudge: Nudge) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(MaterialTheme.colorScheme.surfaceContainer).padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Box(
+            Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.primaryContainer),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(RiggIcons.ArrowUp, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(22.dp))
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(nudge.title, style = MaterialTheme.typography.titleMedium)
+            Text(nudge.detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
 
@@ -619,9 +929,17 @@ private fun DayCard(vm: AppViewModel, day: WorkoutDay, requestNotificationPermis
     var editFor by remember { mutableStateOf<PlannedExercise?>(null) }
     var confirmCancelSession by remember { mutableStateOf(false) }
 
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(day.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+    val doneThisWeek = logsThisWeek(vm.logs, LocalDate.now()).any { it.dayTitle == day.title }
+    Card(
+        Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(day.title, Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
+                if (doneThisWeek) CheckDot(24.dp)
+            }
             if (expanded) {
                 val warmup = warmupFor(day, vm.profile.equipment)
                 Text(
@@ -638,30 +956,26 @@ private fun DayCard(vm: AppViewModel, day: WorkoutDay, requestNotificationPermis
                     pe.group + (day.exercises.take(index + 1).count { it.group == pe.group })
                 } else null
                 Column(Modifier.clickable { detailFor = pe }) {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        if (ex != null) {
-                            ExerciseThumbnail(ex, size = 40.dp)
-                            Spacer(Modifier.width(10.dp))
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        if (ex != null) ExerciseTile(ex, size = 44.dp)
+                        Column(Modifier.weight(1f)) {
+                            if (supersetLabel != null) {
+                                Text(tr("Superset $supersetLabel", "Supersett $supersetLabel"), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.tertiary)
+                            }
+                            Text(ex?.name ?: pe.exerciseId, style = MaterialTheme.typography.titleSmall)
                         }
-                        if (supersetLabel != null) {
-                            Text(supersetLabel, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                            Spacer(Modifier.width(6.dp))
-                        }
-                        Text(ex?.name ?: pe.exerciseId, Modifier.weight(1f), fontWeight = FontWeight.Medium)
-                        Text("${pe.sets} × ${pe.reps}")
-                        IconButton(
-                            onClick = { requestNotificationPermission(); vm.startRestTimer(pe.restSec) },
-                            modifier = Modifier.size(36.dp),
-                        ) {
-                            Icon(Icons.Filled.Timer, contentDescription = tr("Start rest timer (${pe.restSec} s)", "Start hviletimer (${pe.restSec} sek)"))
-                        }
+                        Text(
+                            "${pe.sets} × ${pe.reps}",
+                            Modifier.clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.surfaceVariant).padding(horizontal = 10.dp, vertical = 5.dp),
+                            style = MaterialTheme.typography.labelLarge,
+                        )
                     }
                     if (expanded) {
                         Text(
                             tr("Rest ${pe.restSec} s", "Pause ${pe.restSec} sek") + if (pe.tip.isNotBlank()) " · ${pe.tip}" else "",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(start = if (ex != null) 50.dp else 0.dp),
+                            modifier = Modifier.padding(start = if (ex != null) 56.dp else 0.dp, top = 4.dp),
                         )
                     }
                 }
@@ -682,10 +996,10 @@ private fun DayCard(vm: AppViewModel, day: WorkoutDay, requestNotificationPermis
                 TextButton(onClick = { expanded = !expanded }) { Text(if (expanded) tr("Hide", "Skjul") else tr("Details", "Detaljer")) }
                 Spacer(Modifier.weight(1f))
                 // Start økt åpner øktmodus (sett for sett). "Logg" er for å føre en økt i ettertid.
-                Button(onClick = { requestNotificationPermission(); vm.openGuided(day) }) {
+                OutlinedButton(onClick = { showLogDialog = true }, shape = RoundedCornerShape(14.dp)) { Text(tr("Log", "Logg")) }
+                Button(onClick = { requestNotificationPermission(); vm.openGuided(day) }, shape = RoundedCornerShape(14.dp)) {
                     Text(if (activeSession == null) tr("Start", "Start økt") else tr("Open", "Åpne økta"))
                 }
-                OutlinedButton(onClick = { showLogDialog = true }) { Text(tr("Log", "Logg")) }
             }
         }
     }

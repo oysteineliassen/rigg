@@ -171,4 +171,13 @@ class TrainingTest {
         assertTrue(third.name.endsWith("3"))
         assertTrue(!third.name.contains("2 ·"))
     }
+
+    @Test
+    fun weightWindowCentersOnCurrent() {
+        val w = listOf(4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0)
+        assertEquals(listOf(8.0, 10.0, 12.0, 14.0, 16.0), weightWindow(w, 12.0))
+        assertEquals(listOf(4.0, 6.0, 8.0, 10.0, 12.0), weightWindow(w, 4.0))
+        assertEquals(listOf(10.0, 12.0, 14.0, 16.0, 18.0), weightWindow(w, 30.0))
+        assertEquals(listOf(4.0, 6.0), weightWindow(listOf(6.0, 4.0), null))
+    }
 }
