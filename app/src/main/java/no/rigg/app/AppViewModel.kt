@@ -42,7 +42,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         WorkoutTimers.init(app)
         dropOrphanSession()
         // Øktmodus uten øktklokke er en gammel, glemt økt (klokka forkastes etter 12 timer).
-        if (guided != null && WorkoutTimers.session == null) setGuided(null)
+        if (guided != null && WorkoutTimers.session == null) saveGuided(null)
         // Hvis Android lukket appen midt i en økt: få tjenesten og varselet tilbake.
         if (WorkoutTimers.isActive) WorkoutTimers.ensureService(app)
     }
@@ -63,7 +63,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Hvis programmet byttes midt i en økt, finnes ikke dagen (og Avbryt-knappen) lenger: stopp klokka. */
     private fun dropOrphanSession() {
         val g = guided
-        if (g != null && plan?.days?.none { it.title == g.dayTitle } != false) setGuided(null)
+        if (g != null && plan?.days?.none { it.title == g.dayTitle } != false) saveGuided(null)
         val s = WorkoutTimers.session ?: return
         if (plan?.days?.none { it.title == s.dayTitle } != false) stopSession()
     }
@@ -115,7 +115,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         logs = updated
         store.saveLogs(updated)
         if (running != null) stopSession()
-        if (guided?.dayTitle == dayTitle) setGuided(null)
+        if (guided?.dayTitle == dayTitle) saveGuided(null)
         refreshWidget()
         if (running != null && durationMin > 0 && profile.healthConnect) writeToHealthConnect(dayTitle, running.startedAtMs)
     }
@@ -132,7 +132,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---------------------------------------------------------------- ØKTMODUS
 
-    private fun setGuided(g: GuidedWorkout?) {
+    private fun saveGuided(g: GuidedWorkout?) {
         guided = g
         store.saveGuided(g)
     }
@@ -145,11 +145,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             plan?.days?.find { it.title == old.dayTitle }?.let { finishGuided(it) }
         }
         if (sessionTimer?.dayTitle != day.title) startSession(day.title)
-        if (guided?.dayTitle != day.title) setGuided(GuidedWorkout(day.title))
+        if (guided?.dayTitle != day.title) saveGuided(GuidedWorkout(day.title))
         guidedVisible = true
     }
 
-    fun updateGuided(g: GuidedWorkout) = setGuided(g)
+    fun updateGuided(g: GuidedWorkout) = saveGuided(g)
 
     /** Skjuler øktmodus uten å avslutte økta (klokka og settene beholdes). */
     fun hideGuided() { guidedVisible = false }
@@ -167,7 +167,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Avbryter økta uten å logge noe. */
     fun discardGuided() {
-        setGuided(null)
+        saveGuided(null)
         stopRestTimer()
         stopSession()
     }
@@ -177,7 +177,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun startNextBlock() {
         val current = plan ?: return
         // Øvelsene byttes ut, så en påbegynt økt i øktmodus passer ikke lenger.
-        if (guided != null) setGuided(null)
+        if (guided != null) saveGuided(null)
         setPlan(nextBlock(current, logs, profile))
     }
 
