@@ -1,9 +1,21 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
 }
+
+// Felles debug-nøkkel i prosjektet (app/rigg-debug.keystore), så apper bygget på GitHub og i Android Studio
+// kan installeres over hverandre. Mangler filen, brukes Android Studios vanlige debug-nøkkel.
+val sharedDebugKey: File = file("rigg-debug.keystore")
+
+// Release-nøkkel: fra miljøvariabler (GitHub-hemmeligheter) eller keystore.properties (ikke i git).
+val releaseProps = Properties()
+val releasePropsFile: File = rootProject.file("keystore.properties")
+if (releasePropsFile.exists()) releasePropsFile.inputStream().use { releaseProps.load(it) }
+val releaseStore: String? = System.getenv("RIGG_KEYSTORE") ?: releaseProps.getProperty("storeFile")
 
 android {
     namespace = "no.rigg.app"
@@ -20,15 +32,6 @@ android {
         }.getOrDefault(1)
         versionName = "0.2"
     }
-
-    // Felles debug-nøkkel i prosjektet (app/rigg-debug.keystore), så apper bygget på GitHub og i Android Studio
-    // kan installeres over hverandre. Mangler filen, brukes Android Studios vanlige debug-nøkkel.
-    val sharedDebugKey = file("rigg-debug.keystore")
-    // Release-nøkkel: fra miljøvariabler (GitHub-hemmeligheter) eller keystore.properties (ikke i git).
-    val releaseProps = java.util.Properties().apply {
-        rootProject.file("keystore.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
-    }
-    val releaseStore = System.getenv("RIGG_KEYSTORE") ?: releaseProps.getProperty("storeFile")
 
     signingConfigs {
         if (sharedDebugKey.exists()) {

@@ -33,7 +33,9 @@ Første gang:
 For at apper bygget på GitHub og i Android Studio skal kunne installeres over hverandre, må de signeres
 med samme nøkkel. Kopier Android Studios debug-nøkkel inn i prosjektet og commit den:
 
-    copy %USERPROFILE%\.android\debug.keystore app\rigg-debug.keystore
+    Copy-Item "$env:USERPROFILE\.android\debug.keystore" app\rigg-debug.keystore
+
+(Kommandoen er for PowerShell, som Terminal-fanen i Android Studio bruker.)
 
 Da beholder også appen som allerede er på telefonen din dataene sine ved oppdatering. (En debug-nøkkel er
 ikke hemmelig, men hold likevel repoet privat.) Versjonsnummeret er antall commits, så en nyere versjon
