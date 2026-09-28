@@ -19,7 +19,8 @@ val releaseStore: String? = System.getenv("RIGG_KEYSTORE") ?: releaseProps.getPr
 
 android {
     namespace = "no.rigg.app"
-    compileSdk = 35
+    // 36 fordi Health Connect-biblioteket krever det. targetSdk (hvordan appen oppfører seg) er fortsatt 35.
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "no.rigg.app"
