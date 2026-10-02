@@ -160,6 +160,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Skjuler øktmodus uten å avslutte økta (klokka og settene beholdes). */
     fun hideGuided() { guidedVisible = false }
 
+    /** Viser øktmodus igjen etter [hideGuided], f.eks. fra hvilebaren. Gjør ingenting uten en påbegynt økt. */
+    fun showGuided() {
+        val g = guided ?: return
+        if (plan?.days?.any { it.title == g.dayTitle } == true) guidedVisible = true
+    }
+
     /** Lagrer settene som er gjort som en vanlig logg, og avslutter økta. */
     fun finishGuided(day: WorkoutDay) {
         val g = guided ?: return

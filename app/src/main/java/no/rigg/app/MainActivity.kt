@@ -198,6 +198,8 @@ private fun App(
                     timer = timer,
                     onAddSeconds = { vm.addRestSeconds(it) },
                     onStop = { vm.stopRestTimer() },
+                    // Trykk på baren: tilbake til økta (bare når det finnes en påbegynt økt i øktmodus).
+                    onOpen = vm.guided?.takeIf { g -> vm.plan?.days?.any { it.title == g.dayTitle } == true }?.let { { vm.showGuided() } },
                     modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(12.dp),
                 )
             }
@@ -234,23 +236,45 @@ internal fun SessionClock(
 }
 
 @Composable
-internal fun RestTimerBar(timer: RestTimer, onAddSeconds: (Int) -> Unit, onStop: () -> Unit, modifier: Modifier = Modifier) {
+internal fun RestTimerBar(
+    timer: RestTimer,
+    onAddSeconds: (Int) -> Unit,
+    onStop: () -> Unit,
+    modifier: Modifier = Modifier,
+    onOpen: (() -> Unit)? = null,
+) {
     @Suppress("UNUSED_VARIABLE")
     val tick = rememberTick(active = true) // leses her så baren tegnes på nytt hvert kvarte sekund
     val left = timer.secondsLeft() // regnes i samme scope som tick leses, ikke inne i Card-lambdaen
-    Card(modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+    val colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+    val content: @Composable ColumnScope.() -> Unit = {
         Row(
             Modifier.padding(horizontal = 16.dp, vertical = 10.dp).fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Text(tr("Resting: $left s", "Hviler: $left sek"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Column(Modifier.weight(1f)) {
+                Text(
+                    if (timer.paused) tr("Rest paused: $left s", "Hvile på pause: $left sek") else tr("Resting: $left s", "Hviler: $left sek"),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+                if (onOpen != null) {
+                    Text(
+                        tr("Tap to return to the workout", "Trykk for å gå tilbake til økta"),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f),
+                    )
+                }
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 TextButton(onClick = { onAddSeconds(15) }) { Text("+15s") }
                 TextButton(onClick = onStop) { Text(tr("Stop", "Stopp")) }
             }
         }
     }
+    if (onOpen != null) Card(onClick = onOpen, modifier = modifier, colors = colors, content = content)
+    else Card(modifier, colors = colors, content = content)
 }
 
 // ---------------------------------------------------------------- OPPSETT
