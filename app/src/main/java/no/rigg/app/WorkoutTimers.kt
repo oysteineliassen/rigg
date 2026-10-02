@@ -19,18 +19,35 @@ import kotlin.math.PI
 import kotlin.math.ceil
 import kotlin.math.sin
 
-/** En pågående økt. Veggklokke-tid slik at den kan lagres og overleve at appen lukkes. */
+/**
+ * En pågående økt. Veggklokke-tid slik at den kan lagres og overleve at appen lukkes.
+ * Pauser trekkes fra: [pausedAtMs] er satt mens økta står på pause, [pausedTotalMs] er summen av tidligere pauser.
+ */
 @Serializable
-data class ActiveSession(val dayTitle: String, val startedAtMs: Long) {
-    fun elapsedSec(now: Long = System.currentTimeMillis()): Int = ((now - startedAtMs) / 1000).coerceAtLeast(0).toInt()
+data class ActiveSession(
+    val dayTitle: String,
+    val startedAtMs: Long,
+    val pausedAtMs: Long? = null,
+    val pausedTotalMs: Long = 0,
+) {
+    val paused: Boolean get() = pausedAtMs != null
+    fun elapsedMs(now: Long = System.currentTimeMillis()): Long =
+        ((pausedAtMs ?: now) - startedAtMs - pausedTotalMs).coerceAtLeast(0)
+    fun elapsedSec(now: Long = System.currentTimeMillis()): Int = (elapsedMs(now) / 1000).toInt()
 }
 
 /**
  * Hviletimer definert av et sluttidspunkt (elapsedRealtime), ikke en teller som trekkes fra hvert sekund.
  * Da driver den ikke, og den blir riktig selv om noe blir forsinket.
  */
-data class RestTimer(val totalSeconds: Int, val endsAtElapsed: Long) {
-    fun remainingMs(now: Long = SystemClock.elapsedRealtime()): Long = endsAtElapsed - now
+data class RestTimer(
+    val totalSeconds: Int,
+    val endsAtElapsed: Long,
+    /** Satt mens hvilen står på pause: tiden som var igjen da den ble satt på pause. */
+    val pausedLeftMs: Long? = null,
+) {
+    val paused: Boolean get() = pausedLeftMs != null
+    fun remainingMs(now: Long = SystemClock.elapsedRealtime()): Long = pausedLeftMs ?: (endsAtElapsed - now)
     fun secondsLeft(now: Long = SystemClock.elapsedRealtime()): Int =
         ceil(remainingMs(now).coerceAtLeast(0) / 1000.0).toInt()
 }
@@ -56,6 +73,9 @@ object WorkoutTimers {
 
     val isActive: Boolean get() = rest != null || session != null
 
+    /** Økta (eller hvilen, hvis den går uten økt) står på pause. */
+    val paused: Boolean get() = session?.paused ?: rest?.paused ?: false
+
     fun init(context: Context) {
         if (initialized) return
         initialized = true
@@ -71,12 +91,24 @@ object WorkoutTimers {
 
     fun startRest(context: Context, seconds: Int) {
         if (seconds <= 0) return
-        rest = RestTimer(seconds, SystemClock.elapsedRealtime() + seconds * 1000L)
+        // Står økta på pause, starter hvilen også på pause.
+        val pausedLeft = if (session?.paused == true) seconds * 1000L else null
+        rest = RestTimer(seconds, SystemClock.elapsedRealtime() + seconds * 1000L, pausedLeft)
         changed(context)
     }
 
     fun addRest(context: Context, deltaSeconds: Int) {
         val r = rest ?: return
+        val left = r.pausedLeftMs
+        if (left != null) {
+            val newLeft = left + deltaSeconds * 1000L
+            rest = if (newLeft <= 0) null else r.copy(
+                pausedLeftMs = newLeft,
+                totalSeconds = maxOf(r.totalSeconds, ((newLeft + 999) / 1000).toInt()),
+            )
+            changed(context)
+            return
+        }
         val newEnd = r.endsAtElapsed + deltaSeconds * 1000L
         rest = if (newEnd <= SystemClock.elapsedRealtime()) {
             null
@@ -102,6 +134,36 @@ object WorkoutTimers {
         session = s
         Store(context).saveActiveSession(s)
         changed(context)
+    }
+
+    /** Setter øktklokka og en eventuell hvile på pause. */
+    fun pause(context: Context) {
+        val s = session
+        if (s != null && !s.paused) setSession(context, s.copy(pausedAtMs = System.currentTimeMillis()))
+        val r = rest
+        if (r != null && !r.paused) rest = r.copy(pausedLeftMs = r.remainingMs().coerceAtLeast(0))
+        changed(context)
+    }
+
+    /** Fortsetter etter [pause]: pausen trekkes fra økttiden, og hvilen fortsetter der den stoppet. */
+    fun resume(context: Context) {
+        val s = session
+        val at = s?.pausedAtMs
+        if (s != null && at != null) {
+            val pausedFor = (System.currentTimeMillis() - at).coerceAtLeast(0)
+            setSession(context, s.copy(pausedAtMs = null, pausedTotalMs = s.pausedTotalMs + pausedFor))
+        }
+        val r = rest
+        val left = r?.pausedLeftMs
+        if (r != null && left != null) {
+            rest = r.copy(endsAtElapsed = SystemClock.elapsedRealtime() + left, pausedLeftMs = null)
+        }
+        changed(context)
+    }
+
+    private fun setSession(context: Context, s: ActiveSession) {
+        session = s
+        Store(context).saveActiveSession(s)
     }
 
     fun stopSession(context: Context) {

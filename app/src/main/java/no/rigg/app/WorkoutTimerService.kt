@@ -104,6 +104,11 @@ class WorkoutTimerService : Service() {
 
     /** Spiller pip ved 3, 2 og 1 sekund igjen og en høyere tone ved 0. Returnerer ventetid til neste sekundskifte. */
     private fun handleRest(rest: RestTimer): Long {
+        if (rest.paused) {
+            // På pause: ingen pip og ingen wake lock, bare se etter endringer en gang i sekundet.
+            releaseWakeLock()
+            return 1000L
+        }
         if (rest.endsAtElapsed != cueForEndsAt) {
             cueForEndsAt = rest.endsAtElapsed
             lastCueSecond = Int.MAX_VALUE
@@ -142,8 +147,11 @@ class WorkoutTimerService : Service() {
         wakeLock?.let { if (it.isHeld) it.release() }
     }
 
-    private fun notificationKey(): String =
-        "${WorkoutTimers.rest?.endsAtElapsed}|${WorkoutTimers.session?.startedAtMs}"
+    private fun notificationKey(): String {
+        val r = WorkoutTimers.rest
+        val s = WorkoutTimers.session
+        return "${r?.endsAtElapsed}|${r?.pausedLeftMs}|${s?.startedAtMs}|${s?.pausedAtMs}|${s?.pausedTotalMs}"
+    }
 
     private fun updateNotificationIfChanged() {
         val key = notificationKey()
@@ -170,6 +178,14 @@ class WorkoutTimerService : Service() {
             .setCategory(NotificationCompat.CATEGORY_STOPWATCH)
             .setContentIntent(openApp)
         when {
+            rest != null && rest.paused -> builder
+                .setContentTitle(tr("Rest paused", "Hvilen er på pause"))
+                .setContentText(tr("${formatDuration(rest.secondsLeft())} left", "${formatDuration(rest.secondsLeft())} igjen"))
+                .setShowWhen(false)
+            session != null && session.paused -> builder
+                .setContentTitle(tr("Workout paused", "Økta er på pause"))
+                .setContentText("${session.dayTitle} · ${formatDuration(session.elapsedSec())}")
+                .setShowWhen(false)
             rest != null -> builder
                 .setContentTitle(tr("Rest", "Hvile"))
                 .setContentText(session?.let { tr("Workout: ${it.dayTitle}", "Økt: ${it.dayTitle}") } ?: tr("Rest in progress", "Pausen er i gang"))
@@ -182,7 +198,8 @@ class WorkoutTimerService : Service() {
                 .setContentText(session.dayTitle)
                 .setShowWhen(true)
                 .setUsesChronometer(true)
-                .setWhen(session.startedAtMs)
+                // Klokka i varselet teller fra et tenkt starttidspunkt, så pausene ikke telles med.
+                .setWhen(System.currentTimeMillis() - session.elapsedMs())
             else -> builder.setContentTitle("Rigg")
         }
         return builder.build()

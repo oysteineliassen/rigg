@@ -37,6 +37,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     // Timerne bor i WorkoutTimers (prosess-nivå) slik at WorkoutTimerService kan kjøre dem videre med skjermen av.
     val restTimer: RestTimer? get() = WorkoutTimers.rest
     val sessionTimer: ActiveSession? get() = WorkoutTimers.session
+    val timersPaused: Boolean get() = WorkoutTimers.paused
+
+    /** Økta som vises som delbart bilde (rett etter at den er logget, eller valgt fra historikken). */
+    var shareLog by mutableStateOf<SessionLog?>(null)
 
     init {
         WorkoutTimers.init(app)
@@ -111,8 +115,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         // Bruker øktklokka hvis den kjører for denne dagen, ellers 0 (ukjent varighet).
         val running = sessionTimer?.takeIf { it.dayTitle == dayTitle }
         val durationMin = running?.let { (it.elapsedSec() + 30) / 60 } ?: 0
-        val updated = logs + SessionLog(LocalDate.now().toString(), dayTitle, results, durationMin)
+        val log = SessionLog(LocalDate.now().toString(), dayTitle, results, durationMin)
+        val updated = logs + log
         logs = updated
+        if (results.any { it.sets.isNotEmpty() }) shareLog = log
         store.saveLogs(updated)
         if (running != null) stopSession()
         if (guided?.dayTitle == dayTitle) saveGuided(null)
@@ -243,6 +249,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun addRestSeconds(delta: Int) = WorkoutTimers.addRest(getApplication(), delta)
 
     fun stopRestTimer() = WorkoutTimers.stopRest(getApplication())
+
+    fun pauseTimers() = WorkoutTimers.pause(getApplication())
+
+    fun resumeTimers() = WorkoutTimers.resume(getApplication())
 
     // ---------------------------------------------------------------- BACKUP / EKSPORT
 

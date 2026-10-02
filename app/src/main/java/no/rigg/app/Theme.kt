@@ -158,12 +158,17 @@ fun BigButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, 
 
 /** Øvelsesfiguren i en avrundet flis, brukt i lister og kort. */
 @Composable
-fun ExerciseTile(exercise: Exercise, size: Dp = 48.dp, animate: Boolean = false) {
+fun ExerciseTile(exercise: Exercise, size: Dp = 48.dp, animate: Boolean = false) =
+    FigureTile(illustrationFor(exercise), size, animate)
+
+/** Som [ExerciseTile], men for en figur direkte (oppvarmingen). */
+@Composable
+fun FigureTile(type: IllustrationType, size: Dp = 48.dp, animate: Boolean = false) {
     Box(
         Modifier.size(size).clip(RoundedCornerShape(size / 3.5f)).background(MaterialTheme.colorScheme.surfaceVariant),
         contentAlignment = Alignment.Center,
     ) {
-        ExerciseIllustration(exercise, modifier = Modifier.size(size * 0.8f), animate = animate)
+        ExerciseIllustration(type, modifier = Modifier.size(size * 0.8f), animate = animate)
     }
 }
 
@@ -209,6 +214,8 @@ object RiggIcons {
     val ChevronDown = strokeIcon("down", 2f, "M6 9l6 6 6-6")
     val Sparkle = strokeIcon("ai", 1.8f, "M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z")
     val Play = fillIcon("play", "M7 4.5v15l12.5-7.5z")
+    val Pause = fillIcon("pause", "M6.5 5h3.5v14H6.5z", "M14 5h3.5v14H14z")
+    val Share = strokeIcon("share", 1.8f, "M12 3v12M7.5 7.5L12 3l4.5 4.5", "M5 12v7.5h14V12")
     val Sliders = strokeIcon("sliders", 1.8f, "M4 7h10M18 7h2M4 17h4M12 17h8", circle(16f, 7f, 2f), circle(10f, 17f, 2f))
     val Lines = strokeIcon("lines", 1.8f, "M9 6h11M9 12h11M9 18h11M4.5 6h0.01M4.5 12h0.01M4.5 18h0.01")
     val Trend = strokeIcon("trend", 1.8f, "M4 17l5-5 4 3 7-8", "M15 7h5v5")

@@ -192,6 +192,7 @@ private fun App(
                 Tab.PROGRESS -> ProgressScreen(vm)
                 Tab.SETTINGS -> SettingsScreen(vm, requestNotificationPermission, exportData, importData)
             }
+            vm.shareLog?.let { log -> WorkoutShareDialog(log, onDismiss = { vm.shareLog = null }) }
             vm.restTimer?.let { timer ->
                 RestTimerBar(
                     timer = timer,
@@ -763,7 +764,7 @@ private fun PlanScreen(vm: AppViewModel, goToSetup: () -> Unit, requestNotificat
     }
 
     if (showHistory) {
-        HistoryDialog(logs = vm.logs, onDismiss = { showHistory = false }, onDelete = { vm.deleteLog(it) })
+        HistoryDialog(logs = vm.logs, onDismiss = { showHistory = false }, onDelete = { vm.deleteLog(it) }, onShare = { vm.shareLog = it })
     }
 
     if (confirmNextBlock) {
@@ -877,7 +878,7 @@ private fun NudgeCard(nudge: Nudge) {
 }
 
 @Composable
-private fun HistoryDialog(logs: List<SessionLog>, onDismiss: () -> Unit, onDelete: (SessionLog) -> Unit) {
+private fun HistoryDialog(logs: List<SessionLog>, onDismiss: () -> Unit, onDelete: (SessionLog) -> Unit, onShare: (SessionLog) -> Unit) {
     Dialog(onDismissRequest = onDismiss) {
         Card(Modifier.fillMaxWidth().heightIn(max = 560.dp)) {
             Column(Modifier.padding(16.dp)) {
@@ -892,7 +893,10 @@ private fun HistoryDialog(logs: List<SessionLog>, onDismiss: () -> Unit, onDelet
                                 Column(Modifier.padding(10.dp)) {
                                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                         val suffix = if (log.durationMin > 0) " · ${log.durationMin} min" else ""
-                                        Text("${log.date} · ${log.dayTitle}$suffix", fontWeight = FontWeight.Medium)
+                                        Text("${log.date} · ${log.dayTitle}$suffix", Modifier.weight(1f), fontWeight = FontWeight.Medium)
+                                        if (log.results.any { it.sets.isNotEmpty() }) {
+                                            TextButton(onClick = { onShare(log) }) { Text(tr("Share", "Del")) }
+                                        }
                                         TextButton(onClick = { onDelete(log) }) { Text(tr("Delete", "Slett")) }
                                     }
                                     log.results.forEach { res ->
@@ -1195,45 +1199,69 @@ private fun LogSessionDialog(
     }
     var showConfirm by remember { mutableStateOf(false) }
 
+    val colors = MaterialTheme.colorScheme
     Dialog(onDismissRequest = onDismiss) {
-        Card(Modifier.fillMaxWidth()) {
+        Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = colors.surface)) {
             Column(
                 Modifier
                     .padding(16.dp)
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text(tr("Log ${day.title}", "Logg ${day.title}"), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Column {
+                    SectionLabel(tr("Log workout", "Logg økt"))
+                    Text(day.title, style = MaterialTheme.typography.headlineSmall)
+                }
                 day.exercises.forEach { pe ->
                     val ex = ExerciseLibrary.get(pe.exerciseId)
                     val (weighted, setsState) = state.getValue(pe.exerciseId)
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(ex?.name ?: pe.exerciseId, fontWeight = FontWeight.Medium)
+                    Column(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(colors.surfaceContainer).padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            if (ex != null) ExerciseTile(ex, size = 52.dp)
+                            Column(Modifier.weight(1f)) {
+                                if (pe.group.isNotEmpty()) {
+                                    Text(tr("Superset ${pe.group}", "Supersett ${pe.group}"), style = MaterialTheme.typography.labelMedium, color = colors.tertiary)
+                                }
+                                Text(ex?.name ?: pe.exerciseId, style = MaterialTheme.typography.titleMedium)
+                                Text(
+                                    tr("Target ${pe.sets} × ${pe.reps}", "Mål ${pe.sets} × ${pe.reps}"),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colors.onSurfaceVariant,
+                                )
+                            }
+                        }
                         setsState.forEachIndexed { i, (repsState, weightState) ->
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(tr("Set ${i + 1}", "Sett ${i + 1}"), modifier = Modifier.width(56.dp), style = MaterialTheme.typography.bodySmall)
+                                Box(Modifier.size(30.dp).clip(CircleShape).background(colors.surfaceVariant), contentAlignment = Alignment.Center) {
+                                    Text("${i + 1}", style = MaterialTheme.typography.labelLarge, color = colors.onSurfaceVariant)
+                                }
                                 OutlinedTextField(
                                     value = repsState.value,
                                     onValueChange = { repsState.value = it },
-                                    label = { Text(if (ex?.timed == true) tr("sec", "sek") else "reps") },
+                                    suffix = { Text(if (ex?.timed == true) tr("sec", "sek") else "reps", color = colors.onSurfaceVariant) },
                                     singleLine = true,
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                    modifier = Modifier.width(90.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.weight(1f),
                                 )
                                 if (weighted) {
+                                    Text("×", style = MaterialTheme.typography.titleMedium, color = colors.onSurfaceVariant)
                                     OutlinedTextField(
                                         value = weightState.value,
                                         onValueChange = { weightState.value = it },
-                                        label = { Text("kg") },
+                                        suffix = { Text("kg", color = colors.onSurfaceVariant) },
                                         singleLine = true,
                                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                        modifier = Modifier.width(90.dp),
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.weight(1f),
                                     )
                                 }
                             }
                         }
                     }
-                    HorizontalDivider()
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     // "Lukk", ikke "Avbryt": økta og klokka fortsetter, bare skjemaet lukkes.
