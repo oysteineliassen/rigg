@@ -446,7 +446,23 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      * [stravaUploads]. Med [waitForHeartRate] ventes det opptil fem minutter på at klokka har synket pulsen til
      * Health Connect; finnes den fortsatt ikke, lastes økta opp uten.
      */
-    fun uploadToStrava(log: SessionLog, waitForHeartRate: Boolean = false) {
+    /** Sjekker om økta (lastet opp tidligere) fortsatt ligger på Strava, før den eventuelt lastes opp igjen. */
+    fun checkStravaActivity(activityId: Long, onResult: (StravaClient.ActivityStatus) -> Unit) {
+        viewModelScope.launch {
+            val status = runCatching {
+                val s = StravaClient.freshToken(strava)
+                if (s != strava) updateStrava(s)
+                StravaClient.activityStatus(s.accessToken, activityId)
+            }.getOrDefault(StravaClient.ActivityStatus.UNKNOWN)
+            onResult(status)
+        }
+    }
+
+    /**
+     * [reupload]: lastes opp på nytt (f.eks. etter at aktiviteten ble slettet i Strava). Får en ny external_id,
+     * ellers kan Strava avvise den som en kopi av den gamle.
+     */
+    fun uploadToStrava(log: SessionLog, waitForHeartRate: Boolean = false, reupload: Boolean = false) {
         if (!strava.ready) return
         val key = logKey(log)
         if (stravaUploads[key] is StravaUpload.Working || stravaUploads[key] is StravaUpload.WaitingForHeartRate) return
@@ -466,7 +482,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 val s = StravaClient.freshToken(strava)
                 if (s != strava) updateStrava(s)
                 val fit = withContext(Dispatchers.Default) { StrengthFit.forLog(log, samples) }
-                StravaClient.upload(s.accessToken, fit, log.dayTitle, StravaClient.describe(log), "rigg-${StrengthFit.startMsFor(log)}")
+                val externalId = "rigg-${StrengthFit.startMsFor(log)}" + if (reupload) "-${System.currentTimeMillis() / 1000}" else ""
+                StravaClient.upload(s.accessToken, fit, log.dayTitle, StravaClient.describe(log), externalId)
             }.onSuccess { id ->
                 markUploaded(key, id)
                 stravaUploads = stravaUploads + (key to StravaUpload.Done(id))

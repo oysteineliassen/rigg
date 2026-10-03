@@ -56,7 +56,7 @@ object StravaClient {
         .appendQueryParameter("redirect_uri", REDIRECT_URI)
         .appendQueryParameter("response_type", "code")
         .appendQueryParameter("approval_prompt", "auto")
-        .appendQueryParameter("scope", "activity:write,read")
+        .appendQueryParameter("scope", "activity:write,activity:read_all,read")
         .build()
 
     /** Bytter koden fra innloggingen mot tokens. */
@@ -136,6 +136,23 @@ object StravaClient {
                 tr("Strava is still processing the workout. Check Strava in a moment.", "Strava behandler fortsatt økta. Sjekk Strava om litt."),
             )
         }
+
+    /** Om en aktivitet fortsatt finnes på Strava. */
+    enum class ActivityStatus { EXISTS, MISSING, UNKNOWN }
+
+    /**
+     * Sjekker om aktiviteten finnes. UNKNOWN hvis Rigg ikke har lesetilgang (tilkoblet før lesing ble lagt til)
+     * eller Strava ikke svarer.
+     */
+    suspend fun activityStatus(token: String, activityId: Long): ActivityStatus = withContext(Dispatchers.IO) {
+        runCatching {
+            when (open("$BASE/api/v3/activities/$activityId", "GET", token).responseCode) {
+                in 200..299 -> ActivityStatus.EXISTS
+                404 -> ActivityStatus.MISSING
+                else -> ActivityStatus.UNKNOWN
+            }
+        }.getOrDefault(ActivityStatus.UNKNOWN)
+    }
 
     /** Tittel og beskrivelse til aktiviteten: settene i klartekst. */
     fun describe(log: SessionLog): String = buildString {

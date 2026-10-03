@@ -14,6 +14,7 @@ import android.provider.MediaStore
 import android.text.TextPaint
 import android.text.TextUtils
 import androidx.compose.foundation.Image
+import androidx.compose.material3.AlertDialog
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -258,6 +259,20 @@ fun WorkoutShareDialog(log: SessionLog, vm: AppViewModel, onDismiss: () -> Unit)
     val bitmap = remember(key, log.avgHr) { WorkoutShareImage.render(context, log) }
     var saved by remember(key) { mutableStateOf<Boolean?>(null) }
     var imageAdded by remember(key) { mutableStateOf(false) }
+    // «Last opp igjen»: sjekker først Strava, så spør vi med svaret (finnes fortsatt / slettet / ukjent).
+    var checkingStrava by remember(key) { mutableStateOf(false) }
+    var reuploadStatus by remember(key) { mutableStateOf<StravaClient.ActivityStatus?>(null) }
+    reuploadStatus?.let { status ->
+        ReuploadDialog(
+            status = status,
+            onConfirm = {
+                reuploadStatus = null
+                imageAdded = false
+                vm.uploadToStrava(log, reupload = true)
+            },
+            onDismiss = { reuploadStatus = null },
+        )
+    }
     val colors = MaterialTheme.colorScheme
 
     Dialog(onDismissRequest = onDismiss) {
@@ -291,6 +306,14 @@ fun WorkoutShareDialog(log: SessionLog, vm: AppViewModel, onDismiss: () -> Unit)
                         imageAdded = imageAdded,
                         onUpload = { vm.uploadToStrava(log) },
                         onUploadNow = { vm.uploadNowWithoutWaiting(log) },
+                        checking = checkingStrava,
+                        onReupload = { activityId ->
+                            checkingStrava = true
+                            vm.checkStravaActivity(activityId) { status ->
+                                checkingStrava = false
+                                reuploadStatus = status
+                            }
+                        },
                         // Strava lar ikke vanlige apper laste opp bilder via API-et. I stedet: lagre bildet øverst i
                         // Bilder og åpne aktiviteten i Strava-appen, så det bare er å velge det nyeste bildet.
                         onAddImage = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) ({ activityId: Long ->
@@ -330,6 +353,8 @@ private fun StravaRow(
     imageAdded: Boolean,
     onUpload: () -> Unit,
     onUploadNow: () -> Unit,
+    checking: Boolean,
+    onReupload: (Long) -> Unit,
     onAddImage: ((Long) -> Unit)?,
 ) {
     val context = LocalContext.current
@@ -345,6 +370,7 @@ private fun StravaRow(
             Text(
                 when {
                     upload is StravaUpload.Working -> tr("Uploading …", "Laster opp …")
+                    checking -> tr("Checking Strava …", "Sjekker Strava …")
                     upload is StravaUpload.WaitingForHeartRate ->
                         tr("Waiting for heart rate from the watch (up to 5 min) …", "Venter på puls fra klokka (opptil 5 min) …")
                     doneId != null && imageAdded -> tr(
@@ -360,12 +386,13 @@ private fun StravaRow(
             )
         }
         when {
-            upload is StravaUpload.Working ->
+            upload is StravaUpload.Working || checking ->
                 CircularProgressIndicator(Modifier.padding(end = 12.dp).size(22.dp), strokeWidth = 2.5.dp)
             upload is StravaUpload.WaitingForHeartRate -> TextButton(onClick = onUploadNow) { Text(tr("Upload now", "Last opp nå")) }
-            doneId != null -> Row {
+            doneId != null -> Column(horizontalAlignment = Alignment.End) {
                 if (onAddImage != null) TextButton(onClick = { onAddImage(doneId) }) { Text(tr("Add image", "Legg til bilde")) }
                 else TextButton(onClick = { openStravaActivity(context, doneId) }) { Text(tr("Open", "Åpne")) }
+                TextButton(onClick = { onReupload(doneId) }) { Text(tr("Upload again", "Last opp igjen")) }
             }
             upload is StravaUpload.Failed -> TextButton(onClick = onUpload) { Text(tr("Try again", "Prøv igjen")) }
             else -> TextButton(onClick = onUpload) { Text(tr("Upload", "Last opp")) }
@@ -401,4 +428,45 @@ private fun HeartRateRow(log: SessionLog, loading: Boolean, onFetch: () -> Unit)
 /** Åpner aktiviteten (i Strava-appen hvis den er installert, ellers i nettleseren). */
 private fun openStravaActivity(context: Context, activityId: Long) {
     runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(StravaClient.activityUrl(activityId)))) }
+}
+
+/** Bekreftelse før økta lastes opp på nytt, med det Strava svarte om den gamle aktiviteten. */
+@Composable
+private fun ReuploadDialog(status: StravaClient.ActivityStatus, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                when (status) {
+                    StravaClient.ActivityStatus.EXISTS -> tr("Already on Strava", "Ligger allerede på Strava")
+                    StravaClient.ActivityStatus.MISSING -> tr("Upload again?", "Laste opp igjen?")
+                    StravaClient.ActivityStatus.UNKNOWN -> tr("Upload again?", "Laste opp igjen?")
+                },
+            )
+        },
+        text = {
+            Text(
+                when (status) {
+                    StravaClient.ActivityStatus.EXISTS -> tr(
+                        "This workout is still on Strava. Are you sure you want to upload it again? You'll get two identical activities.",
+                        "Denne økta ligger fortsatt på Strava. Er du sikker på at du vil laste den opp igjen? Da får du to like aktiviteter.",
+                    )
+                    StravaClient.ActivityStatus.MISSING -> tr(
+                        "The workout is no longer on Strava (it was probably deleted). Are you sure you want to upload it again?",
+                        "Økta finnes ikke lenger på Strava (den er nok slettet). Er du sikker på at du vil laste den opp igjen?",
+                    )
+                    StravaClient.ActivityStatus.UNKNOWN -> tr(
+                        "Couldn't check whether the workout is still on Strava. To let Rigg check, disconnect and connect to Strava again under More. Upload again anyway?",
+                        "Fikk ikke sjekket om økta fortsatt ligger på Strava. Koble fra og til Strava igjen under Mer, så kan Rigg sjekke. Laste opp igjen likevel?",
+                    )
+                },
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(if (status == StravaClient.ActivityStatus.EXISTS) tr("Upload anyway", "Last opp likevel") else tr("Upload", "Last opp"))
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(tr("Cancel", "Avbryt")) } },
+    )
 }
