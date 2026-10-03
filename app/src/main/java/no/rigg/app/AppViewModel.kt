@@ -7,7 +7,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -38,6 +40,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val restTimer: RestTimer? get() = WorkoutTimers.rest
     val sessionTimer: ActiveSession? get() = WorkoutTimers.session
     val timersPaused: Boolean get() = WorkoutTimers.paused
+
+    /** Strava-oppsett, og status for opplastinger som er startet (nøkkel: [logKey]). */
+    var strava by mutableStateOf(store.loadStrava()); private set
+    var stravaUploads by mutableStateOf<Map<String, StravaUpload>>(emptyMap()); private set
 
     /** Økta som vises som delbart bilde (rett etter at den er logget, eller valgt fra historikken). */
     var shareLog by mutableStateOf<SessionLog?>(null)
@@ -115,10 +121,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         // Bruker øktklokka hvis den kjører for denne dagen, ellers 0 (ukjent varighet).
         val running = sessionTimer?.takeIf { it.dayTitle == dayTitle }
         val durationMin = running?.let { (it.elapsedSec() + 30) / 60 } ?: 0
-        val log = SessionLog(LocalDate.now().toString(), dayTitle, results, durationMin)
+        val log = SessionLog(LocalDate.now().toString(), dayTitle, results, durationMin, startedAtMs = running?.startedAtMs ?: 0)
         val updated = logs + log
         logs = updated
-        if (results.any { it.sets.isNotEmpty() }) shareLog = log
+        if (results.any { it.sets.isNotEmpty() }) {
+            shareLog = log
+            if (strava.ready && strava.autoUpload) uploadToStrava(log)
+        }
         store.saveLogs(updated)
         if (running != null) stopSession()
         if (guided?.dayTitle == dayTitle) saveGuided(null)
@@ -255,6 +264,68 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun addRestSeconds(delta: Int) = WorkoutTimers.addRest(getApplication(), delta)
 
     fun stopRestTimer() = WorkoutTimers.stopRest(getApplication())
+
+    // ---------------------------------------------------------------- STRAVA
+
+    /** Identifiserer en logg uavhengig av om den er lastet opp (stravaActivityId endres underveis). */
+    fun logKey(log: SessionLog): String = "${log.date}|${log.dayTitle}|${log.startedAtMs}|${log.results.hashCode()}"
+
+    fun updateStrava(s: StravaSettings) {
+        strava = s
+        store.saveStrava(s)
+    }
+
+    /** Kalles når Strava sender oss tilbake etter innloggingen (rigg://localhost/strava?code=...). */
+    fun finishStravaLogin(code: String?, errorParam: String?, scope: String?) {
+        if (code == null) {
+            if (errorParam != null) error = tr("Strava login was cancelled.", "Innloggingen til Strava ble avbrutt.")
+            return
+        }
+        if (scope != null && "activity:write" !in scope) {
+            error = tr(
+                "Rigg needs permission to upload activities. Connect again and keep that box ticked.",
+                "Rigg trenger tillatelse til å laste opp aktiviteter. Koble til på nytt og la den boksen være krysset av.",
+            )
+            return
+        }
+        viewModelScope.launch {
+            runCatching { StravaClient.exchangeCode(strava, code) }
+                .onSuccess { updateStrava(it) }
+                .onFailure { error = tr("Couldn't connect to Strava: ${it.message}", "Kunne ikke koble til Strava: ${it.message}") }
+        }
+    }
+
+    fun disconnectStrava() = updateStrava(strava.copy(accessToken = "", refreshToken = "", expiresAt = 0, athleteName = ""))
+
+    /** Laster opp økta til Strava som FIT-fil med riktige øvelser. Status havner i [stravaUploads]. */
+    fun uploadToStrava(log: SessionLog) {
+        if (!strava.ready) return
+        val key = logKey(log)
+        if (stravaUploads[key] is StravaUpload.Working) return
+        stravaUploads = stravaUploads + (key to StravaUpload.Working)
+        viewModelScope.launch {
+            runCatching {
+                val s = StravaClient.freshToken(strava)
+                if (s != strava) updateStrava(s)
+                val fit = withContext(Dispatchers.Default) { StrengthFit.forLog(log) }
+                StravaClient.upload(s.accessToken, fit, log.dayTitle, StravaClient.describe(log), "rigg-${StrengthFit.startMsFor(log)}")
+            }.onSuccess { id ->
+                markUploaded(key, id)
+                stravaUploads = stravaUploads + (key to StravaUpload.Done(id))
+            }.onFailure {
+                stravaUploads = stravaUploads + (key to StravaUpload.Failed(it.message ?: tr("Upload failed", "Opplastingen feilet")))
+            }
+        }
+    }
+
+    private fun markUploaded(key: String, activityId: Long) {
+        val idx = logs.indexOfFirst { logKey(it) == key }
+        if (idx == -1) return
+        val updated = logs[idx].copy(stravaActivityId = activityId)
+        logs = logs.toMutableList().also { it[idx] = updated }
+        store.saveLogs(logs)
+        if (shareLog?.let { logKey(it) } == key) shareLog = updated
+    }
 
     fun pauseTimers() = WorkoutTimers.pause(getApplication())
 

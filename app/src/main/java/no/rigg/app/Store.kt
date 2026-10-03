@@ -32,6 +32,10 @@ class Store(context: Context) {
             .apply()
     }
 
+    /** Strava-innlogging og -valg. Egen nøkkel, så den aldri kommer med i backup-fila. */
+    fun loadStrava(): StravaSettings = decode("strava") ?: StravaSettings()
+    fun saveStrava(s: StravaSettings) = put("strava", json.encodeToString(s))
+
     fun loadReminders(): ReminderSettings = decode("reminders") ?: ReminderSettings()
     fun saveReminders(r: ReminderSettings) = put("reminders", json.encodeToString(r))
 

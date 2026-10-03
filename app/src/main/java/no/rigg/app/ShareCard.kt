@@ -14,6 +14,7 @@ import android.provider.MediaStore
 import android.text.TextPaint
 import android.text.TextUtils
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -28,6 +29,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -248,10 +250,11 @@ object WorkoutShareImage {
 
 /** Forhåndsvisning av bildet, med knapper for å dele det eller lagre det i Bilder. */
 @Composable
-fun WorkoutShareDialog(log: SessionLog, onDismiss: () -> Unit) {
+fun WorkoutShareDialog(log: SessionLog, vm: AppViewModel, onDismiss: () -> Unit) {
     val context = LocalContext.current
-    val bitmap = remember(log) { WorkoutShareImage.render(context, log) }
-    var saved by remember(log) { mutableStateOf<Boolean?>(null) }
+    val key = vm.logKey(log)
+    val bitmap = remember(key) { WorkoutShareImage.render(context, log) }
+    var saved by remember(key) { mutableStateOf<Boolean?>(null) }
     val colors = MaterialTheme.colorScheme
 
     Dialog(onDismissRequest = onDismiss) {
@@ -276,6 +279,7 @@ fun WorkoutShareDialog(log: SessionLog, onDismiss: () -> Unit) {
                     style = MaterialTheme.typography.bodySmall,
                     color = colors.onSurfaceVariant,
                 )
+                if (vm.strava.ready) StravaRow(log, vm.stravaUploads[key], onUpload = { vm.uploadToStrava(log) })
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     TextButton(onClick = onDismiss) { Text(tr("Close", "Lukk")) }
                     Spacer(Modifier.weight(1f))
@@ -295,6 +299,42 @@ fun WorkoutShareDialog(log: SessionLog, onDismiss: () -> Unit) {
                     }
                 }
             }
+        }
+    }
+}
+
+/** Strava-status for økta: last opp, laster opp, ferdig (med lenke) eller feil (prøv igjen). */
+@Composable
+private fun StravaRow(log: SessionLog, upload: StravaUpload?, onUpload: () -> Unit) {
+    val context = LocalContext.current
+    val colors = MaterialTheme.colorScheme
+    val doneId = (upload as? StravaUpload.Done)?.activityId ?: log.stravaActivityId
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(colors.surfaceContainerHigh)
+            .padding(start = 14.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f).padding(vertical = 6.dp)) {
+            Text("Strava", style = MaterialTheme.typography.titleSmall)
+            Text(
+                when {
+                    upload is StravaUpload.Working -> tr("Uploading …", "Laster opp …")
+                    doneId != null -> tr("Uploaded with the right exercises", "Lastet opp med riktige øvelser")
+                    upload is StravaUpload.Failed -> upload.message
+                    else -> tr("Upload with exercises and sets", "Last opp med øvelser og sett")
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = if (upload is StravaUpload.Failed && doneId == null) colors.error else colors.onSurfaceVariant,
+            )
+        }
+        when {
+            upload is StravaUpload.Working ->
+                CircularProgressIndicator(Modifier.padding(end = 12.dp).size(22.dp), strokeWidth = 2.5.dp)
+            doneId != null -> TextButton(onClick = {
+                runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(StravaClient.activityUrl(doneId)))) }
+            }) { Text(tr("Open", "Åpne")) }
+            upload is StravaUpload.Failed -> TextButton(onClick = onUpload) { Text(tr("Try again", "Prøv igjen")) }
+            else -> TextButton(onClick = onUpload) { Text(tr("Upload", "Last opp")) }
         }
     }
 }

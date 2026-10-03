@@ -142,6 +142,8 @@ data class SessionLog(
     val dayTitle: String,
     val results: List<ExerciseResult> = emptyList(),
     val durationMin: Int = 0, // 0 = ukjent/ikke tidtatt (eldre logger, eller logget uten å bruke øktklokka)
+    val startedAtMs: Long = 0, // når økta startet (0 = ukjent: eldre logger, eller logget uten øktklokka)
+    val stravaActivityId: Long? = null, // satt når økta er lastet opp til Strava
 )
 
 /** Ett gjennomført sett i øktmodus. */

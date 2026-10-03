@@ -67,6 +67,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Bare første gang: etter en rotasjon er koden fra Strava allerede brukt.
+        if (savedInstanceState == null) handleStravaRedirect(intent)
         setContent {
             RiggTheme {
                 App(
@@ -85,6 +87,18 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleStravaRedirect(intent)
+    }
+
+    private fun handleStravaRedirect(intent: Intent?) {
+        val uri = intent?.data ?: return
+        if (uri.scheme != "rigg" || uri.host != "localhost" || uri.path != "/strava") return
+        vm.finishStravaLogin(uri.getQueryParameter("code"), uri.getQueryParameter("error"), uri.getQueryParameter("scope"))
     }
 }
 
@@ -192,7 +206,7 @@ private fun App(
                 Tab.PROGRESS -> ProgressScreen(vm)
                 Tab.SETTINGS -> SettingsScreen(vm, requestNotificationPermission, exportData, importData)
             }
-            vm.shareLog?.let { log -> WorkoutShareDialog(log, onDismiss = { vm.shareLog = null }) }
+            vm.shareLog?.let { log -> WorkoutShareDialog(log, vm, onDismiss = { vm.shareLog = null }) }
             vm.restTimer?.let { timer ->
                 RestTimerBar(
                     timer = timer,
@@ -1351,6 +1365,10 @@ private fun SettingsScreen(
             HorizontalDivider()
         }
 
+        StravaSection(vm)
+
+        HorizontalDivider()
+
         AiSection(vm)
     }
 }
@@ -1484,6 +1502,98 @@ private fun AiSection(vm: AppViewModel) {
             ),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/** Valgfri opplasting til Strava, med riktige øvelser så muskelkartet stemmer. */
+@Composable
+private fun StravaSection(vm: AppViewModel) {
+    val context = LocalContext.current
+    val st = vm.strava
+    val colors = MaterialTheme.colorScheme
+    var clientId by remember(st.clientId) { mutableStateOf(st.clientId) }
+    var clientSecret by remember(st.clientSecret) { mutableStateOf(st.clientSecret) }
+    fun openUrl(url: String) = runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Strava", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text(
+            tr(
+                "Upload workouts to Strava with the right exercises, sets and weights, so the muscle map in Strava matches what you trained.",
+                "Last opp økter til Strava med riktige øvelser, sett og vekter, så muskelkartet i Strava stemmer med det du trente.",
+            ),
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(tr("Use Strava upload", "Bruk opplasting til Strava"), Modifier.weight(1f))
+            Switch(checked = st.enabled, onCheckedChange = { vm.updateStrava(st.copy(enabled = it)) })
+        }
+        if (!st.enabled) return@Column
+
+        if (!st.connected) {
+            Text(
+                tr(
+                    "One-time setup:\n1. Create an API application at strava.com/settings/api. Enter localhost as \"Authorization Callback Domain\".\n2. Paste the Client ID and Client Secret here.\n3. Tap Connect and approve in Strava.",
+                    "Engangsoppsett:\n1. Lag en API-app på strava.com/settings/api. Skriv localhost under «Authorization Callback Domain».\n2. Lim inn Client ID og Client Secret her.\n3. Trykk Koble til og godkjenn i Strava.",
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.onSurfaceVariant,
+            )
+            TextButton(onClick = { openUrl("https://www.strava.com/settings/api") }) {
+                Text(tr("Open strava.com/settings/api", "Åpne strava.com/settings/api"))
+            }
+            OutlinedTextField(
+                value = clientId,
+                onValueChange = { clientId = it.trim() },
+                label = { Text("Client ID") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = clientSecret,
+                onValueChange = { clientSecret = it.trim() },
+                label = { Text("Client Secret") },
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Button(
+                onClick = {
+                    vm.updateStrava(st.copy(clientId = clientId, clientSecret = clientSecret))
+                    openUrl(StravaClient.authorizeUri(clientId).toString())
+                },
+                enabled = clientId.isNotBlank() && clientSecret.isNotBlank(),
+            ) { Text(tr("Connect to Strava", "Koble til Strava")) }
+        } else {
+            Text(
+                tr("Connected", "Koblet til") + (st.athleteName.takeIf { it.isNotBlank() }?.let { tr(" as $it", " som $it") } ?: ""),
+                style = MaterialTheme.typography.titleSmall,
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(tr("Upload automatically", "Last opp automatisk"))
+                    Text(
+                        tr(
+                            "When a workout is saved. Off: use the Strava button on the workout image.",
+                            "Når en økt lagres. Av: bruk Strava-knappen på øktbildet.",
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.onSurfaceVariant,
+                    )
+                }
+                Switch(checked = st.autoUpload, onCheckedChange = { vm.updateStrava(st.copy(autoUpload = it)) })
+            }
+            TextButton(onClick = { vm.disconnectStrava() }) { Text(tr("Disconnect", "Koble fra")) }
+        }
+        Text(
+            tr(
+                "Your watch probably uploads the same workout too. Delete that copy in Strava (or don't record strength workouts on the watch), so it isn't counted twice.",
+                "Klokka laster sannsynligvis opp den samme økta også. Slett den kopien i Strava (eller ikke ta opp styrkeøkter på klokka), så den ikke telles dobbelt.",
+            ),
+            style = MaterialTheme.typography.bodySmall,
+            color = colors.onSurfaceVariant,
         )
     }
 }
