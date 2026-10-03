@@ -505,16 +505,28 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 val description = StravaClient.describe(log)
                 // Først Stravas eget JSON-format (Stravas øvelsesnavn, f.eks. rumensk markløft med manualer).
                 // Avviser Strava fila, prøves FIT-fila (Garmins øvelsesnavn) i stedet.
-                val json = withContext(Dispatchers.Default) { StravaJson.forLog(log, samples).toByteArray(Charsets.UTF_8) }
-                try {
-                    StravaClient.upload(s.accessToken, json, "json", log.dayTitle, description, externalId)
-                } catch (e: StravaException) {
-                    val fit = withContext(Dispatchers.Default) { StrengthFit.forLog(log, samples) }
-                    StravaClient.upload(s.accessToken, fit, "fit", log.dayTitle, description, "$externalId-fit")
+                // Først full JSON, så en enklere JSON (uten sport_type og puls), til slutt FIT. Feilene vises etterpå.
+                val errors = mutableListOf<String>()
+                var done: StravaUpload.Done? = null
+                for ((minimal, suffix) in listOf(false to "", true to "-j2")) {
+                    val json = withContext(Dispatchers.Default) {
+                        StravaJson.forLog(log, samples, minimal = minimal).toByteArray(Charsets.UTF_8)
+                    }
+                    try {
+                        done = StravaUpload.Done(StravaClient.upload(s.accessToken, json, "json", log.dayTitle, description, externalId + suffix))
+                        break
+                    } catch (e: StravaException) {
+                        errors += e.message ?: "?"
+                    }
                 }
-            }.onSuccess { id ->
-                markUploaded(key, id)
-                stravaUploads = stravaUploads + (key to StravaUpload.Done(id))
+                done ?: run {
+                    val fit = withContext(Dispatchers.Default) { StrengthFit.forLog(log, samples) }
+                    val id = StravaClient.upload(s.accessToken, fit, "fit", log.dayTitle, description, "$externalId-fit")
+                    StravaUpload.Done(id, jsonError = errors.distinct().joinToString(" / "))
+                }
+            }.onSuccess { done ->
+                markUploaded(key, done.activityId)
+                stravaUploads = stravaUploads + (key to done)
             }.onFailure { e ->
                 val result = when {
                     // Første opplasting som Strava allerede har fra Rigg (samme fil): den er der, så det er greit.

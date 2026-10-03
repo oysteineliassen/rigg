@@ -380,6 +380,10 @@ private fun StravaRow(
                     upload is StravaUpload.WaitingForHeartRate ->
                         tr("Waiting for heart rate from the watch (up to 5 min) …", "Venter på puls fra klokka (opptil 5 min) …")
                     upload is StravaUpload.Failed -> upload.message
+                    upload is StravaUpload.Done && upload.jsonError != null -> tr(
+                        "Uploaded as a FIT file (some exercise names may differ). Strava rejected the JSON file: ${upload.jsonError}",
+                        "Lastet opp som FIT-fil (noen øvelsesnavn kan avvike). Strava avviste JSON-fila: ${upload.jsonError}",
+                    )
                     doneId != null && imageAdded -> tr(
                         "The image is first in Pictures. In Strava: tap the photo icon on the activity and pick it.",
                         "Bildet ligger først i Bilder. I Strava: trykk på bildeikonet i aktiviteten og velg det.",

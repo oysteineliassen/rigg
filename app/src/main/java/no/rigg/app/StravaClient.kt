@@ -38,7 +38,8 @@ sealed class StravaUpload {
     /** Venter på at klokka synker pulsen til Health Connect før opplastingen. */
     data object WaitingForHeartRate : StravaUpload()
     data object Working : StravaUpload()
-    data class Done(val activityId: Long) : StravaUpload()
+    /** [jsonError]: Strava avviste JSON-fila med denne beskjeden, så økta ble lastet opp som FIT-fil i stedet. */
+    data class Done(val activityId: Long, val jsonError: String? = null) : StravaUpload()
     /** [duplicateOf]: Strava avviste økta som en kopi av denne aktiviteten. */
     data class Failed(val message: String, val duplicateOf: Long? = null) : StravaUpload()
 }

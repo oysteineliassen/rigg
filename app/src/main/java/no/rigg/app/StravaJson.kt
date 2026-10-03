@@ -12,7 +12,13 @@ import java.time.ZoneId
  * elapsed_time, sets [{exercise_type, repetitions, weight (kg), duration (sek)}], og streams {time, heartrate}.
  */
 object StravaJson {
-    fun forLog(log: SessionLog, heartRate: List<HrSample> = emptyList(), zone: ZoneId = ZoneId.systemDefault()): String {
+    /** [minimal]: bare det dokumentasjonen krever (uten sport_type og puls), som reserve hvis Strava avviser den fulle. */
+    fun forLog(
+        log: SessionLog,
+        heartRate: List<HrSample> = emptyList(),
+        zone: ZoneId = ZoneId.systemDefault(),
+        minimal: Boolean = false,
+    ): String {
         val startMs = StrengthFit.startMsFor(log, zone)
         val elapsed = StrengthFit.elapsedSecFor(log)
         val start = Instant.ofEpochMilli(startMs - startMs % 1000).atZone(zone).toOffsetDateTime()
@@ -28,14 +34,14 @@ object StravaJson {
             }
         }
         // Puls: sekunder fra start, maks én måling per sekund, bare innenfor økta.
-        val hr = heartRate.map { ((it.timeMs - startMs) / 1000).toInt() to it.bpm }
+        val hr = if (minimal) emptyList() else heartRate.map { ((it.timeMs - startMs) / 1000).toInt() to it.bpm }
             .filter { (t, bpm) -> t in 0..elapsed && bpm in 1..254 }
             .distinctBy { it.first }
             .sortedBy { it.first }
         return buildString {
             append('{')
             append("\"version\":\"1.0\",")
-            append("\"sport_type\":\"WeightTraining\",")
+            if (!minimal) append("\"sport_type\":\"WeightTraining\",")
             append("\"start_time\":").append(q(start.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssXXX")))).append(',')
             append("\"utc_offset\":").append(start.offset.totalSeconds).append(',')
             append("\"elapsed_time\":").append(elapsed).append(',')
