@@ -40,8 +40,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
@@ -61,18 +59,18 @@ fun HistoryScreen(vm: AppViewModel, startWith: SessionLog? = null, onDismiss: ()
     var selectedKey by remember { mutableStateOf(startWith?.let { vm.logKey(it) }) }
     val selected = selectedKey?.let { key -> vm.logs.find { vm.logKey(it) == key } }
 
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            if (selected != null) {
-                // Tilbake fra en økt: til lista, eller lukk hvis historikken ble åpnet rett på økta.
-                fun back() {
-                    if (startWith != null) onDismiss() else selectedKey = null
-                }
-                BackHandler { back() }
-                SessionDetail(vm, selected, onBack = { back() }, onDeleted = { back() })
-            } else {
-                HistoryList(vm, onBack = onDismiss, onOpen = { selectedKey = vm.logKey(it) })
+    // Egen skjerm i appen (ikke et vindu oppå), så Scaffold i MainActivity holder den unna status- og navigasjonslinja.
+    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        if (selected != null) {
+            // Tilbake fra en økt: til lista, eller lukk hvis historikken ble åpnet rett på økta.
+            fun back() {
+                if (startWith != null) onDismiss() else selectedKey = null
             }
+            BackHandler { back() }
+            SessionDetail(vm, selected, onBack = { back() }, onDeleted = { back() })
+        } else {
+            BackHandler(onBack = onDismiss)
+            HistoryList(vm, onBack = onDismiss, onOpen = { selectedKey = vm.logKey(it) })
         }
     }
 }

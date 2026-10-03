@@ -264,6 +264,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Skjuler øktmodus uten å avslutte økta (klokka og settene beholdes). */
     fun hideGuided() { guidedVisible = false }
 
+    /** Historikken som egen skjerm. [historyStart]: åpne rett på denne økta (null = lista). */
+    var historyOpen by mutableStateOf(false); private set
+    var historyStart by mutableStateOf<SessionLog?>(null); private set
+
+    fun openHistory(start: SessionLog? = null) {
+        historyStart = start
+        historyOpen = true
+    }
+
+    fun closeHistory() {
+        historyOpen = false
+        historyStart = null
+    }
+
     /** Viser øktmodus igjen etter [hideGuided], f.eks. fra hvilebaren. Gjør ingenting uten en påbegynt økt. */
     fun showGuided() {
         val g = guided ?: return

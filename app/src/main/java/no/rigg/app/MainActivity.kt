@@ -165,6 +165,20 @@ private fun App(
         return
     }
 
+    // Historikken tar også hele skjermen (uten fanene) mens den er åpen.
+    if (vm.historyOpen) {
+        Scaffold(snackbarHost = { SnackbarHost(snackbar) }) { pad ->
+            Box(Modifier.padding(pad).fillMaxSize()) {
+                // key: ny skjerm hver gang den åpnes, så den starter på riktig økt.
+                key(vm.historyStart) {
+                    HistoryScreen(vm, startWith = vm.historyStart, onDismiss = { vm.closeHistory() })
+                }
+                vm.shareLog?.let { log -> WorkoutShareDialog(log, vm, onDismiss = { vm.shareLog = null }) }
+            }
+        }
+        return
+    }
+
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
@@ -704,8 +718,6 @@ private fun PlanScreen(vm: AppViewModel, goToSetup: () -> Unit, requestNotificat
     val today = LocalDate.now()
     val doneThisWeek = logsThisWeek(vm.logs, today)
     val next = nextDay(plan, vm.logs, today)
-    var showHistory by remember { mutableStateOf(false) }
-    var historyLog by remember { mutableStateOf<SessionLog?>(null) }
     var confirmNextBlock by remember { mutableStateOf(false) }
     var showProgression by remember { mutableStateOf(false) }
 
@@ -815,7 +827,7 @@ private fun PlanScreen(vm: AppViewModel, goToSetup: () -> Unit, requestNotificat
                     Row(
                         Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
                             .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
-                            .clickable { historyLog = log }.padding(horizontal = 14.dp, vertical = 12.dp),
+                            .clickable { vm.openHistory(log) }.padding(horizontal = 14.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         CheckDot(28.dp)
@@ -859,7 +871,7 @@ private fun PlanScreen(vm: AppViewModel, goToSetup: () -> Unit, requestNotificat
 
         if (vm.logs.isNotEmpty()) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = { showHistory = true }) { Text(tr("All history", "All historikk")) }
+                TextButton(onClick = { vm.openHistory() }) { Text(tr("All history", "All historikk")) }
                 TextButton(onClick = { vm.undoLastLog() }) { Text(tr("Undo last log", "Angre siste logging")) }
             }
         }
@@ -874,9 +886,6 @@ private fun PlanScreen(vm: AppViewModel, goToSetup: () -> Unit, requestNotificat
         )
     }
 
-    if (showHistory || historyLog != null) {
-        HistoryScreen(vm, startWith = historyLog, onDismiss = { showHistory = false; historyLog = null })
-    }
 
     if (confirmNextBlock) {
         ConfirmDialog(
