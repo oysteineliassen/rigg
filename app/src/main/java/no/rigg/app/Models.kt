@@ -85,6 +85,7 @@ data class Profile(
     val kettlebellWeights: String = "",
     /** Skriv fullførte økter til Health Connect (krever tillatelse). */
     val healthConnect: Boolean = false,
+    val heartRate: Boolean = false, // hent puls fra Health Connect (f.eks. fra Garmin-klokka) inn i loggede økter
 )
 
 @Serializable
@@ -144,6 +145,9 @@ data class SessionLog(
     val durationMin: Int = 0, // 0 = ukjent/ikke tidtatt (eldre logger, eller logget uten å bruke øktklokka)
     val startedAtMs: Long = 0, // når økta startet (0 = ukjent: eldre logger, eller logget uten øktklokka)
     val stravaActivityId: Long? = null, // satt når økta er lastet opp til Strava
+    val endedAtMs: Long = 0, // når økta ble lagret (0 = ukjent)
+    val avgHr: Int? = null, // snittpuls fra Health Connect, hvis hentet
+    val maxHr: Int? = null,
 )
 
 /** Ett gjennomført sett i øktmodus. */
@@ -164,6 +168,7 @@ data class GuidedWorkout(
     val step: Int = 0,
     val done: List<DoneSet> = emptyList(),
     val warmupDone: Boolean = false,
+    val warmupIndex: Int = 0, // oppvarmingsøvelsen man er på, så den ikke starter på nytt når øktmodus åpnes igjen
 )
 
 /** Alt appen lagrer, samlet til én fil for backup/eksport. Ekskluderer AI-nøkkelen med vilje. */

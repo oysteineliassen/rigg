@@ -146,14 +146,15 @@ object WorkoutShareImage {
         val volume = sessionVolumeKg(log)
         val stats = buildList {
             if (log.durationMin > 0) add("${log.durationMin}" to tr("MINUTES", "MINUTTER"))
-            add("${rows.size}" to tr("EXERCISES", "ØVELSER"))
             add("$setCount" to tr("SETS", "SETT"))
+            log.avgHr?.let { add("$it" to tr("AVG HR", "SNITTPULS")) }
             if (volume > 0) add(formatThousands(volume.toLong()) to tr("KG LIFTED", "KG LØFTET"))
-        }.take(3)
+            add("${rows.size}" to tr("EXERCISES", "ØVELSER"))
+        }.take(if (log.avgHr != null) 4 else 3)
         val statTop = PAD + 220f
         c.drawRoundRect(RectF(PAD, statTop, W - PAD, statTop + 170f), 36f, 36f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = CARD })
         val colW = inner / stats.size
-        val valuePaint = paint(condensed, 84f, TEXT)
+        val valuePaint = paint(condensed, if (stats.size > 3) 72f else 84f, TEXT)
         val labelPaint = paint(semibold, 24f, MUTED, 0.14f)
         stats.forEachIndexed { i, (value, label) ->
             val x = PAD + 40f + i * colW
@@ -253,7 +254,8 @@ object WorkoutShareImage {
 fun WorkoutShareDialog(log: SessionLog, vm: AppViewModel, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val key = vm.logKey(log)
-    val bitmap = remember(key) { WorkoutShareImage.render(context, log) }
+    // Tegnes på nytt når pulsen kommer.
+    val bitmap = remember(key, log.avgHr) { WorkoutShareImage.render(context, log) }
     var saved by remember(key) { mutableStateOf<Boolean?>(null) }
     val colors = MaterialTheme.colorScheme
 
@@ -279,7 +281,16 @@ fun WorkoutShareDialog(log: SessionLog, vm: AppViewModel, onDismiss: () -> Unit)
                     style = MaterialTheme.typography.bodySmall,
                     color = colors.onSurfaceVariant,
                 )
-                if (vm.strava.ready) StravaRow(log, vm.stravaUploads[key], onUpload = { vm.uploadToStrava(log) })
+                if (vm.profile.heartRate) {
+                    HeartRateRow(log, loading = key in vm.heartRateLoading, onFetch = { vm.fetchHeartRate(log) })
+                }
+                if (vm.strava.ready) {
+                    StravaRow(
+                        log, vm.stravaUploads[key],
+                        onUpload = { vm.uploadToStrava(log) },
+                        onUploadNow = { vm.uploadNowWithoutWaiting(log) },
+                    )
+                }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     TextButton(onClick = onDismiss) { Text(tr("Close", "Lukk")) }
                     Spacer(Modifier.weight(1f))
@@ -305,7 +316,7 @@ fun WorkoutShareDialog(log: SessionLog, vm: AppViewModel, onDismiss: () -> Unit)
 
 /** Strava-status for økta: last opp, laster opp, ferdig (med lenke) eller feil (prøv igjen). */
 @Composable
-private fun StravaRow(log: SessionLog, upload: StravaUpload?, onUpload: () -> Unit) {
+private fun StravaRow(log: SessionLog, upload: StravaUpload?, onUpload: () -> Unit, onUploadNow: () -> Unit) {
     val context = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val doneId = (upload as? StravaUpload.Done)?.activityId ?: log.stravaActivityId
@@ -319,6 +330,8 @@ private fun StravaRow(log: SessionLog, upload: StravaUpload?, onUpload: () -> Un
             Text(
                 when {
                     upload is StravaUpload.Working -> tr("Uploading …", "Laster opp …")
+                    upload is StravaUpload.WaitingForHeartRate ->
+                        tr("Waiting for heart rate from the watch (up to 5 min) …", "Venter på puls fra klokka (opptil 5 min) …")
                     doneId != null -> tr("Uploaded with the right exercises", "Lastet opp med riktige øvelser")
                     upload is StravaUpload.Failed -> upload.message
                     else -> tr("Upload with exercises and sets", "Last opp med øvelser og sett")
@@ -330,11 +343,37 @@ private fun StravaRow(log: SessionLog, upload: StravaUpload?, onUpload: () -> Un
         when {
             upload is StravaUpload.Working ->
                 CircularProgressIndicator(Modifier.padding(end = 12.dp).size(22.dp), strokeWidth = 2.5.dp)
+            upload is StravaUpload.WaitingForHeartRate -> TextButton(onClick = onUploadNow) { Text(tr("Upload now", "Last opp nå")) }
             doneId != null -> TextButton(onClick = {
                 runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(StravaClient.activityUrl(doneId)))) }
             }) { Text(tr("Open", "Åpne")) }
             upload is StravaUpload.Failed -> TextButton(onClick = onUpload) { Text(tr("Try again", "Prøv igjen")) }
             else -> TextButton(onClick = onUpload) { Text(tr("Upload", "Last opp")) }
+        }
+    }
+}
+
+/** Puls fra Health Connect: snitt og maks, eller en knapp for å hente den (klokka kan bruke litt tid på å synke). */
+@Composable
+private fun HeartRateRow(log: SessionLog, loading: Boolean, onFetch: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(colors.surfaceContainerHigh)
+            .padding(start = 14.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f).padding(vertical = 6.dp)) {
+            Text(tr("Heart rate", "Puls"), style = MaterialTheme.typography.titleSmall)
+            Text(
+                if (log.avgHr != null) tr("Average ${log.avgHr} · max ${log.maxHr}", "Snitt ${log.avgHr} · maks ${log.maxHr}")
+                else tr("From Health Connect, once the watch has synced", "Fra Health Connect, når klokka har synket"),
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.onSurfaceVariant,
+            )
+        }
+        when {
+            loading -> CircularProgressIndicator(Modifier.padding(end = 12.dp).size(22.dp), strokeWidth = 2.5.dp)
+            log.avgHr == null -> TextButton(onClick = onFetch) { Text(tr("Fetch", "Hent")) }
         }
     }
 }

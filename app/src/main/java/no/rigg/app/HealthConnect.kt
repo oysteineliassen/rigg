@@ -23,6 +23,9 @@ import androidx.compose.ui.unit.dp
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.ExerciseSessionRecord
+import androidx.health.connect.client.records.HeartRateRecord
+import androidx.health.connect.client.request.ReadRecordsRequest
+import androidx.health.connect.client.time.TimeRangeFilter
 import androidx.health.connect.client.records.metadata.Device
 import androidx.health.connect.client.records.metadata.Metadata
 import java.time.Instant
@@ -30,10 +33,36 @@ import java.time.ZoneId
 
 /**
  * Skriver fullførte økter til Health Connect (styrketrening, med start, slutt og dagens navn),
- * så de dukker opp i andre helse- og treningsapper. Appen ber bare om å skrive, aldri lese.
+ * så de dukker opp i andre helse- og treningsapper. Kan også lese puls (f.eks. fra Garmin-klokka) for tidsrommet
+ * en økt varte, hvis du slår det på. Det er den eneste lesingen appen gjør.
  */
 object HealthConnectSync {
     val permissions: Set<String> = setOf(HealthPermission.getWritePermission(ExerciseSessionRecord::class))
+    val heartRatePermissions: Set<String> = setOf(HealthPermission.getReadPermission(HeartRateRecord::class))
+
+    suspend fun hasHeartRatePermission(context: Context): Boolean = runCatching {
+        HealthConnectClient.getOrCreate(context).permissionController.getGrantedPermissions().containsAll(heartRatePermissions)
+    }.getOrDefault(false)
+
+    /** Alle pulsmålinger mellom [start] og [end], sortert på tid. Tom liste hvis ingen finnes (ennå) eller tilgang mangler. */
+    suspend fun readHeartRate(context: Context, start: Instant, end: Instant): List<HrSample> = runCatching {
+        if (!isAvailable(context) || !hasHeartRatePermission(context)) return@runCatching emptyList<HrSample>()
+        val client = HealthConnectClient.getOrCreate(context)
+        val out = mutableListOf<HrSample>()
+        var token: String? = null
+        do {
+            val response = client.readRecords(
+                ReadRecordsRequest(HeartRateRecord::class, timeRangeFilter = TimeRangeFilter.between(start, end), pageToken = token),
+            )
+            response.records.forEach { r ->
+                r.samples.forEach { s ->
+                    if (!s.time.isBefore(start) && !s.time.isAfter(end)) out += HrSample(s.time.toEpochMilli(), s.beatsPerMinute.toInt())
+                }
+            }
+            token = response.pageToken
+        } while (token != null)
+        out.sortedBy { it.timeMs }
+    }.getOrDefault(emptyList())
 
     /** SDK_AVAILABLE, SDK_UNAVAILABLE eller SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED. */
     fun status(context: Context): Int = HealthConnectClient.getSdkStatus(context)

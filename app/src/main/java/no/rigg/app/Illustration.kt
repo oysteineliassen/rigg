@@ -2911,7 +2911,7 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
     ),
     IllustrationType.ARM_CIRCLES to Pose(
         // Armsirkler: strak arm som sirkler rundt skulderen.
-        head = p(0.46f, 0.225f),
+        head = p(0.46f, 0.24f),
         lines = listOf(
             p(0.495f, 0.955f) to p(0.478f, 0.765f),
             p(0.478f, 0.765f) to p(0.46f, 0.575f),
@@ -2925,7 +2925,7 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
         sequence = listOf(
             // frem og ned
             Key(450, Frame(
-                head = p(0.46f, 0.225f),
+                head = p(0.46f, 0.24f),
                 lines = listOf(
                     p(0.495f, 0.955f) to p(0.478f, 0.765f),
                     p(0.478f, 0.765f) to p(0.46f, 0.575f),
@@ -2938,7 +2938,7 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
             )),
             // bak
             Key(450, Frame(
-                head = p(0.46f, 0.225f),
+                head = p(0.46f, 0.24f),
                 lines = listOf(
                     p(0.495f, 0.955f) to p(0.478f, 0.765f),
                     p(0.478f, 0.765f) to p(0.46f, 0.575f),
@@ -2951,7 +2951,7 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
             )),
             // opp
             Key(450, Frame(
-                head = p(0.46f, 0.225f),
+                head = p(0.46f, 0.24f),
                 lines = listOf(
                     p(0.495f, 0.955f) to p(0.478f, 0.765f),
                     p(0.478f, 0.765f) to p(0.46f, 0.575f),
@@ -2964,7 +2964,7 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
             )),
             // frem igjen
             Key(450, Frame(
-                head = p(0.46f, 0.225f),
+                head = p(0.46f, 0.24f),
                 lines = listOf(
                     p(0.495f, 0.955f) to p(0.478f, 0.765f),
                     p(0.478f, 0.765f) to p(0.46f, 0.575f),
@@ -3062,55 +3062,55 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
         // Katt og ku: på alle fire runder du ryggen opp med haka mot brystet, så svaier den ned med blikket frem.
         head = p(0.21f, 0.72f),
         lines = listOf(
-            p(0.3f, 0.62f) to p(0.47f, 0.54f),
-            p(0.47f, 0.54f) to p(0.64f, 0.62f),
+            p(0.88f, 0.955f) to p(0.66f, 0.955f),
+            p(0.66f, 0.955f) to p(0.64f, 0.62f),
+            p(0.64f, 0.62f) to p(0.47f, 0.54f),
+            p(0.47f, 0.54f) to p(0.3f, 0.62f),
             p(0.3f, 0.62f) to p(0.3f, 0.955f),
-            p(0.64f, 0.62f) to p(0.66f, 0.955f),
-            p(0.66f, 0.955f) to p(0.88f, 0.955f),
         ),
         sequence = listOf(
             // holder
-            Key(300, Frame(
+            Key(250, Frame(
                 head = p(0.21f, 0.72f),
                 lines = listOf(
-                    p(0.3f, 0.62f) to p(0.47f, 0.54f),
-                    p(0.47f, 0.54f) to p(0.64f, 0.62f),
+                    p(0.88f, 0.955f) to p(0.66f, 0.955f),
+                    p(0.66f, 0.955f) to p(0.64f, 0.62f),
+                    p(0.64f, 0.62f) to p(0.47f, 0.54f),
+                    p(0.47f, 0.54f) to p(0.3f, 0.62f),
                     p(0.3f, 0.62f) to p(0.3f, 0.955f),
-                    p(0.64f, 0.62f) to p(0.66f, 0.955f),
-                    p(0.66f, 0.955f) to p(0.88f, 0.955f),
                 ),
             )),
             // svaier ned
-            Key(900, Frame(
+            Key(1300, Frame(
                 head = p(0.2f, 0.52f),
                 lines = listOf(
-                    p(0.3f, 0.62f) to p(0.47f, 0.7f),
-                    p(0.47f, 0.7f) to p(0.64f, 0.62f),
-                    p(0.3f, 0.62f) to p(0.3f, 0.955f),
-                    p(0.64f, 0.62f) to p(0.66f, 0.955f),
-                    p(0.66f, 0.955f) to p(0.88f, 0.955f),
+                    p(0.88f, 0.955f) to p(0.66f, 0.955f),
+                    p(0.66f, 0.955f) to p(0.64f, 0.62f),
+                    p(0.64f, 0.62f) to p(0.47f, 0.7f),
+                    p(0.47f, 0.7f) to p(0.3f, 0.621f),
+                    p(0.3f, 0.621f) to p(0.3f, 0.955f),
                 ),
             )),
             // holder
-            Key(300, Frame(
+            Key(250, Frame(
                 head = p(0.2f, 0.52f),
                 lines = listOf(
-                    p(0.3f, 0.62f) to p(0.47f, 0.7f),
-                    p(0.47f, 0.7f) to p(0.64f, 0.62f),
-                    p(0.3f, 0.62f) to p(0.3f, 0.955f),
-                    p(0.64f, 0.62f) to p(0.66f, 0.955f),
-                    p(0.66f, 0.955f) to p(0.88f, 0.955f),
+                    p(0.88f, 0.955f) to p(0.66f, 0.955f),
+                    p(0.66f, 0.955f) to p(0.64f, 0.62f),
+                    p(0.64f, 0.62f) to p(0.47f, 0.7f),
+                    p(0.47f, 0.7f) to p(0.3f, 0.621f),
+                    p(0.3f, 0.621f) to p(0.3f, 0.955f),
                 ),
             )),
             // runder opp
-            Key(900, Frame(
+            Key(1300, Frame(
                 head = p(0.21f, 0.72f),
                 lines = listOf(
-                    p(0.3f, 0.62f) to p(0.47f, 0.54f),
-                    p(0.47f, 0.54f) to p(0.64f, 0.62f),
+                    p(0.88f, 0.955f) to p(0.66f, 0.955f),
+                    p(0.66f, 0.955f) to p(0.64f, 0.62f),
+                    p(0.64f, 0.62f) to p(0.47f, 0.54f),
+                    p(0.47f, 0.54f) to p(0.3f, 0.62f),
                     p(0.3f, 0.62f) to p(0.3f, 0.955f),
-                    p(0.64f, 0.62f) to p(0.66f, 0.955f),
-                    p(0.66f, 0.955f) to p(0.88f, 0.955f),
                 ),
             )),
         ),

@@ -47,6 +47,24 @@ class StrengthFitTest {
         val start = StrengthFit.startMsFor(old, ZoneOffset.UTC)
         // Ferdig kl. 18:00 UTC den dagen.
         assertEquals(java.time.Instant.parse("2026-10-02T18:00:00Z").toEpochMilli(), start + 600_000)
-        assertTrue(StrengthFit.forLog(old, ZoneOffset.UTC).size > 100)
+        assertTrue(StrengthFit.forLog(old, zone = ZoneOffset.UTC).size > 100)
+    }
+
+    @Test
+    fun heartRateIsIncludedAndSummarised() {
+        val start = log.startedAtMs
+        val samples = (0 until 60).map { HrSample(start + it * 5_000L, 100 + it) }
+        assertEquals((100 + 159) / 2 to 159, hrStats(samples))
+        val without = StrengthFit.forLog(log)
+        val with = StrengthFit.forLog(log, samples)
+        // 60 record-meldinger à 1 + 4 + 1 byte, pluss én definisjon (6 + 3 × 2 byte).
+        assertEquals(without.size + 60 * 6 + 12, with.size)
+        assertEquals(0, StrengthFit.crc(with, 0, with.size))
+    }
+
+    @Test
+    fun elapsedUsesWallClockWhenKnown() {
+        val l = log.copy(endedAtMs = log.startedAtMs + 30 * 60_000L)
+        assertEquals(1800, StrengthFit.elapsedSecFor(l))
     }
 }

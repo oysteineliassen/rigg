@@ -35,6 +35,8 @@ data class StravaSettings(
 
 /** Hvordan det gikk med én opplasting. */
 sealed class StravaUpload {
+    /** Venter på at klokka synker pulsen til Health Connect før opplastingen. */
+    data object WaitingForHeartRate : StravaUpload()
     data object Working : StravaUpload()
     data class Done(val activityId: Long) : StravaUpload()
     data class Failed(val message: String) : StravaUpload()

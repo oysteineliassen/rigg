@@ -1164,7 +1164,9 @@ put("JUMPING_JACK", S_, [jj_open, jj_closed],
     "Jumping jacks sett forfra: beina ut og armene over hodet, så samlet igjen med armene langs siden.")
 
 # Armsirkler: strak arm som går rundt fra skulderen, fremover og ned, bak og opp igjen.
-circle = lambda a: stand(("a", a, a))
+# Hodet ligger litt nærmere skulderen enn vanlig, så animasjonen fester det til skulderen og ikke til albuen
+# (albuen passerer like langt fra hodet når armen går over).
+circle = lambda a: stand(("a", a, a), neck=0.0) | {"head": (0.46, 0.24)}
 put("ARM_CIRCLES", S_, [circle(-45), circle(45), circle(135), circle(-135), circle(-45)],
     "Armsirkler: strak arm som sirkler rundt skulderen.",
     keys=[(450, "frem og ned"), (450, "bak"), (450, "opp"), (450, "frem igjen")], front=[3, 4])
@@ -1195,19 +1197,21 @@ put("SCAP_SQUEEZE", S_, [sq_back, sq_fwd],
     "Skulderbladene sammen: albuene trukket bak, så armene strakt frem igjen.", front=[3, 4])
 
 # Katt og ku på alle fire (hodet til venstre): ryggen runder seg opp, så svaier den ned med blikket frem.
-CC_H, CC_S, CC_HIP, CC_K, CC_F = (0.3, FLOOR_Y), (0.3, 0.62), (0.64, 0.62), (0.66, FLOOR_Y), (0.88, FLOOR_Y)
+# Linjene går fra foten og fremover, så føtter, knær og hofte står helt i ro. Midt på ryggen roteres jevnt rundt
+# hofta, og skulderen flytter seg en anelse mellom stillingene (så den ikke låses), mens hånden står fast.
+CC_H, CC_HIP, CC_K, CC_F = (0.3, FLOOR_Y), (0.64, 0.62), (0.66, FLOOR_Y), (0.88, FLOOR_Y)
 
 
-def cat_cow(mid_y, head):
-    lines = [(CC_S, (0.47, mid_y)), ((0.47, mid_y), CC_HIP), (CC_S, CC_H), (CC_HIP, CC_K), (CC_K, CC_F)]
+def cat_cow(mid_y, sh_y, head):
+    mid, sh = (0.47, mid_y), (0.3, sh_y)
+    lines = [(CC_F, CC_K), (CC_K, CC_HIP), (CC_HIP, mid), (mid, sh), (sh, CC_H)]
     return dict(head=head, lines=lines, dots=[], props=[], alpha=1.0, pts={})
 
 
-cat, cow = cat_cow(0.54, (0.21, 0.72)), cat_cow(0.7, (0.2, 0.52))
+cat, cow = cat_cow(0.54, 0.62, (0.21, 0.72)), cat_cow(0.7, 0.621, (0.2, 0.52))
 put("CAT_COW", S_, [cat, cat, cow, cow, cat],
     "Katt og ku: på alle fire runder du ryggen opp med haka mot brystet, så svaier den ned med blikket frem.",
-    keys=[(300, "holder"), (900, "svaier ned"), (300, "holder"), (900, "runder opp")])
-
+    keys=[(250, "holder"), (1300, "svaier ned"), (250, "holder"), (1300, "runder opp")])
 
 # ======================================================================== Kotlin
 SECTION_TITLES = {"PRESS": "PRESS", "TREKK": "TREKK", "BEIN": "BEIN", "HOFTE": "HOFTE", "KJERNE": "KJERNE",

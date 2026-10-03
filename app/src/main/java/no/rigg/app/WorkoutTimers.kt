@@ -52,6 +52,31 @@ data class RestTimer(
         ceil(remainingMs(now).coerceAtLeast(0) / 1000.0).toInt()
 }
 
+/** Hva en arbeidsnedtelling gjelder: en oppvarmingsøvelse eller et tidssett (planke, veggsitt ...). */
+enum class WorkKind { WARMUP, SET }
+
+/**
+ * Nedtelling for oppvarming og tidsøvelser. Lever her (ikke i skjermen), så den fortsetter når øktmodus skjules,
+ * og tjenesten piper selv med skjermen av. [index] er oppvarmingsøvelsen eller settet (steget) den hører til.
+ * [finished] settes av tjenesten ved null; AppViewModel går da videre (neste øvelse eller logger settet).
+ */
+data class WorkTimer(
+    val kind: WorkKind,
+    val label: String,
+    val index: Int,
+    val totalSeconds: Int,
+    val endsAtElapsed: Long,
+    val pausedLeftMs: Long? = null,
+    val weightKg: Double? = null,
+    val finished: Boolean = false,
+) {
+    val paused: Boolean get() = pausedLeftMs != null
+    fun remainingMs(now: Long = SystemClock.elapsedRealtime()): Long =
+        if (finished) 0 else pausedLeftMs ?: (endsAtElapsed - now)
+    fun secondsLeft(now: Long = SystemClock.elapsedRealtime()): Int =
+        ceil(remainingMs(now).coerceAtLeast(0) / 1000.0).toInt()
+}
+
 /**
  * Felles tilstand for hviletimer og øktklokke. Lever i prosessen (ikke i ViewModel) slik at
  * [WorkoutTimerService] kan kjøre nedtellingen videre når skjermen er av eller appen er i bakgrunnen.
@@ -65,16 +90,18 @@ object WorkoutTimers {
         private set
     var session by mutableStateOf<ActiveSession?>(null)
         private set
+    var work by mutableStateOf<WorkTimer?>(null)
+        private set
 
     /** Satt av tjenesten mens den kjører, så endringer slår inn med en gang i stedet for ved neste tikk. */
     internal var serviceListener: (() -> Unit)? = null
 
     private var initialized = false
 
-    val isActive: Boolean get() = rest != null || session != null
+    val isActive: Boolean get() = rest != null || session != null || work != null
 
     /** Økta (eller hvilen, hvis den går uten økt) står på pause. */
-    val paused: Boolean get() = session?.paused ?: rest?.paused ?: false
+    val paused: Boolean get() = session?.paused ?: rest?.paused ?: work?.paused ?: false
 
     fun init(context: Context) {
         if (initialized) return
@@ -136,12 +163,42 @@ object WorkoutTimers {
         changed(context)
     }
 
-    /** Setter øktklokka og en eventuell hvile på pause. */
+    /** Starter en nedtelling for oppvarming eller et tidssett. Står økta på pause, starter den på pause. */
+    fun startWork(context: Context, kind: WorkKind, label: String, index: Int, seconds: Int, weightKg: Double? = null) {
+        if (seconds <= 0) return
+        val ms = seconds * 1000L
+        val pausedLeft = if (session?.paused == true) ms else null
+        work = WorkTimer(kind, label, index, seconds, SystemClock.elapsedRealtime() + ms, pausedLeft, weightKg)
+        changed(context)
+    }
+
+    fun stopWork(context: Context) {
+        if (work == null) return
+        work = null
+        changed(context)
+    }
+
+    /** Kalles av tjenesten når nedtellingen når null (lyd og vibrasjon er allerede spilt). */
+    internal fun finishWork() {
+        work = work?.copy(finished = true)
+    }
+
+    /** Henter og fjerner en ferdig nedtelling, så den bare behandles én gang. */
+    fun takeFinishedWork(context: Context): WorkTimer? {
+        val w = work?.takeIf { it.finished } ?: return null
+        work = null
+        changed(context)
+        return w
+    }
+
+    /** Setter øktklokka, hvilen og en eventuell oppvarming/tidsøvelse på pause. */
     fun pause(context: Context) {
         val s = session
         if (s != null && !s.paused) setSession(context, s.copy(pausedAtMs = System.currentTimeMillis()))
         val r = rest
         if (r != null && !r.paused) rest = r.copy(pausedLeftMs = r.remainingMs().coerceAtLeast(0))
+        val w = work
+        if (w != null && !w.paused && !w.finished) work = w.copy(pausedLeftMs = w.remainingMs().coerceAtLeast(0))
         changed(context)
     }
 
@@ -157,6 +214,11 @@ object WorkoutTimers {
         val left = r?.pausedLeftMs
         if (r != null && left != null) {
             rest = r.copy(endsAtElapsed = SystemClock.elapsedRealtime() + left, pausedLeftMs = null)
+        }
+        val w = work
+        val workLeft = w?.pausedLeftMs
+        if (w != null && workLeft != null) {
+            work = w.copy(endsAtElapsed = SystemClock.elapsedRealtime() + workLeft, pausedLeftMs = null)
         }
         changed(context)
     }

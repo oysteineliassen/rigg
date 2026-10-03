@@ -11,6 +11,8 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- Health Connect: skrive fullførte økter (valgfritt, slås på under Mer) -->
     <uses-permission android:name="android.permission.health.WRITE_EXERCISE" />
+    <!-- Health Connect: lese puls for tidsrommet en økt varte (valgfritt, slås på under Mer) -->
+    <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
 
     <!-- Sjekke om Health Connect er installert (Android 13 og eldre) -->
     <queries>

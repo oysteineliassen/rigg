@@ -217,6 +217,15 @@ private fun App(
                     modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(12.dp),
                 )
             }
+            // Oppvarming eller tidsøvelse (planke ...) som teller mens øktmodus er skjult. Hvilen vises heller hvis begge går.
+            if (vm.restTimer == null) vm.workTimer?.takeIf { !it.finished }?.let { work ->
+                WorkTimerBar(
+                    timer = work,
+                    onOpen = { vm.showGuided() },
+                    onStop = if (work.kind == WorkKind.SET) ({ vm.stopTimedSetEarly() }) else null,
+                    modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(12.dp),
+                )
+            }
         }
     }
 }
@@ -289,6 +298,43 @@ internal fun RestTimerBar(
     }
     if (onOpen != null) Card(onClick = onOpen, modifier = modifier, colors = colors, content = content)
     else Card(modifier, colors = colors, content = content)
+}
+
+/** Nedtellingen for oppvarming eller en tidsøvelse, nederst på skjermen mens øktmodus er skjult. Trykk for å gå tilbake. */
+@Composable
+internal fun WorkTimerBar(timer: WorkTimer, onOpen: () -> Unit, onStop: (() -> Unit)?, modifier: Modifier = Modifier) {
+    @Suppress("UNUSED_VARIABLE")
+    val tick = rememberTick(active = true)
+    val left = timer.secondsLeft()
+    Card(
+        onClick = onOpen,
+        modifier = modifier,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+    ) {
+        Row(
+            Modifier.padding(horizontal = 16.dp, vertical = 10.dp).fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    (if (timer.kind == WorkKind.WARMUP) tr("Warm-up: ", "Oppvarming: ") else "") + timer.label,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                )
+                Text(
+                    if (timer.paused) tr("Paused · tap to return", "På pause · trykk for å gå tilbake")
+                    else tr("Tap to return to the workout", "Trykk for å gå tilbake til økta"),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f),
+                )
+            }
+            Text(formatDuration(left), style = MaterialTheme.typography.headlineSmall)
+            if (onStop != null) TextButton(onClick = onStop) { Text(tr("Stop", "Stopp")) }
+        }
+    }
 }
 
 // ---------------------------------------------------------------- OPPSETT
@@ -1613,9 +1659,20 @@ private fun HealthConnectSection(vm: AppViewModel) {
             note = tr("Permission wasn't granted.", "Tillatelsen ble ikke gitt.")
         }
     }
+    val hrLauncher = rememberLauncherForActivityResult(PermissionController.createRequestPermissionResultContract()) { granted ->
+        if (granted.containsAll(HealthConnectSync.heartRatePermissions)) {
+            note = null
+            vm.updateProfile(vm.profile.copy(heartRate = true))
+        } else {
+            note = tr("Permission wasn't granted.", "Tillatelsen ble ikke gitt.")
+        }
+    }
     // Er tillatelsen fjernet i Health Connect, slås bryteren av her også.
     LaunchedEffect(p.healthConnect) {
         if (p.healthConnect && !HealthConnectSync.hasPermission(context)) vm.updateProfile(vm.profile.copy(healthConnect = false))
+    }
+    LaunchedEffect(p.heartRate) {
+        if (p.heartRate && !HealthConnectSync.hasHeartRatePermission(context)) vm.updateProfile(vm.profile.copy(heartRate = false))
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1664,6 +1721,35 @@ private fun HealthConnectSection(vm: AppViewModel) {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(tr("Heart rate in workouts", "Puls i øktene"))
+                Text(
+                    tr(
+                        "Reads heart rate from Health Connect (e.g. from a Garmin watch via Garmin Connect) for the time the workout lasted. Shown on the workout image and included in Strava uploads.",
+                        "Leser puls fra Health Connect (f.eks. fra Garmin-klokka via Garmin Connect) for tiden økta varte. Vises på øktbildet og blir med i opplastingen til Strava.",
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Switch(
+                checked = p.heartRate,
+                onCheckedChange = { on ->
+                    when {
+                        !on -> vm.updateProfile(p.copy(heartRate = false))
+                        status == HealthConnectClient.SDK_AVAILABLE -> scope.launch {
+                            if (HealthConnectSync.hasHeartRatePermission(context)) {
+                                vm.updateProfile(vm.profile.copy(heartRate = true))
+                            } else {
+                                hrLauncher.launch(HealthConnectSync.heartRatePermissions)
+                            }
+                        }
+                        else -> HealthConnectSync.openInstall(context)
+                    }
+                },
+            )
+        }
         note?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
     }
 }

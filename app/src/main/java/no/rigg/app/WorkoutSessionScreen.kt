@@ -1,6 +1,5 @@
 package no.rigg.app
 
-import android.os.SystemClock
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -35,7 +34,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
@@ -49,7 +47,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -58,8 +55,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.delay
-import kotlin.math.ceil
 
 /**
  * Øktmodus: økta gjennomføres ett sett om gangen. Oppvarming først, så hvert sett med forslag fra forrige gang,
@@ -74,7 +69,7 @@ fun WorkoutSessionScreen(vm: AppViewModel, day: WorkoutDay, state: GuidedWorkout
         onDispose { view.keepScreenOn = false }
     }
     val steps = remember(day) { sessionSteps(day) }
-    val warmup = remember(day, vm.profile.equipment) { warmupFor(day, vm.profile.equipment) }
+    val warmup = remember(day, vm.profile.equipment) { vm.warmupItems(day) }
     var confirmExit by remember { mutableStateOf(false) }
     val colors = MaterialTheme.colorScheme
 
@@ -103,11 +98,11 @@ fun WorkoutSessionScreen(vm: AppViewModel, day: WorkoutDay, state: GuidedWorkout
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when {
                 !state.warmupDone && warmup.isNotEmpty() ->
-                    WarmupView(warmup, paused, onDone = { vm.updateGuided(state.copy(warmupDone = true)) })
+                    WarmupView(vm, warmup, state)
                 resting != null && state.step in 1 until steps.size ->
                     RestView(vm, resting, steps, state)
                 state.step < steps.size -> key(state.step) {
-                    SetView(vm, steps, state, paused)
+                    SetView(vm, day, steps, state)
                 }
                 else -> SummaryView(vm, day, state)
             }
@@ -174,6 +169,14 @@ private fun PausedOverlay(vm: AppViewModel, onResume: () -> Unit) {
                 Icon(RiggIcons.Pause, contentDescription = null, tint = colors.onPrimaryContainer, modifier = Modifier.size(36.dp))
             }
             Text(tr("Paused", "Pause"), style = MaterialTheme.typography.displaySmall)
+            vm.workTimer?.takeIf { !it.finished }?.let {
+                Text(
+                    "${it.label}: " + tr("${formatDuration(it.secondsLeft())} left", "${formatDuration(it.secondsLeft())} igjen"),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = colors.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+            }
             vm.restTimer?.let {
                 Text(
                     tr("Rest: ${formatDuration(it.secondsLeft())} left", "Hvile: ${formatDuration(it.secondsLeft())} igjen"),
@@ -191,56 +194,6 @@ private fun PausedOverlay(vm: AppViewModel, onResume: () -> Unit) {
             BigButton(tr("Continue", "Fortsett"), onClick = onResume, icon = RiggIcons.Play, modifier = Modifier.padding(horizontal = 24.dp))
         }
     }
-}
-
-/**
- * Nedtelling som kan settes på pause. [endsAt] er satt mens den teller, [frozenMs] mens den står på pause.
- * Tiden regnes fra klokka (elapsedRealtime), så den driver ikke.
- */
-@Stable
-private class PausableCountdown {
-    var endsAt by mutableStateOf<Long?>(null)
-        private set
-    var frozenMs by mutableStateOf<Long?>(null)
-        private set
-
-    /** Startet og ikke stoppet (teller eller står på pause). */
-    val started: Boolean get() = endsAt != null || frozenMs != null
-
-    fun start(seconds: Int, paused: Boolean) {
-        val ms = seconds * 1000L
-        if (paused) {
-            endsAt = null
-            frozenMs = ms
-        } else {
-            endsAt = SystemClock.elapsedRealtime() + ms
-            frozenMs = null
-        }
-    }
-
-    fun stop() {
-        endsAt = null
-        frozenMs = null
-    }
-
-    fun setPaused(paused: Boolean) {
-        val end = endsAt
-        val frozen = frozenMs
-        if (paused && end != null) {
-            frozenMs = (end - SystemClock.elapsedRealtime()).coerceAtLeast(0)
-            endsAt = null
-        } else if (!paused && frozen != null) {
-            endsAt = SystemClock.elapsedRealtime() + frozen
-            frozenMs = null
-        }
-    }
-}
-
-@Composable
-private fun rememberCountdown(paused: Boolean): PausableCountdown {
-    val countdown = remember { PausableCountdown() }
-    LaunchedEffect(paused) { countdown.setPaused(paused) }
-    return countdown
 }
 
 /** Én bit per sett: gjort (rust), nå (lys), igjen (grå). */
@@ -278,41 +231,13 @@ private fun RoundButton(text: String, contentDescription: String, onClick: () ->
 // ---------------------------------------------------------------- OPPVARMING
 
 @Composable
-private fun WarmupView(items: List<WarmupItem>, paused: Boolean, onDone: () -> Unit) {
-    val context = LocalContext.current
-    var index by remember { mutableIntStateOf(0) }
-    val countdown = rememberCountdown(paused)
-    var left by remember { mutableIntStateOf(items.first().seconds) }
-
-    fun next() {
-        if (index < items.lastIndex) {
-            index++
-            left = items[index].seconds
-            countdown.start(items[index].seconds, paused)
-        } else {
-            countdown.stop()
-            onDone()
-        }
-    }
-
-    // Nedtelling gjennom øvelsene: pip de siste tre sekundene, så videre til neste. Står stille på pause.
-    LaunchedEffect(countdown.endsAt, index) {
-        val end = countdown.endsAt ?: return@LaunchedEffect
-        var lastBeep = Int.MAX_VALUE
-        while (true) {
-            val ms = end - SystemClock.elapsedRealtime()
-            val s = ceil(ms.coerceAtLeast(0) / 1000.0).toInt()
-            left = s
-            if (s in 1..3 && s < lastBeep) { Beeper.countdown(); lastBeep = s }
-            if (ms <= 0) {
-                Beeper.go()
-                Haptics.vibrate(context, 300)
-                next()
-                break
-            }
-            delay(100)
-        }
-    }
+private fun WarmupView(vm: AppViewModel, items: List<WarmupItem>, state: GuidedWorkout) {
+    val index = state.warmupIndex.coerceIn(0, items.lastIndex)
+    // Nedtellingen ligger i WorkoutTimers (fortsetter når øktmodus skjules, pipene kommer fra tjenesten).
+    val timer = vm.workTimer?.takeIf { it.kind == WorkKind.WARMUP && it.index == index && !it.finished }
+    @Suppress("UNUSED_VARIABLE")
+    val tick = rememberTick(active = timer != null, periodMs = 200L)
+    val left = timer?.secondsLeft()
 
     val colors = MaterialTheme.colorScheme
     val item = items[index]
@@ -333,9 +258,9 @@ private fun WarmupView(items: List<WarmupItem>, paused: Boolean, onDone: () -> U
                 ExerciseIllustration(item.figure, modifier = Modifier.size(170.dp), animate = true)
             }
             Text(
-                formatDuration(if (countdown.started) left else item.seconds),
+                formatDuration(left ?: item.seconds),
                 style = MaterialTheme.typography.displayLarge,
-                color = if (countdown.endsAt != null) colors.onSurface else colors.onSurfaceVariant,
+                color = if (timer != null && !timer.paused) colors.onSurface else colors.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
                 textAlign = TextAlign.Center,
             )
@@ -367,16 +292,17 @@ private fun WarmupView(items: List<WarmupItem>, paused: Boolean, onDone: () -> U
             }
         }
         Spacer(Modifier.height(8.dp))
-        if (!countdown.started) {
-            BigButton(tr("Start warm-up", "Start oppvarming"), onClick = {
-                left = item.seconds
-                countdown.start(item.seconds, paused)
-            }, icon = RiggIcons.Play)
+        if (timer == null) {
+            BigButton(
+                if (index == 0) tr("Start warm-up", "Start oppvarming") else tr("Continue warm-up", "Fortsett oppvarmingen"),
+                onClick = { vm.startWarmup() },
+                icon = RiggIcons.Play,
+            )
         } else {
             // Neste øvelse med en gang.
-            BigButton(tr("Next", "Neste"), onClick = { next() })
+            BigButton(tr("Next", "Neste"), onClick = { vm.nextWarmup() })
         }
-        TextButton(onClick = onDone, modifier = Modifier.align(Alignment.CenterHorizontally)) {
+        TextButton(onClick = { vm.skipWarmup() }, modifier = Modifier.align(Alignment.CenterHorizontally)) {
             Text(tr("Skip warm-up", "Hopp over oppvarming"))
         }
     }
@@ -385,7 +311,7 @@ private fun WarmupView(items: List<WarmupItem>, paused: Boolean, onDone: () -> U
 // ---------------------------------------------------------------- ETT SETT
 
 @Composable
-private fun SetView(vm: AppViewModel, steps: List<WorkStep>, state: GuidedWorkout, paused: Boolean) {
+private fun SetView(vm: AppViewModel, day: WorkoutDay, steps: List<WorkStep>, state: GuidedWorkout) {
     val step = steps[state.step]
     val pe = step.pe
     val slot = step.exerciseNo - 1
@@ -406,12 +332,7 @@ private fun SetView(vm: AppViewModel, steps: List<WorkStep>, state: GuidedWorkou
     var reps by remember { mutableIntStateOf(previous?.reps ?: target.reps) }
     var weight by remember { mutableStateOf(previous?.weightKg ?: earlierToday?.weightKg ?: target.weightKg) }
 
-    fun complete(value: Int) {
-        val done = state.done.filterNot { it.slot == slot && it.setIndex == step.setIndex } +
-            DoneSet(pe.exerciseId, slot, step.setIndex, value, if (ex.isWeighted()) weight else null)
-        vm.updateGuided(state.copy(step = state.step + 1, done = done))
-        if (step.restAfter > 0 && state.step + 1 < steps.size) vm.startRestTimer(step.restAfter)
-    }
+    fun complete(value: Int) = vm.completeSet(day, state.step, value, if (ex.isWeighted()) weight else null)
 
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 16.dp),
@@ -459,10 +380,12 @@ private fun SetView(vm: AppViewModel, steps: List<WorkStep>, state: GuidedWorkou
 
         if (ex.timed) {
             WorkTimer(
+                vm = vm,
+                step = state.step,
                 seconds = reps,
-                paused = paused,
                 onSecondsChange = { reps = it },
-                onFinished = { complete(it) },
+                onStart = { vm.startTimedSet(state.step, ex.name, reps, if (ex.isWeighted()) weight else null) },
+                onLogWithoutTimer = { complete(reps) },
             )
         } else {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -681,57 +604,40 @@ private fun RestView(vm: AppViewModel, timer: RestTimer, steps: List<WorkStep>, 
 }
 
 /**
- * Nedtelling for tidsøvelser (planke, veggsitt ...): juster sekundene, trykk Start. Pip de siste tre sekundene
- * og en høyere tone ved null, som hviletimeren. Stopper man tidlig, logges tiden man holdt. Står stille på pause.
+ * Nedtelling for tidsøvelser (planke, veggsitt ...): juster sekundene, trykk Start. Selve nedtellingen ligger i
+ * WorkoutTimers, så den fortsetter når øktmodus skjules, og tjenesten piper de siste tre sekundene og ved null.
+ * Ved null logges settet automatisk (AppViewModel). Stopper man tidlig, logges tiden man holdt.
  */
 @Composable
-private fun WorkTimer(seconds: Int, paused: Boolean, onSecondsChange: (Int) -> Unit, onFinished: (Int) -> Unit) {
-    val context = LocalContext.current
-    val countdown = rememberCountdown(paused)
-    var left by remember { mutableIntStateOf(seconds) }
-
-    LaunchedEffect(countdown.endsAt) {
-        val end = countdown.endsAt ?: return@LaunchedEffect
-        var lastBeep = Int.MAX_VALUE
-        while (true) {
-            val ms = end - SystemClock.elapsedRealtime()
-            val s = ceil(ms.coerceAtLeast(0) / 1000.0).toInt()
-            left = s
-            if (s in 1..3 && s < lastBeep) { Beeper.countdown(); lastBeep = s }
-            if (ms <= 0) {
-                Beeper.go()
-                Haptics.vibrate(context, 400)
-                countdown.stop()
-                onFinished(seconds)
-                break
-            }
-            delay(100)
-        }
-    }
+private fun WorkTimer(
+    vm: AppViewModel,
+    step: Int,
+    seconds: Int,
+    onSecondsChange: (Int) -> Unit,
+    onStart: () -> Unit,
+    onLogWithoutTimer: () -> Unit,
+) {
+    val timer = vm.workTimer?.takeIf { it.kind == WorkKind.SET && it.index == step && !it.finished }
+    @Suppress("UNUSED_VARIABLE")
+    val tick = rememberTick(active = timer != null, periodMs = 200L)
+    val left = timer?.secondsLeft()
 
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        val running = countdown.started
+        val running = timer != null
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             if (!running) RoundButton("−", tr("5 seconds less", "5 sekunder mindre"), onClick = { onSecondsChange((seconds - 5).coerceAtLeast(5)) })
             Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(formatDuration(if (running) left else seconds), style = MaterialTheme.typography.displayLarge)
+                Text(formatDuration(left ?: seconds), style = MaterialTheme.typography.displayLarge)
                 SectionLabel(if (running) tr("Hold", "Hold") else tr("Seconds", "Sekunder"))
             }
             if (!running) RoundButton("+", tr("5 seconds more", "5 sekunder mer"), onClick = { onSecondsChange(seconds + 5) })
         }
         if (!running) {
-            BigButton(tr("Start", "Start"), onClick = {
-                left = seconds
-                countdown.start(seconds, paused)
-            }, icon = RiggIcons.Play)
-            TextButton(onClick = { onFinished(seconds) }) { Text(tr("Log without timer", "Logg uten tidtaker")) }
+            BigButton(tr("Start", "Start"), onClick = onStart, icon = RiggIcons.Play)
+            TextButton(onClick = onLogWithoutTimer) { Text(tr("Log without timer", "Logg uten tidtaker")) }
         } else {
             Button(
-                onClick = {
-                    val held = (seconds - left).coerceAtLeast(0)
-                    countdown.stop()
-                    onFinished(held)
-                },
+                onClick = { vm.stopTimedSetEarly() },
                 modifier = Modifier.fillMaxWidth().height(58.dp),
                 shape = RoundedCornerShape(18.dp),
                 colors = ButtonDefaults.buttonColors(

@@ -34,8 +34,11 @@ object StrengthFit {
 
     fun fitTime(unixMs: Long): Long = unixMs / 1000 - FIT_EPOCH_OFFSET
 
-    /** [startMs] er øktstart (veggklokke), [elapsedSec] hele øktas lengde. */
-    fun encode(startMs: Long, elapsedSec: Int, sets: List<Set>): ByteArray {
+    /**
+     * [startMs] er øktstart (veggklokke), [elapsedSec] hele øktas lengde. [heartRate] blir record-meldinger
+     * (puls over tid) og snitt/maks i økta.
+     */
+    fun encode(startMs: Long, elapsedSec: Int, sets: List<Set>, heartRate: List<HrSample> = emptyList()): ByteArray {
         val start = fitTime(startMs)
         val end = start + elapsedSec
         val totalMs = elapsedSec * 1000L
@@ -55,7 +58,13 @@ object StrengthFit {
             Field(0, ENUM, 0), // event = timer
             Field(1, ENUM, 0), // event_type = start
         )
+        // Puls og sett i tidsrekkefølge, som i en fil fra klokka. Maks én pulsmåling per sekund.
+        val hr = heartRate.map { fitTime(it.timeMs) to it.bpm }
+            .filter { (t, bpm) -> t in start..end && bpm in 1..254 }
+            .distinctBy { it.first }
+        val pending = ArrayDeque(hr)
         sets.forEachIndexed { i, s ->
+            writeRecords(w, pending, until = start + s.startSec + s.durationSec)
             val reps = s.reps?.takeIf { it in 0..65534 }?.toLong() ?: NO_U16
             val weight = s.weightKg?.takeIf { it > 0 }?.let { Math.round(it * 16).coerceAtMost(65534) } ?: NO_U16
             w.message(
@@ -72,6 +81,7 @@ object StrengthFit {
                 Field(10, UINT16, i.toLong()), // message_index
             )
         }
+        writeRecords(w, pending, until = end)
         w.message(
             local = 3, global = 21, // event: timer stop
             Field(253, UINT32, end),
@@ -103,6 +113,8 @@ object StrengthFit {
             Field(8, UINT32, totalMs),
             Field(25, UINT16, 0), // first_lap_index
             Field(26, UINT16, 1), // num_laps
+            Field(16, UINT8, hr.takeIf { it.isNotEmpty() }?.let { l -> l.sumOf { it.second } / l.size }?.toLong() ?: 0xFF), // avg_heart_rate
+            Field(17, UINT8, hr.maxOfOrNull { it.second }?.toLong() ?: 0xFF), // max_heart_rate
         )
         val offset = java.util.TimeZone.getDefault().getOffset(startMs) / 1000
         w.message(
@@ -122,7 +134,11 @@ object StrengthFit {
      * FIT-fil for en loggført økt. Appen vet ikke nøyaktig når hvert sett ble gjort, så settene fordeles jevnt
      * over økta i den rekkefølgen de står i programmet.
      */
-    fun forLog(log: SessionLog, zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): ByteArray {
+    fun forLog(
+        log: SessionLog,
+        heartRate: List<HrSample> = emptyList(),
+        zone: java.time.ZoneId = java.time.ZoneId.systemDefault(),
+    ): ByteArray {
         val all = log.results.flatMap { r ->
             val ex = ExerciseLibrary.get(r.exerciseId)
             val fit = ex?.let { FitExercises.forExercise(it) } ?: FitExercises.forId(r.exerciseId) ?: FitExercise(29, 0)
@@ -140,19 +156,36 @@ object StrengthFit {
                 durationSec = work.coerceIn(10, 120).coerceAtMost(slot - 1),
             )
         }
-        return encode(startMsFor(log, zone), elapsed, sets)
+        return encode(startMsFor(log, zone), elapsed, sets, heartRate)
     }
 
-    /** Øktas lengde: målt tid hvis den finnes, ellers et anslag på 2,5 minutter per sett (minst 10 minutter). */
-    fun elapsedSecFor(log: SessionLog): Int =
-        if (log.durationMin > 0) log.durationMin * 60
-        else (log.results.sumOf { it.sets.size } * 150).coerceAtLeast(600)
+    /**
+     * Øktas lengde fra start til lagring (med eventuelle pauser, så pulsen fra klokka passer i tid), ellers målt
+     * tid, ellers et anslag på 2,5 minutter per sett (minst 10 minutter).
+     */
+    fun elapsedSecFor(log: SessionLog): Int = when {
+        log.startedAtMs > 0 && log.endedAtMs > log.startedAtMs -> ((log.endedAtMs - log.startedAtMs) / 1000).toInt()
+        log.durationMin > 0 -> log.durationMin * 60
+        else -> (log.results.sumOf { it.sets.size } * 150).coerceAtLeast(600)
+    }
 
     /** Når økta startet. Eldre logger har bare dato: da regnes den som avsluttet kl. 18. */
     fun startMsFor(log: SessionLog, zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): Long {
         if (log.startedAtMs > 0) return log.startedAtMs
         val date = runCatching { java.time.LocalDate.parse(log.date) }.getOrElse { java.time.LocalDate.now(zone) }
         return date.atTime(18, 0).atZone(zone).toInstant().toEpochMilli() - elapsedSecFor(log) * 1000L
+    }
+
+    /** Skriver pulsmålingene (record-meldinger) fram til og med tidspunktet [until]. */
+    private fun writeRecords(w: MessageWriter, pending: ArrayDeque<Pair<Long, Int>>, until: Long) {
+        while (pending.isNotEmpty() && pending.first().first <= until) {
+            val (time, bpm) = pending.removeFirst()
+            w.message(
+                local = 7, global = 20, // record
+                Field(253, UINT32, time),
+                Field(3, UINT8, bpm.toLong()), // heart_rate
+            )
+        }
     }
 
     private class Field(val num: Int, val type: Int, val value: Long) {
@@ -229,6 +262,13 @@ object StrengthFit {
         return crc
     }
 }
+
+/** Én pulsmåling (fra Health Connect). */
+data class HrSample(val timeMs: Long, val bpm: Int)
+
+/** Snitt og maks, eller null uten målinger. */
+fun hrStats(samples: List<HrSample>): Pair<Int, Int>? =
+    if (samples.isEmpty()) null else (samples.sumOf { it.bpm } / samples.size) to samples.maxOf { it.bpm }
 
 /** Øvelse i FIT-format: kategori (exercise_category) og navn innenfor kategorien (f.eks. squat_exercise_name). */
 data class FitExercise(val category: Int, val name: Int)

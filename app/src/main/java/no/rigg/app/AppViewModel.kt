@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
@@ -50,6 +51,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         WorkoutTimers.init(app)
+        // Oppvarming eller tidssett som teller ned til null (også mens øktmodus er skjult): gå videre.
+        viewModelScope.launch {
+            snapshotFlow { WorkoutTimers.work?.finished }.collect { if (it == true) onWorkFinished() }
+        }
         dropOrphanSession()
         // Øktmodus uten øktklokke er en gammel, glemt økt (klokka forkastes etter 12 timer).
         if (guided != null && WorkoutTimers.session == null) saveGuided(null)
@@ -121,12 +126,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         // Bruker øktklokka hvis den kjører for denne dagen, ellers 0 (ukjent varighet).
         val running = sessionTimer?.takeIf { it.dayTitle == dayTitle }
         val durationMin = running?.let { (it.elapsedSec() + 30) / 60 } ?: 0
-        val log = SessionLog(LocalDate.now().toString(), dayTitle, results, durationMin, startedAtMs = running?.startedAtMs ?: 0)
+        val log = SessionLog(
+            LocalDate.now().toString(), dayTitle, results, durationMin,
+            startedAtMs = running?.startedAtMs ?: 0,
+            endedAtMs = if (running != null) System.currentTimeMillis() else 0,
+        )
         val updated = logs + log
         logs = updated
         if (results.any { it.sets.isNotEmpty() }) {
             shareLog = log
-            if (strava.ready && strava.autoUpload) uploadToStrava(log)
+            when {
+                // Venter litt på pulsen fra klokka før opplastingen, så den kommer med.
+                strava.ready && strava.autoUpload -> uploadToStrava(log, waitForHeartRate = profile.heartRate)
+                profile.heartRate -> fetchHeartRate(log)
+            }
         }
         store.saveLogs(updated)
         if (running != null) stopSession()
@@ -164,7 +177,89 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         guidedVisible = true
     }
 
-    fun updateGuided(g: GuidedWorkout) = saveGuided(g)
+    fun updateGuided(g: GuidedWorkout) {
+        // Går man til et annet sett mens planken teller, hører ikke nedtellingen til lenger.
+        val w = workTimer
+        if (w != null && w.kind == WorkKind.SET && w.index != g.step) stopWork()
+        saveGuided(g)
+    }
+
+    // ---------------------------------------------------------------- OPPVARMING OG TIDSSETT
+    // Nedtellingen ligger i WorkoutTimers, så den fortsetter når øktmodus skjules.
+
+    val workTimer: WorkTimer? get() = WorkoutTimers.work
+
+    private fun guidedDay(): WorkoutDay? = guided?.let { g -> plan?.days?.find { it.title == g.dayTitle } }
+
+    fun warmupItems(day: WorkoutDay): List<WarmupItem> = warmupFor(day, profile.equipment)
+
+    /** Starter nedtellingen for oppvarmingsøvelsen man står på. */
+    fun startWarmup() {
+        val g = guided ?: return
+        val day = guidedDay() ?: return
+        val item = warmupItems(day).getOrNull(g.warmupIndex) ?: return
+        WorkoutTimers.startWork(getApplication(), WorkKind.WARMUP, item.name, g.warmupIndex, item.seconds)
+    }
+
+    /** Neste oppvarmingsøvelse med en gang (eller ferdig med oppvarmingen etter den siste). */
+    fun nextWarmup() {
+        val g = guided ?: return
+        advanceWarmup(g, g.warmupIndex)
+    }
+
+    fun skipWarmup() {
+        val g = guided ?: return
+        if (workTimer?.kind == WorkKind.WARMUP) stopWork()
+        saveGuided(g.copy(warmupDone = true))
+    }
+
+    private fun advanceWarmup(g: GuidedWorkout, from: Int) {
+        val day = guidedDay() ?: return
+        val items = warmupItems(day)
+        val next = from + 1
+        if (next < items.size) {
+            saveGuided(g.copy(warmupIndex = next))
+            WorkoutTimers.startWork(getApplication(), WorkKind.WARMUP, items[next].name, next, items[next].seconds)
+        } else {
+            if (workTimer?.kind == WorkKind.WARMUP) stopWork()
+            saveGuided(g.copy(warmupDone = true, warmupIndex = items.size))
+        }
+    }
+
+    /** Starter nedtellingen for et tidssett (planke, veggsitt ...). Vekten lagres med, så settet kan logges uten skjermen. */
+    fun startTimedSet(step: Int, label: String, seconds: Int, weightKg: Double?) =
+        WorkoutTimers.startWork(getApplication(), WorkKind.SET, label, step, seconds, weightKg)
+
+    /** Stopper tidssettet før tiden og logger tiden som ble holdt. */
+    fun stopTimedSetEarly() {
+        val w = workTimer?.takeIf { it.kind == WorkKind.SET } ?: return
+        val held = (w.totalSeconds - w.secondsLeft()).coerceAtLeast(0)
+        stopWork()
+        guidedDay()?.let { completeSet(it, w.index, held, w.weightKg) }
+    }
+
+    fun stopWork() = WorkoutTimers.stopWork(getApplication())
+
+    /** Logger et sett i øktmodus, går til neste og starter hvilen etter det. */
+    fun completeSet(day: WorkoutDay, stepIndex: Int, value: Int, weightKg: Double?) {
+        val g = guided ?: return
+        val steps = sessionSteps(day)
+        val step = steps.getOrNull(stepIndex) ?: return
+        val slot = step.exerciseNo - 1
+        val done = g.done.filterNot { it.slot == slot && it.setIndex == step.setIndex } +
+            DoneSet(step.pe.exerciseId, slot, step.setIndex, value, weightKg)
+        saveGuided(g.copy(step = stepIndex + 1, done = done))
+        if (step.restAfter > 0 && stepIndex + 1 < steps.size) startRestTimer(step.restAfter)
+    }
+
+    private fun onWorkFinished() {
+        val w = WorkoutTimers.takeFinishedWork(getApplication()) ?: return
+        val g = guided ?: return
+        when (w.kind) {
+            WorkKind.WARMUP -> if (!g.warmupDone && w.index == g.warmupIndex) advanceWarmup(g, w.index)
+            WorkKind.SET -> if (w.index == g.step) guidedDay()?.let { completeSet(it, w.index, w.totalSeconds, w.weightKg) }
+        }
+    }
 
     /** Skjuler øktmodus uten å avslutte økta (klokka og settene beholdes). */
     fun hideGuided() { guidedVisible = false }
@@ -183,6 +278,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             if (sets.isEmpty()) null else ExerciseResult(pe.exerciseId, sets)
         }
         stopRestTimer()
+        stopWork()
         logSession(day.title, results)
     }
 
@@ -190,6 +286,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun discardGuided() {
         saveGuided(null)
         stopRestTimer()
+        stopWork()
         stopSession()
     }
 
@@ -297,17 +394,78 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun disconnectStrava() = updateStrava(strava.copy(accessToken = "", refreshToken = "", expiresAt = 0, athleteName = ""))
 
-    /** Laster opp økta til Strava som FIT-fil med riktige øvelser. Status havner i [stravaUploads]. */
-    fun uploadToStrava(log: SessionLog) {
+    // ---------------------------------------------------------------- PULS
+
+    /** Henting av puls som pågår (nøkkel: [logKey]), så knappen kan vise det. */
+    var heartRateLoading by mutableStateOf<Set<String>>(emptySet()); private set
+
+    /** Pulsmålingene fra Health Connect for tidsrommet økta varte. Tom hvis puls er slått av eller ingen finnes. */
+    private suspend fun heartRateFor(log: SessionLog): List<HrSample> {
+        if (!profile.heartRate) return emptyList()
+        val start = StrengthFit.startMsFor(log)
+        val end = start + StrengthFit.elapsedSecFor(log) * 1000L
+        return HealthConnectSync.readHeartRate(getApplication(), java.time.Instant.ofEpochMilli(start), java.time.Instant.ofEpochMilli(end))
+    }
+
+    /** Henter puls til en logget økt og lagrer snitt og maks i loggen. Returnerer målingene. */
+    fun fetchHeartRate(log: SessionLog) {
+        val key = logKey(log)
+        if (key in heartRateLoading) return
+        heartRateLoading = heartRateLoading + key
+        viewModelScope.launch {
+            val samples = heartRateFor(log)
+            heartRateLoading = heartRateLoading - key
+            if (samples.isEmpty()) {
+                error = tr(
+                    "No heart rate found for this workout in Health Connect yet. Sync the watch and try again.",
+                    "Fant ingen puls for denne økta i Health Connect ennå. Synk klokka og prøv igjen.",
+                )
+            } else {
+                saveHeartRate(key, samples)
+            }
+        }
+    }
+
+    private fun saveHeartRate(key: String, samples: List<HrSample>) {
+        val (avg, max) = hrStats(samples) ?: return
+        updateLog(key) { it.copy(avgHr = avg, maxHr = max) }
+    }
+
+    /** Endrer en logg (finnes via [logKey]) og lagrer, også i økta som vises som bilde. */
+    private fun updateLog(key: String, change: (SessionLog) -> SessionLog) {
+        val idx = logs.indexOfFirst { logKey(it) == key }
+        if (idx == -1) return
+        val updated = change(logs[idx])
+        logs = logs.toMutableList().also { it[idx] = updated }
+        store.saveLogs(logs)
+        if (shareLog?.let { logKey(it) } == key) shareLog = updated
+    }
+
+    /**
+     * Laster opp økta til Strava som FIT-fil med riktige øvelser (og puls, hvis den finnes). Status havner i
+     * [stravaUploads]. Med [waitForHeartRate] ventes det opptil fem minutter på at klokka har synket pulsen til
+     * Health Connect; finnes den fortsatt ikke, lastes økta opp uten.
+     */
+    fun uploadToStrava(log: SessionLog, waitForHeartRate: Boolean = false) {
         if (!strava.ready) return
         val key = logKey(log)
-        if (stravaUploads[key] is StravaUpload.Working) return
-        stravaUploads = stravaUploads + (key to StravaUpload.Working)
+        if (stravaUploads[key] is StravaUpload.Working || stravaUploads[key] is StravaUpload.WaitingForHeartRate) return
         viewModelScope.launch {
+            var samples = heartRateFor(log)
+            if (waitForHeartRate && samples.isEmpty()) {
+                stravaUploads = stravaUploads + (key to StravaUpload.WaitingForHeartRate)
+                repeat(10) {
+                    if (samples.isNotEmpty() || stravaUploads[key] !is StravaUpload.WaitingForHeartRate) return@repeat
+                    kotlinx.coroutines.delay(30_000)
+                    samples = heartRateFor(log)
+                }
+            }
+            if (samples.isNotEmpty()) saveHeartRate(key, samples)
+            stravaUploads = stravaUploads + (key to StravaUpload.Working)
             runCatching {
                 val s = StravaClient.freshToken(strava)
                 if (s != strava) updateStrava(s)
-                val fit = withContext(Dispatchers.Default) { StrengthFit.forLog(log) }
+                val fit = withContext(Dispatchers.Default) { StrengthFit.forLog(log, samples) }
                 StravaClient.upload(s.accessToken, fit, log.dayTitle, StravaClient.describe(log), "rigg-${StrengthFit.startMsFor(log)}")
             }.onSuccess { id ->
                 markUploaded(key, id)
@@ -318,14 +476,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private fun markUploaded(key: String, activityId: Long) {
-        val idx = logs.indexOfFirst { logKey(it) == key }
-        if (idx == -1) return
-        val updated = logs[idx].copy(stravaActivityId = activityId)
-        logs = logs.toMutableList().also { it[idx] = updated }
-        store.saveLogs(logs)
-        if (shareLog?.let { logKey(it) } == key) shareLog = updated
+    /** Hopper over ventingen på puls og laster opp med en gang. */
+    fun uploadNowWithoutWaiting(log: SessionLog) {
+        val key = logKey(log)
+        if (stravaUploads[key] is StravaUpload.WaitingForHeartRate) stravaUploads = stravaUploads - key
     }
+
+    private fun markUploaded(key: String, activityId: Long) = updateLog(key) { it.copy(stravaActivityId = activityId) }
 
     fun pauseTimers() = WorkoutTimers.pause(getApplication())
 
