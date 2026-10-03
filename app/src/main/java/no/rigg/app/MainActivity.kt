@@ -912,6 +912,8 @@ private fun NextWorkoutCard(vm: AppViewModel, day: WorkoutDay, onStart: () -> Un
     val minutes = remember(day) { estimateMinutes(day) }
     val warmupMin = remember(day, vm.profile.equipment) { (warmupFor(day, vm.profile.equipment).sumOf { it.seconds } + 30) / 60 }
     val exercises = day.exercises.mapNotNull { ExerciseLibrary.get(it.exerciseId) }
+    var infoFor by remember { mutableStateOf<Exercise?>(null) }
+    infoFor?.let { ExerciseInfoDialog(it, onDismiss = { infoFor = null }) }
     Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             SectionLabel(if (active) tr("In progress", "Pågår") else tr("Next workout", "Neste økt"), color = MaterialTheme.colorScheme.tertiary)
@@ -927,7 +929,7 @@ private fun NextWorkoutCard(vm: AppViewModel, day: WorkoutDay, onStart: () -> Un
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 val shown = if (exercises.size > 6) exercises.take(5) else exercises
-                shown.forEach { ExerciseTile(it, size = 48.dp) }
+                shown.forEach { ex -> Box(Modifier.clip(RoundedCornerShape(14.dp)).clickable { infoFor = ex }) { ExerciseTile(ex, size = 48.dp) } }
                 if (exercises.size > shown.size) {
                     Box(
                         Modifier.size(48.dp).clip(RoundedCornerShape(14.dp)).background(MaterialTheme.colorScheme.surfaceVariant),
@@ -1304,7 +1306,11 @@ private fun LogSessionDialog(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            if (ex != null) ExerciseTile(ex, size = 52.dp)
+                            if (ex != null) {
+                                var showInfo by remember { mutableStateOf(false) }
+                                if (showInfo) ExerciseInfoDialog(ex, onDismiss = { showInfo = false })
+                                Box(Modifier.clip(RoundedCornerShape(15.dp)).clickable { showInfo = true }) { ExerciseTile(ex, size = 52.dp) }
+                            }
                             Column(Modifier.weight(1f)) {
                                 if (pe.group.isNotEmpty()) {
                                     Text(tr("Superset ${pe.group}", "Supersett ${pe.group}"), style = MaterialTheme.typography.labelMedium, color = colors.tertiary)

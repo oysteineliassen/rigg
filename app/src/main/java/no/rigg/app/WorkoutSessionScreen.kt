@@ -55,6 +55,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 
 /**
  * Øktmodus: økta gjennomføres ett sett om gangen. Oppvarming først, så hvert sett med forslag fra forrige gang,
@@ -241,6 +242,8 @@ private fun WarmupView(vm: AppViewModel, items: List<WarmupItem>, state: GuidedW
 
     val colors = MaterialTheme.colorScheme
     val item = items[index]
+    var preview by remember { mutableStateOf<WarmupItem?>(null) }
+    preview?.let { WarmupInfoDialog(it, onDismiss = { preview = null }) }
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -271,6 +274,7 @@ private fun WarmupView(vm: AppViewModel, items: List<WarmupItem>, state: GuidedW
             Row(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
                     .background(if (current) colors.primaryContainer else colors.surfaceContainer)
+                    .clickable { preview = w }
                     .padding(horizontal = 10.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -304,6 +308,33 @@ private fun WarmupView(vm: AppViewModel, items: List<WarmupItem>, state: GuidedW
         }
         TextButton(onClick = { vm.skipWarmup() }, modifier = Modifier.align(Alignment.CenterHorizontally)) {
             Text(tr("Skip warm-up", "Hopp over oppvarming"))
+        }
+    }
+}
+
+/** Oppvarmingsøvelsen i stort, animert, med navn og tid. Åpnes ved å trykke på en øvelse i lista. */
+@Composable
+private fun WarmupInfoDialog(item: WarmupItem, onDismiss: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            Modifier.clip(RoundedCornerShape(24.dp)).background(colors.surfaceContainer).padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Box(
+                Modifier.fillMaxWidth().height(220.dp).clip(RoundedCornerShape(20.dp)).background(colors.surfaceVariant),
+                contentAlignment = Alignment.Center,
+            ) {
+                ExerciseIllustration(item.figure, modifier = Modifier.size(200.dp), animate = true)
+            }
+            Text(item.name, style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center)
+            Text(
+                tr("Warm-up · ${formatDuration(item.seconds)}", "Oppvarming · ${formatDuration(item.seconds)}"),
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.onSurfaceVariant,
+            )
+            TextButton(onClick = onDismiss) { Text(tr("Close", "Lukk")) }
         }
     }
 }
@@ -363,7 +394,9 @@ private fun SetView(vm: AppViewModel, day: WorkoutDay, steps: List<WorkStep>, st
             Modifier.fillMaxWidth().height(230.dp).clip(RoundedCornerShape(24.dp)).background(colors.surfaceVariant),
             contentAlignment = Alignment.Center,
         ) {
-            ExerciseIllustration(ex, modifier = Modifier.size(200.dp), animate = true)
+            var showInfo by remember { mutableStateOf(false) }
+            if (showInfo) ExerciseInfoDialog(ex, onDismiss = { showInfo = false })
+            ExerciseIllustration(ex, modifier = Modifier.size(200.dp).clickable { showInfo = true }, animate = true)
         }
 
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -473,7 +506,13 @@ private fun SetView(vm: AppViewModel, day: WorkoutDay, steps: List<WorkStep>, st
 
         steps.getOrNull(state.step + 1)?.let { next ->
             val nextEx = ExerciseLibrary.get(next.pe.exerciseId)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            var showNext by remember { mutableStateOf(false) }
+            if (showNext && nextEx != null) ExerciseInfoDialog(nextEx, onDismiss = { showNext = false })
+            Row(
+                Modifier.clip(RoundedCornerShape(12.dp)).clickable(enabled = nextEx != null) { showNext = true },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
                 if (nextEx != null) ExerciseTile(nextEx, size = 36.dp)
                 Text(
                     tr("Next: ", "Neste: ") + (nextEx?.name ?: next.pe.exerciseId) +
@@ -578,8 +617,11 @@ private fun RestView(vm: AppViewModel, timer: RestTimer, steps: List<WorkStep>, 
             val sameEarlier = state.done.filter { it.slot == next.exerciseNo - 1 && it.setIndex < next.setIndex }.maxByOrNull { it.setIndex }
             val w = sameEarlier?.weightKg ?: target.weightKg
             val unit = if (nextEx.timed) tr(" s", " sek") else ""
+            var showNext by remember { mutableStateOf(false) }
+            if (showNext) ExerciseInfoDialog(nextEx, onDismiss = { showNext = false })
             Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(colors.surfaceContainer).padding(14.dp),
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(colors.surfaceContainer)
+                    .clickable { showNext = true }.padding(14.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) {
@@ -679,8 +721,11 @@ private fun SummaryView(vm: AppViewModel, day: WorkoutDay, state: GuidedWorkout)
             val text = if (sets.isEmpty()) tr("skipped", "hoppet over") else sets.joinToString("  ·  ") { s ->
                 "${s.reps}$unit" + (s.weightKg?.let { " × ${formatWeight(it)}" } ?: "")
             } + if (sets.any { it.weightKg != null }) " kg" else ""
+            var showInfo by remember { mutableStateOf(false) }
+            if (showInfo && ex != null) ExerciseInfoDialog(ex, onDismiss = { showInfo = false })
             Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(colors.surfaceContainer).padding(12.dp),
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(colors.surfaceContainer)
+                    .clickable(enabled = ex != null) { showInfo = true }.padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {

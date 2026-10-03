@@ -195,8 +195,9 @@ private fun ExerciseRow(ex: Exercise, missing: String?, onClick: () -> Unit) {
     }
 }
 
+/** Stor animert figur med navn, utstyr, muskler og videolenke. Brukes overalt der man trykker på en øvelse. */
 @Composable
-private fun ExerciseInfoDialog(ex: Exercise, missing: String?, onDismiss: () -> Unit) {
+internal fun ExerciseInfoDialog(ex: Exercise, missing: String? = null, onDismiss: () -> Unit) {
     val context = LocalContext.current
     Dialog(onDismissRequest = onDismiss) {
         Card {
