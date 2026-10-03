@@ -739,15 +739,39 @@ private fun PlanScreen(vm: AppViewModel, goToSetup: () -> Unit, requestNotificat
         if (next != null) {
             NextWorkoutCard(vm, next, onStart = { requestNotificationPermission(); vm.openGuided(next) })
         } else {
+            var chooseExtra by remember { mutableStateOf(false) }
+            val suggested = remember(plan, vm.logs) { extraDay(plan, vm.logs) }
+            // Trent i dag eller i går: minn om hvile (samme muskler trenger gjerne et par døgn).
+            val trainedRecently = vm.logs.any { it.date == today.toString() || it.date == today.minusDays(1).toString() }
             Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
                 Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     SectionLabel(tr("Week done", "Uka er i boks"), color = MaterialTheme.colorScheme.tertiary)
                     Text(tr("All workouts done this week", "Alle øktene er gjort denne uka"), style = MaterialTheme.typography.headlineSmall)
                     Text(
-                        tr("Rest up. The plan starts over on Monday.", "Hvil godt. Programmet starter på nytt mandag."),
+                        tr(
+                            "Rest up, or take an extra workout if you have the time and energy. The plan starts over on Monday.",
+                            "Hvil godt, eller ta en ekstra økt hvis du har tid og lyst. Programmet starter på nytt mandag.",
+                        ),
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    if (suggested != null) {
+                        Spacer(Modifier.height(6.dp))
+                        OutlinedButton(onClick = { chooseExtra = true }, shape = RoundedCornerShape(14.dp)) {
+                            Icon(RiggIcons.Play, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(tr("Extra workout", "Ekstra økt"))
+                        }
+                    }
                 }
+            }
+            if (chooseExtra && suggested != null) {
+                ExtraWorkoutDialog(
+                    days = plan.days,
+                    suggested = suggested,
+                    trainedRecently = trainedRecently,
+                    onPick = { day -> chooseExtra = false; requestNotificationPermission(); vm.openGuided(day) },
+                    onDismiss = { chooseExtra = false },
+                )
             }
         }
 
@@ -903,6 +927,63 @@ private fun WeekStrip(trained: Set<Int>, today: Int) {
             }
         }
     }
+}
+
+/** Velg hvilken dag i programmet du vil ta som ekstra økt. Forslaget er dagen det er lengst siden du tok. */
+@Composable
+private fun ExtraWorkoutDialog(
+    days: List<WorkoutDay>,
+    suggested: WorkoutDay,
+    trainedRecently: Boolean,
+    onPick: (WorkoutDay) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(tr("Extra workout", "Ekstra økt")) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    tr(
+                        "Pick a day from your plan. It's logged like any other workout and counts this week.",
+                        "Velg en dag fra programmet. Den logges som en vanlig økt og teller med denne uka.",
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                if (trainedRecently) {
+                    Text(
+                        tr(
+                            "You trained today or yesterday. Muscles often need a couple of days, so go a little lighter if you're sore.",
+                            "Du trente i dag eller i går. Musklene trenger ofte et par døgn, så ta det litt roligere hvis du er støl.",
+                        ),
+                        style = MaterialTheme.typography.bodySmall, color = colors.tertiary,
+                    )
+                }
+                days.forEach { day ->
+                    val isSuggested = day.title == suggested.title
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                            .background(if (isSuggested) colors.primaryContainer else colors.surfaceContainerHigh)
+                            .clickable { onPick(day) }.padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(day.title, style = MaterialTheme.typography.titleMedium, color = if (isSuggested) colors.onPrimaryContainer else colors.onSurface)
+                            Text(
+                                (if (isSuggested) tr("Suggested · longest since last time · ", "Forslag · lengst siden sist · ") else "") +
+                                    tr("about ${estimateMinutes(day)} min", "ca. ${estimateMinutes(day)} min"),
+                                style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant,
+                            )
+                        }
+                        Icon(RiggIcons.Play, contentDescription = null, tint = colors.primary, modifier = Modifier.size(18.dp))
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text(tr("Cancel", "Avbryt")) } },
+    )
 }
 
 /** Kortet med neste økt: navn, omfang, figurene og én stor startknapp. */

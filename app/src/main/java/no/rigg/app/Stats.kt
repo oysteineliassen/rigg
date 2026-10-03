@@ -32,6 +32,14 @@ fun nextDay(plan: Plan, logs: List<SessionLog>, today: LocalDate): WorkoutDay? {
     }
 }
 
+/**
+ * Forslag til en ekstra økt når ukas økter er gjort: dagen i programmet det er lengst siden du trente
+ * (aldri trent først), så musklene som har hvilt mest får jobbe.
+ */
+fun extraDay(plan: Plan, logs: List<SessionLog>): WorkoutDay? = plan.days.minByOrNull { day ->
+    logs.withIndex().lastOrNull { it.value.dayTitle == day.title }?.index ?: -1
+}
+
 /** Omtrentlig varighet på en økt i minutter (arbeid + pauser, uten oppvarming). */
 fun estimateMinutes(day: WorkoutDay): Int {
     val seconds = sessionSteps(day).sumOf { step ->

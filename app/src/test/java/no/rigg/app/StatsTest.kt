@@ -57,4 +57,15 @@ class StatsTest {
         assertEquals("+5", progressDelta(listOf(ProgressPoint(d, 13.0, "reps"), ProgressPoint(d, 18.0, "reps"))))
         assertEquals("", progressDelta(listOf(ProgressPoint(d, 13.0, "reps"))))
     }
+
+    @Test
+    fun extraDayIsTheOneLongestAgo() {
+        val plan = Plan(name = "P", days = listOf(WorkoutDay("A", emptyList()), WorkoutDay("B", emptyList()), WorkoutDay("C", emptyList())))
+        // Aldri trent: først i programmet.
+        assertEquals("A", extraDay(plan, emptyList())?.title)
+        // C aldri trent: den.
+        assertEquals("C", extraDay(plan, listOf(log("2026-09-28", "A"), log("2026-09-29", "B")))?.title)
+        // Alle trent: den som er lengst siden (B).
+        assertEquals("B", extraDay(plan, listOf(log("2026-09-27", "B"), log("2026-09-28", "C"), log("2026-09-29", "A")))?.title)
+    }
 }
