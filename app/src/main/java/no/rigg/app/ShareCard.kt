@@ -257,6 +257,7 @@ fun WorkoutShareDialog(log: SessionLog, vm: AppViewModel, onDismiss: () -> Unit)
     // Tegnes på nytt når pulsen kommer.
     val bitmap = remember(key, log.avgHr) { WorkoutShareImage.render(context, log) }
     var saved by remember(key) { mutableStateOf<Boolean?>(null) }
+    var imageAdded by remember(key) { mutableStateOf(false) }
     val colors = MaterialTheme.colorScheme
 
     Dialog(onDismissRequest = onDismiss) {
@@ -287,8 +288,15 @@ fun WorkoutShareDialog(log: SessionLog, vm: AppViewModel, onDismiss: () -> Unit)
                 if (vm.strava.ready) {
                     StravaRow(
                         log, vm.stravaUploads[key],
+                        imageAdded = imageAdded,
                         onUpload = { vm.uploadToStrava(log) },
                         onUploadNow = { vm.uploadNowWithoutWaiting(log) },
+                        // Strava lar ikke vanlige apper laste opp bilder via API-et. I stedet: lagre bildet øverst i
+                        // Bilder og åpne aktiviteten i Strava-appen, så det bare er å velge det nyeste bildet.
+                        onAddImage = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) ({ activityId: Long ->
+                            if (!imageAdded) imageAdded = WorkoutShareImage.saveToPictures(context, bitmap, log.date)
+                            openStravaActivity(context, activityId)
+                        }) else null,
                     )
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -316,7 +324,14 @@ fun WorkoutShareDialog(log: SessionLog, vm: AppViewModel, onDismiss: () -> Unit)
 
 /** Strava-status for økta: last opp, laster opp, ferdig (med lenke) eller feil (prøv igjen). */
 @Composable
-private fun StravaRow(log: SessionLog, upload: StravaUpload?, onUpload: () -> Unit, onUploadNow: () -> Unit) {
+private fun StravaRow(
+    log: SessionLog,
+    upload: StravaUpload?,
+    imageAdded: Boolean,
+    onUpload: () -> Unit,
+    onUploadNow: () -> Unit,
+    onAddImage: ((Long) -> Unit)?,
+) {
     val context = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val doneId = (upload as? StravaUpload.Done)?.activityId ?: log.stravaActivityId
@@ -332,6 +347,10 @@ private fun StravaRow(log: SessionLog, upload: StravaUpload?, onUpload: () -> Un
                     upload is StravaUpload.Working -> tr("Uploading …", "Laster opp …")
                     upload is StravaUpload.WaitingForHeartRate ->
                         tr("Waiting for heart rate from the watch (up to 5 min) …", "Venter på puls fra klokka (opptil 5 min) …")
+                    doneId != null && imageAdded -> tr(
+                        "The image is first in Pictures. In Strava: tap the photo icon on the activity and pick it.",
+                        "Bildet ligger først i Bilder. I Strava: trykk på bildeikonet i aktiviteten og velg det.",
+                    )
                     doneId != null -> tr("Uploaded with the right exercises", "Lastet opp med riktige øvelser")
                     upload is StravaUpload.Failed -> upload.message
                     else -> tr("Upload with exercises and sets", "Last opp med øvelser og sett")
@@ -344,9 +363,10 @@ private fun StravaRow(log: SessionLog, upload: StravaUpload?, onUpload: () -> Un
             upload is StravaUpload.Working ->
                 CircularProgressIndicator(Modifier.padding(end = 12.dp).size(22.dp), strokeWidth = 2.5.dp)
             upload is StravaUpload.WaitingForHeartRate -> TextButton(onClick = onUploadNow) { Text(tr("Upload now", "Last opp nå")) }
-            doneId != null -> TextButton(onClick = {
-                runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(StravaClient.activityUrl(doneId)))) }
-            }) { Text(tr("Open", "Åpne")) }
+            doneId != null -> Row {
+                if (onAddImage != null) TextButton(onClick = { onAddImage(doneId) }) { Text(tr("Add image", "Legg til bilde")) }
+                else TextButton(onClick = { openStravaActivity(context, doneId) }) { Text(tr("Open", "Åpne")) }
+            }
             upload is StravaUpload.Failed -> TextButton(onClick = onUpload) { Text(tr("Try again", "Prøv igjen")) }
             else -> TextButton(onClick = onUpload) { Text(tr("Upload", "Last opp")) }
         }
@@ -376,4 +396,9 @@ private fun HeartRateRow(log: SessionLog, loading: Boolean, onFetch: () -> Unit)
             log.avgHr == null -> TextButton(onClick = onFetch) { Text(tr("Fetch", "Hent")) }
         }
     }
+}
+
+/** Åpner aktiviteten (i Strava-appen hvis den er installert, ellers i nettleseren). */
+private fun openStravaActivity(context: Context, activityId: Long) {
+    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(StravaClient.activityUrl(activityId)))) }
 }
