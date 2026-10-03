@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -18,6 +19,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -122,6 +124,7 @@ private fun HistoryList(vm: AppViewModel, onBack: () -> Unit, onOpen: (SessionLo
                 HistoryRow(log, date, onClick = { onOpen(log) })
             }
             Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.navigationBarsPadding())
         }
     }
 }
@@ -194,7 +197,7 @@ private fun SessionDetail(vm: AppViewModel, log: SessionLog, onBack: () -> Unit,
     Column(Modifier.fillMaxSize()) {
         TopBar(log.dayTitle, onBack)
         Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 4.dp),
+            Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 4.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Text(dateLine(log), style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant)
@@ -252,24 +255,29 @@ private fun SessionDetail(vm: AppViewModel, log: SessionLog, onBack: () -> Unit,
                 }
             }
 
-            // Handlinger.
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedButton(onClick = { vm.shareLog = log }) {
-                    Icon(RiggIcons.Share, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text(tr("Share / Strava", "Del / Strava"))
-                }
-                log.stravaActivityId?.let { id ->
-                    TextButton(onClick = {
-                        runCatching {
-                            context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(StravaClient.activityUrl(id))))
-                        }
-                    }) { Text(tr("Open in Strava", "Åpne i Strava")) }
-                }
-                Spacer(Modifier.weight(1f))
-                TextButton(onClick = { confirmDelete = true }) { Text(tr("Delete", "Slett"), color = colors.error) }
+            Spacer(Modifier.height(8.dp))
+        }
+        // Handlinger: alltid synlige nederst, over navigasjonslinja.
+        Row(
+            Modifier.fillMaxWidth().background(colors.surfaceContainerLow).navigationBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Button(onClick = { vm.shareLog = log }) {
+                Icon(RiggIcons.Share, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(tr("Share / Strava", "Del / Strava"))
             }
-            Spacer(Modifier.height(16.dp))
+            log.stravaActivityId?.let { id ->
+                TextButton(onClick = {
+                    runCatching {
+                        context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(StravaClient.activityUrl(id))))
+                    }
+                }) { Text("Strava") }
+            }
+            Spacer(Modifier.weight(1f))
+            TextButton(onClick = { confirmDelete = true }) { Text(tr("Delete", "Slett"), color = colors.error) }
         }
     }
 
