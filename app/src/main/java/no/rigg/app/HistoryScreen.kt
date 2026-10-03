@@ -216,7 +216,7 @@ private fun SessionDetail(vm: AppViewModel, log: SessionLog, onBack: () -> Unit,
                 if (load.isEmpty()) {
                     Text(tr("No sets logged.", "Ingen sett logget."), color = colors.onSurfaceVariant)
                 } else {
-                    MuscleMap(load, Modifier.fillMaxWidth().height(260.dp))
+                    MuscleMap(load, Modifier.fillMaxWidth().height(360.dp))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
                         Text(tr("Front", "Forfra"), style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant)
                         Text(tr("Back", "Bakfra"), style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant)
