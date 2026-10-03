@@ -705,6 +705,7 @@ private fun PlanScreen(vm: AppViewModel, goToSetup: () -> Unit, requestNotificat
     val doneThisWeek = logsThisWeek(vm.logs, today)
     val next = nextDay(plan, vm.logs, today)
     var showHistory by remember { mutableStateOf(false) }
+    var historyLog by remember { mutableStateOf<SessionLog?>(null) }
     var confirmNextBlock by remember { mutableStateOf(false) }
     var showProgression by remember { mutableStateOf(false) }
 
@@ -812,7 +813,9 @@ private fun PlanScreen(vm: AppViewModel, goToSetup: () -> Unit, requestNotificat
                 SectionLabel(tr("Done this week", "Gjort denne uka"))
                 doneThisWeek.forEach { log ->
                     Row(
-                        Modifier.fillMaxWidth().border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp)).padding(horizontal = 14.dp, vertical = 12.dp),
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
+                            .clickable { historyLog = log }.padding(horizontal = 14.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         CheckDot(28.dp)
@@ -871,8 +874,8 @@ private fun PlanScreen(vm: AppViewModel, goToSetup: () -> Unit, requestNotificat
         )
     }
 
-    if (showHistory) {
-        HistoryDialog(logs = vm.logs, onDismiss = { showHistory = false }, onDelete = { vm.deleteLog(it) }, onShare = { vm.shareLog = it })
+    if (showHistory || historyLog != null) {
+        HistoryScreen(vm, startWith = historyLog, onDismiss = { showHistory = false; historyLog = null })
     }
 
     if (confirmNextBlock) {
@@ -1040,51 +1043,6 @@ private fun NudgeCard(nudge: Nudge) {
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(nudge.title, style = MaterialTheme.typography.titleMedium)
             Text(nudge.detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
-}
-
-@Composable
-private fun HistoryDialog(logs: List<SessionLog>, onDismiss: () -> Unit, onDelete: (SessionLog) -> Unit, onShare: (SessionLog) -> Unit) {
-    Dialog(onDismissRequest = onDismiss) {
-        Card(Modifier.fillMaxWidth().heightIn(max = 560.dp)) {
-            Column(Modifier.padding(16.dp)) {
-                Text(tr("All workouts", "Alle økter"), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(8.dp))
-                if (logs.isEmpty()) {
-                    Text(tr("No logged workouts yet.", "Ingen loggførte økter ennå."), style = MaterialTheme.typography.bodyMedium)
-                } else {
-                    Column(Modifier.verticalScroll(rememberScrollState()).weight(1f, fill = false)) {
-                        logs.asReversed().forEach { log ->
-                            Card(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                                Column(Modifier.padding(10.dp)) {
-                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                        val suffix = if (log.durationMin > 0) " · ${log.durationMin} min" else ""
-                                        Text("${log.date} · ${log.dayTitle}$suffix", Modifier.weight(1f), fontWeight = FontWeight.Medium)
-                                        if (log.results.any { it.sets.isNotEmpty() }) {
-                                            TextButton(onClick = { onShare(log) }) { Text(tr("Share", "Del")) }
-                                        }
-                                        TextButton(onClick = { onDelete(log) }) { Text(tr("Delete", "Slett")) }
-                                    }
-                                    log.results.forEach { res ->
-                                        val name = ExerciseLibrary.get(res.exerciseId)?.name ?: res.exerciseId
-                                        val setsText = res.sets.joinToString(", ") { s ->
-                                            if (s.weightKg != null) "${formatWeight(s.weightKg)}kg×${s.reps}" else "${s.reps}"
-                                        }
-                                        Text(
-                                            "$name: $setsText",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                Spacer(Modifier.height(12.dp))
-                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text(tr("Close", "Lukk")) }
-            }
         }
     }
 }

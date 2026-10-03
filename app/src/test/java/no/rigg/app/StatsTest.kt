@@ -68,4 +68,21 @@ class StatsTest {
         // Alle trent: den som er lengst siden (B).
         assertEquals("B", extraDay(plan, listOf(log("2026-09-27", "B"), log("2026-09-28", "C"), log("2026-09-29", "A")))?.title)
     }
+
+    @Test
+    fun muscleLoadWeighsMainMuscleFull() {
+        val l = SessionLog(
+            "2026-10-02", "A",
+            listOf(
+                ExerciseResult("goblet_squat", List(3) { SetResult(10, 12.0) }), // lår, sete/bakside, mage
+                ExerciseResult("pushup", listOf(SetResult(15))), // bryst, triceps, skuldre
+            ),
+        )
+        val load = muscleLoad(l)
+        assertEquals(1f, load.getValue(Muscle.QUADS), 1e-6f)
+        assertEquals(0.5f, load.getValue(Muscle.GLUTES_HAMS), 1e-6f)
+        assertEquals(1f / 3f, load.getValue(Muscle.CHEST), 1e-6f)
+        assertEquals(listOf(Muscle.QUADS, Muscle.GLUTES_HAMS, Muscle.ABS), topMuscles(load))
+        assertEquals(emptyMap<Muscle, Float>(), muscleLoad(SessionLog("2026-10-02", "A")))
+    }
 }
