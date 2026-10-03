@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -122,7 +121,6 @@ private fun HistoryList(vm: AppViewModel, onBack: () -> Unit, onOpen: (SessionLo
                 HistoryRow(log, date, onClick = { onOpen(log) })
             }
             Spacer(Modifier.height(16.dp))
-            Spacer(Modifier.navigationBarsPadding())
         }
     }
 }
@@ -255,10 +253,11 @@ private fun SessionDetail(vm: AppViewModel, log: SessionLog, onBack: () -> Unit,
 
             Spacer(Modifier.height(8.dp))
         }
-        // Handlinger: alltid synlige nederst, over navigasjonslinja.
+        // Handlinger: alltid synlige nederst.
         Row(
-            Modifier.fillMaxWidth().background(colors.surfaceContainerLow).navigationBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 10.dp),
+            // Navigasjonslinja er allerede tatt høyde for av Scaffold i MainActivity.
+            Modifier.fillMaxWidth().background(colors.surfaceContainerLow)
+                .padding(horizontal = 16.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
