@@ -508,7 +508,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 // Først full JSON, så en enklere JSON (uten sport_type og puls), til slutt FIT. Feilene vises etterpå.
                 val errors = mutableListOf<String>()
                 var done: StravaUpload.Done? = null
-                for ((minimal, suffix) in listOf(false to "", true to "-j2")) {
+                // JSON er slått av: Strava avviste fila (oktober 2026), og hvert forsøk ga bare ventetid og en feilmelding.
+                // Sett STRAVA_JSON = true for å prøve igjen.
+                for ((minimal, suffix) in if (STRAVA_JSON) listOf(false to "", true to "-j2") else emptyList()) {
                     val json = withContext(Dispatchers.Default) {
                         StravaJson.forLog(log, samples, minimal = minimal).toByteArray(Charsets.UTF_8)
                     }
@@ -522,7 +524,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 done ?: run {
                     val fit = withContext(Dispatchers.Default) { StrengthFit.forLog(log, samples) }
                     val id = StravaClient.upload(s.accessToken, fit, "fit", log.dayTitle, description, "$externalId-fit")
-                    StravaUpload.Done(id, jsonError = errors.distinct().joinToString(" / "))
+                    StravaUpload.Done(id, jsonError = errors.distinct().joinToString(" / ").ifBlank { null })
                 }
             }.onSuccess { done ->
                 markUploaded(key, done.activityId)
@@ -544,6 +546,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 stravaUploads = stravaUploads + (key to result)
             }
         }
+    }
+
+    private companion object {
+        const val STRAVA_JSON = false
     }
 
     /** Hopper over ventingen på puls og laster opp med en gang. */

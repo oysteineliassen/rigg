@@ -339,7 +339,7 @@ object FitExercises {
     "glute_bridge" to FitExercise(10, 11), // hipRaise / hipRaise
     "glute_bridge_1leg" to FitExercise(10, 30), // hipRaise / singleLegHipRaise
     "hip_thrust_db" to FitExercise(10, 1), // hipRaise / barbellHipThrustWithBench
-    "rdl_db" to FitExercise(8, 4), // deadlift / dumbbellStraightLegDeadlift
+    "rdl_db" to FitExercise(8, 2), // deadlift / dumbbellDeadlift (Strava: markløft med manualer; rumensk med manualer finnes ikke i FIT)
     "rdl_1leg_db" to FitExercise(8, 14), // deadlift / singleLegRomanianDeadliftWithDumbbell
     "kb_swing" to FitExercise(10, 23), // hipRaise / kettlebellSwing
     "kb_deadlift" to FitExercise(8, 2), // deadlift / dumbbellDeadlift
@@ -374,7 +374,7 @@ object FitExercises {
         Pattern.PULL to FitExercise(23, 2), // row / dumbbellRow
         Pattern.SQUAT to FitExercise(28, 61), // squat / squat
         Pattern.LUNGE to FitExercise(17, 32), // lunge / lunge
-        Pattern.HINGE to FitExercise(8, 4), // deadlift / dumbbellStraightLegDeadlift
+        Pattern.HINGE to FitExercise(8, 2), // deadlift / dumbbellDeadlift
         Pattern.CORE to FitExercise(19, 43), // plank / plank
         Pattern.CARDIO to FitExercise(29, 0), // totalBody / burpee
     )
