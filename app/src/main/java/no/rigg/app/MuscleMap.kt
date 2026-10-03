@@ -14,24 +14,34 @@ import androidx.compose.ui.platform.LocalContext
 // ---------------------------------------------------------------- BELASTNING (ren logikk, testes i StatsTest)
 
 /**
- * Hvor mye hver muskelgruppe ble trent i økta, 0..1 (1 = mest trent). Første muskel i øvelsen er hovedmuskelen og
- * teller fullt per sett, de andre halvt. Helkropp fordeles litt på alle.
+ * Hvor mye hver muskelgruppe ble trent i økta, 0..1 (1 = mest trent). Hvert sett teller etter [setWork], ganget med
+ * hvor mye musklen jobber i øvelsen ([MuscleWeights]).
  */
 fun muscleLoad(log: SessionLog): Map<Muscle, Float> {
     val sum = mutableMapOf<Muscle, Float>()
     log.results.forEach { r ->
         val ex = ExerciseLibrary.get(r.exerciseId) ?: return@forEach
-        val sets = r.sets.size.toFloat()
-        ex.muscles.forEachIndexed { i, m ->
-            if (m == Muscle.FULL_BODY) {
-                Muscle.values().filter { it != Muscle.FULL_BODY }.forEach { sum[it] = (sum[it] ?: 0f) + sets * 0.3f }
-            } else {
-                sum[m] = (sum[m] ?: 0f) + sets * (if (i == 0) 1f else 0.5f)
-            }
-        }
+        val work = r.sets.sumOf { setWork(it, ex.timed, r.sets).toDouble() }.toFloat()
+        MuscleWeights.forExercise(ex).forEach { (m, w) -> sum[m] = (sum[m] ?: 0f) + work * w }
     }
     val max = sum.values.maxOrNull()?.takeIf { it > 0f } ?: return emptyMap()
     return sum.mapValues { it.value / max }
+}
+
+/**
+ * Hvor mye ett sett teller, rundt 1 for et vanlig sett:
+ *  - Tidsøvelser: 45 sekunder = 1 (en planke på 30 sek teller 2/3).
+ *  - Reps: 10 reps = 1, færre eller flere teller litt mindre eller mer (kvadratroten, 0,6–1,3).
+ *  - Vekt: et lettere sett enn det tyngste i samme øvelse (f.eks. oppvarming) teller mindre. Kilo sammenlignes
+ *    bare innen samme øvelse: 13,5 kg i tåhev og 13,5 kg i press er ikke like mye for musklene.
+ */
+fun setWork(set: SetResult, timed: Boolean, all: List<SetResult>): Float {
+    if (set.reps <= 0) return 0f
+    if (timed) return (set.reps / 45f).coerceIn(0.2f, 2f)
+    val reps = kotlin.math.sqrt(set.reps / 10f).coerceIn(0.6f, 1.3f)
+    val heaviest = all.mapNotNull { it.weightKg }.maxOrNull()?.takeIf { it > 0 }
+    val kg = set.weightKg?.takeIf { it > 0 && heaviest != null }?.let { (it / heaviest!!).toFloat().coerceIn(0.5f, 1f) } ?: 1f
+    return reps * kg
 }
 
 /** Muskelgruppene som ble trent mest, sterkest først. */
