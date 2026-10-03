@@ -35,8 +35,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import java.time.Instant
@@ -220,13 +220,21 @@ private fun SessionDetail(vm: AppViewModel, log: SessionLog, onBack: () -> Unit,
                         Text(tr("Front", "Forfra"), style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant)
                         Text(tr("Back", "Bakfra"), style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant)
                     }
-                    Text(
-                        load.entries.sortedByDescending { it.value }.filter { it.value > 0f }
-                            .joinToString(" · ") { it.key.label },
-                        style = MaterialTheme.typography.bodyMedium,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
+                    // Forklaringen: hvert nivå med fargen sin og musklene på det nivået.
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        MuscleLevel.values().forEach { level ->
+                            val ms = load.entries.filter { muscleLevel(it.value) == level }.sortedByDescending { it.value }
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Box(Modifier.size(14.dp).clip(RoundedCornerShape(4.dp)).background(Color(level.argb)))
+                                Text(level.label, style = MaterialTheme.typography.labelLarge, modifier = Modifier.width(64.dp))
+                                Text(
+                                    if (ms.isEmpty()) "–" else ms.joinToString(" · ") { it.key.label },
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = if (ms.isEmpty()) colors.onSurfaceVariant else colors.onSurface,
+                                )
+                            }
+                        }
+                    }
                 }
             }
 

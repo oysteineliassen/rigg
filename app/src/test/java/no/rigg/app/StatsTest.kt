@@ -85,4 +85,12 @@ class StatsTest {
         assertEquals(listOf(Muscle.QUADS, Muscle.GLUTES_HAMS, Muscle.ABS), topMuscles(load))
         assertEquals(emptyMap<Muscle, Float>(), muscleLoad(SessionLog("2026-10-02", "A")))
     }
+
+    @Test
+    fun muscleLevelsAreThreeSteps() {
+        assertEquals(null, muscleLevel(0f))
+        assertEquals(MuscleLevel.LOW, muscleLevel(0.3f))
+        assertEquals(MuscleLevel.MEDIUM, muscleLevel(0.5f))
+        assertEquals(MuscleLevel.HIGH, muscleLevel(1f))
+    }
 }
