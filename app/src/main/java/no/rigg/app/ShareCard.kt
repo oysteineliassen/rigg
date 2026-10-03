@@ -379,28 +379,32 @@ private fun StravaRow(
                     checking -> tr("Checking Strava …", "Sjekker Strava …")
                     upload is StravaUpload.WaitingForHeartRate ->
                         tr("Waiting for heart rate from the watch (up to 5 min) …", "Venter på puls fra klokka (opptil 5 min) …")
+                    upload is StravaUpload.Failed -> upload.message
                     doneId != null && imageAdded -> tr(
                         "The image is first in Pictures. In Strava: tap the photo icon on the activity and pick it.",
                         "Bildet ligger først i Bilder. I Strava: trykk på bildeikonet i aktiviteten og velg det.",
                     )
                     doneId != null -> tr("Uploaded with the right exercises", "Lastet opp med riktige øvelser")
-                    upload is StravaUpload.Failed -> upload.message
                     else -> tr("Upload with exercises and sets", "Last opp med øvelser og sett")
                 },
                 style = MaterialTheme.typography.bodySmall,
-                color = if (upload is StravaUpload.Failed && doneId == null) colors.error else colors.onSurfaceVariant,
+                color = if (upload is StravaUpload.Failed) colors.error else colors.onSurfaceVariant,
             )
         }
         when {
             upload is StravaUpload.Working || checking ->
                 CircularProgressIndicator(Modifier.padding(end = 12.dp).size(22.dp), strokeWidth = 2.5.dp)
             upload is StravaUpload.WaitingForHeartRate -> TextButton(onClick = onUploadNow) { Text(tr("Upload now", "Last opp nå")) }
+            upload is StravaUpload.Failed -> Column(horizontalAlignment = Alignment.End) {
+                upload.duplicateOf?.let { dup -> TextButton(onClick = { openStravaActivity(context, dup) }) { Text(tr("Open it", "Åpne den")) } }
+                // Lastet opp før: gå via sjekken (finnes den gamle fortsatt?). Ellers bare prøv igjen.
+                TextButton(onClick = { if (doneId != null) onReupload(doneId) else onUpload() }) { Text(tr("Try again", "Prøv igjen")) }
+            }
             doneId != null -> Column(horizontalAlignment = Alignment.End) {
                 if (onAddImage != null) TextButton(onClick = { onAddImage(doneId) }) { Text(tr("Add image", "Legg til bilde")) }
                 else TextButton(onClick = { openStravaActivity(context, doneId) }) { Text(tr("Open", "Åpne")) }
                 TextButton(onClick = { onReupload(doneId) }) { Text(tr("Upload again", "Last opp igjen")) }
             }
-            upload is StravaUpload.Failed -> TextButton(onClick = onUpload) { Text(tr("Try again", "Prøv igjen")) }
             else -> TextButton(onClick = onUpload) { Text(tr("Upload", "Last opp")) }
         }
     }

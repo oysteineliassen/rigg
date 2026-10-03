@@ -39,7 +39,8 @@ sealed class StravaUpload {
     data object WaitingForHeartRate : StravaUpload()
     data object Working : StravaUpload()
     data class Done(val activityId: Long) : StravaUpload()
-    data class Failed(val message: String) : StravaUpload()
+    /** [duplicateOf]: Strava avviste økta som en kopi av denne aktiviteten. */
+    data class Failed(val message: String, val duplicateOf: Long? = null) : StravaUpload()
 }
 
 /**
@@ -123,8 +124,8 @@ object StravaClient {
             // Strava behandler fila i bakgrunnen: spør til aktiviteten finnes eller det kom en feil.
             repeat(15) {
                 status.optString("error").takeIf { it.isNotBlank() && it != "null" }?.let { error ->
-                    // Allerede lastet opp (samme external_id eller fil): bruk den eksisterende aktiviteten.
-                    Regex("""duplicate of.*?(\d+)""").find(error)?.let { return@withContext it.groupValues[1].toLong() }
+                    // Strava avviser kopier: samme fil/external_id, eller en aktivitet med samme starttid (f.eks. fra klokka).
+                    Regex("""duplicate of.*?(\d+)""").find(error)?.let { throw StravaDuplicateException(it.groupValues[1].toLong()) }
                     throw StravaException(error)
                 }
                 val activityId = status.optLong("activity_id", 0)
@@ -208,3 +209,6 @@ object StravaClient {
 }
 
 class StravaException(message: String) : Exception(message)
+
+/** Strava avviste opplastingen fordi aktiviteten [activityId] er lik (samme starttid eller samme fil). */
+class StravaDuplicateException(val activityId: Long) : Exception("duplicate of $activityId")

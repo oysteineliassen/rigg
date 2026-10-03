@@ -507,8 +507,21 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             }.onSuccess { id ->
                 markUploaded(key, id)
                 stravaUploads = stravaUploads + (key to StravaUpload.Done(id))
-            }.onFailure {
-                stravaUploads = stravaUploads + (key to StravaUpload.Failed(it.message ?: tr("Upload failed", "Opplastingen feilet")))
+            }.onFailure { e ->
+                val result = when {
+                    // Første opplasting som Strava allerede har fra Rigg (samme fil): den er der, så det er greit.
+                    e is StravaDuplicateException && !reupload && e.activityId == log.stravaActivityId -> StravaUpload.Done(e.activityId)
+                    e is StravaDuplicateException -> StravaUpload.Failed(
+                        tr(
+                            "Strava rejected it as a copy of an activity with the same start time (probably from the watch). Delete that one in Strava and try again.",
+                            "Strava avviste den som en kopi av en aktivitet med samme starttid (trolig fra klokka). Slett den i Strava og prøv igjen.",
+                        ),
+                        duplicateOf = e.activityId,
+                    )
+                    else -> StravaUpload.Failed(e.message ?: tr("Upload failed", "Opplastingen feilet"))
+                }
+                if (result is StravaUpload.Done) markUploaded(key, result.activityId)
+                stravaUploads = stravaUploads + (key to result)
             }
         }
     }
