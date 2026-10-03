@@ -432,13 +432,33 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Endrer en logg (finnes via [logKey]) og lagrer, også i økta som vises som bilde. */
-    private fun updateLog(key: String, change: (SessionLog) -> SessionLog) {
+    private fun updateLog(key: String, change: (SessionLog) -> SessionLog): SessionLog? {
         val idx = logs.indexOfFirst { logKey(it) == key }
-        if (idx == -1) return
+        if (idx == -1) return null
         val updated = change(logs[idx])
         logs = logs.toMutableList().also { it[idx] = updated }
         store.saveLogs(logs)
         if (shareLog?.let { logKey(it) } == key) shareLog = updated
+        return updated
+    }
+
+    // ---------------------------------------------------------------- KLOKKESLETT FOR ELDRE LOGGER
+    // Logger fra før Rigg lagret klokkeslett har bare dato. Da brukes klokkas økt i Health Connect, eller tiden du velger.
+
+    /** Setter start (og slutt) for økta. Pulsen hentes på nytt for det nye tidsrommet. */
+    fun setStartTime(log: SessionLog, startMs: Long, endMs: Long = startMs + StrengthFit.elapsedSecFor(log) * 1000L) {
+        val updated = updateLog(logKey(log)) { it.copy(startedAtMs = startMs, endedAtMs = endMs, avgHr = null, maxHr = null) } ?: return
+        if (profile.heartRate) fetchHeartRate(updated)
+    }
+
+    /** Leter etter klokkas styrkeøkt samme dag i Health Connect. [onResult] får true hvis tiden ble satt. */
+    fun findStartTimeInHealthConnect(log: SessionLog, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            val date = runCatching { LocalDate.parse(log.date) }.getOrNull()
+            val found = date?.let { HealthConnectSync.findStrengthWorkout(getApplication(), it, log.durationMin) }
+            if (found != null) setStartTime(log, found.first.toEpochMilli(), found.second.toEpochMilli())
+            onResult(found != null)
+        }
     }
 
     /**

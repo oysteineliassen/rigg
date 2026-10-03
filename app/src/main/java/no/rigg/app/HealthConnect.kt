@@ -40,6 +40,41 @@ object HealthConnectSync {
     val permissions: Set<String> = setOf(HealthPermission.getWritePermission(ExerciseSessionRecord::class))
     val heartRatePermissions: Set<String> = setOf(HealthPermission.getReadPermission(HeartRateRecord::class))
 
+    /** Lesing av økter (f.eks. Garmins styrkeøkt), for å finne klokkeslettet til eldre logger uten det. */
+    val workoutReadPermissions: Set<String> = setOf(HealthPermission.getReadPermission(ExerciseSessionRecord::class))
+
+    suspend fun hasWorkoutReadPermission(context: Context): Boolean = runCatching {
+        HealthConnectClient.getOrCreate(context).permissionController.getGrantedPermissions().containsAll(workoutReadPermissions)
+    }.getOrDefault(false)
+
+    /**
+     * Finner en styrkeøkt fra en annen app (klokka) på [date], den som ligger nærmest [durationMin] i lengde
+     * (eller den siste, uten kjent lengde). Returnerer start og slutt, eller null.
+     */
+    suspend fun findStrengthWorkout(context: Context, date: java.time.LocalDate, durationMin: Int): Pair<Instant, Instant>? = runCatching {
+        if (!isAvailable(context) || !hasWorkoutReadPermission(context)) return@runCatching null
+        val zone = ZoneId.systemDefault()
+        val from = date.atStartOfDay(zone).toInstant()
+        val to = date.plusDays(1).atStartOfDay(zone).toInstant()
+        val strength = setOf(
+            ExerciseSessionRecord.EXERCISE_TYPE_STRENGTH_TRAINING,
+            ExerciseSessionRecord.EXERCISE_TYPE_WEIGHTLIFTING,
+            ExerciseSessionRecord.EXERCISE_TYPE_CALISTHENICS,
+            ExerciseSessionRecord.EXERCISE_TYPE_HIGH_INTENSITY_INTERVAL_TRAINING,
+            ExerciseSessionRecord.EXERCISE_TYPE_EXERCISE_CLASS,
+        )
+        val sessions = HealthConnectClient.getOrCreate(context)
+            .readRecords(ReadRecordsRequest(ExerciseSessionRecord::class, timeRangeFilter = TimeRangeFilter.between(from, to)))
+            .records
+            .filter { it.metadata.dataOrigin.packageName != context.packageName && it.exerciseType in strength }
+        val best = if (durationMin > 0) {
+            sessions.minByOrNull { kotlin.math.abs(java.time.Duration.between(it.startTime, it.endTime).toMinutes() - durationMin) }
+        } else {
+            sessions.maxByOrNull { it.startTime }
+        }
+        best?.let { it.startTime to it.endTime }
+    }.getOrNull()
+
     suspend fun hasHeartRatePermission(context: Context): Boolean = runCatching {
         HealthConnectClient.getOrCreate(context).permissionController.getGrantedPermissions().containsAll(heartRatePermissions)
     }.getOrDefault(false)

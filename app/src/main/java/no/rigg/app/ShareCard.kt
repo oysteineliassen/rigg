@@ -13,6 +13,10 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.text.TextPaint
 import android.text.TextUtils
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.health.connect.client.PermissionController
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.Image
 import androidx.compose.material3.AlertDialog
 import androidx.compose.foundation.background
@@ -297,6 +301,8 @@ fun WorkoutShareDialog(log: SessionLog, vm: AppViewModel, onDismiss: () -> Unit)
                     style = MaterialTheme.typography.bodySmall,
                     color = colors.onSurfaceVariant,
                 )
+                // Eldre logger uten klokkeslett: finn tiden (fra klokka i Health Connect, eller velg selv) før Strava og puls.
+                if (log.startedAtMs == 0L) StartTimeRow(vm, log)
                 if (vm.profile.heartRate) {
                     HeartRateRow(log, loading = key in vm.heartRateLoading, onFetch = { vm.fetchHeartRate(log) })
                 }
@@ -469,4 +475,72 @@ private fun ReuploadDialog(status: StravaClient.ActivityStatus, onConfirm: () ->
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(tr("Cancel", "Avbryt")) } },
     )
+}
+
+/**
+ * Økter logget før Rigg lagret klokkeslett har bare dato. Da kan tiden hentes fra klokkas styrkeøkt i Health Connect,
+ * eller velges selv. Den brukes på Strava og når pulsen hentes.
+ */
+@Composable
+private fun StartTimeRow(vm: AppViewModel, log: SessionLog) {
+    val context = LocalContext.current
+    val colors = MaterialTheme.colorScheme
+    var note by remember { mutableStateOf<String?>(null) }
+    var searching by remember { mutableStateOf(false) }
+    fun search() {
+        searching = true
+        vm.findStartTimeInHealthConnect(log) { found ->
+            searching = false
+            if (!found) note = tr(
+                "Found no strength workout from the watch that day. Pick the time yourself.",
+                "Fant ingen styrkeøkt fra klokka den dagen. Velg tiden selv.",
+            )
+        }
+    }
+    val launcher = rememberLauncherForActivityResult(PermissionController.createRequestPermissionResultContract()) { granted ->
+        if (granted.containsAll(HealthConnectSync.workoutReadPermissions)) search()
+        else note = tr("Permission wasn't granted. Pick the time yourself.", "Tillatelsen ble ikke gitt. Velg tiden selv.")
+    }
+    val scope = rememberCoroutineScope()
+
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(colors.surfaceContainerHigh)
+            .padding(start = 14.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f).padding(vertical = 6.dp)) {
+            Text(tr("Time unknown", "Ukjent klokkeslett"), style = MaterialTheme.typography.titleSmall)
+            Text(
+                note ?: tr(
+                    "Logged before Rigg saved the time. Used on Strava and for heart rate.",
+                    "Logget før Rigg lagret klokkeslett. Brukes på Strava og for puls.",
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.onSurfaceVariant,
+            )
+        }
+        if (searching) {
+            CircularProgressIndicator(Modifier.padding(end = 12.dp).size(22.dp), strokeWidth = 2.5.dp)
+        } else {
+            Column(horizontalAlignment = Alignment.End) {
+                if (HealthConnectSync.isAvailable(context)) {
+                    TextButton(onClick = {
+                        scope.launch {
+                            if (HealthConnectSync.hasWorkoutReadPermission(context)) search()
+                            else launcher.launch(HealthConnectSync.workoutReadPermissions)
+                        }
+                    }) { Text(tr("From watch", "Fra klokka")) }
+                }
+                TextButton(onClick = {
+                    // Forslag: ferdig kl. 18 (det appen gjettet før). Velg starttiden.
+                    val guess = java.time.Instant.ofEpochMilli(StrengthFit.startMsFor(log)).atZone(java.time.ZoneId.systemDefault())
+                    android.app.TimePickerDialog(context, { _, h, m ->
+                        val date = runCatching { LocalDate.parse(log.date) }.getOrElse { LocalDate.now() }
+                        val start = date.atTime(h, m).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                        vm.setStartTime(log, start)
+                    }, guess.hour, guess.minute, true).show()
+                }) { Text(tr("Pick time", "Velg tid")) }
+            }
+        }
+    }
 }

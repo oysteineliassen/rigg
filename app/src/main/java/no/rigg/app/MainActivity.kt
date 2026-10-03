@@ -1748,7 +1748,7 @@ private fun HealthConnectSection(vm: AppViewModel) {
                             if (HealthConnectSync.hasHeartRatePermission(context)) {
                                 vm.updateProfile(vm.profile.copy(heartRate = true))
                             } else {
-                                hrLauncher.launch(HealthConnectSync.heartRatePermissions)
+                                hrLauncher.launch(HealthConnectSync.heartRatePermissions + HealthConnectSync.workoutReadPermissions)
                             }
                         }
                         else -> HealthConnectSync.openInstall(context)
