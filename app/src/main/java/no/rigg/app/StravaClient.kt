@@ -98,7 +98,14 @@ object StravaClient {
      * Laster opp FIT-fila og venter (opptil ca. 30 sekunder) til Strava har laget aktiviteten.
      * Returnerer aktivitets-id-en.
      */
-    suspend fun upload(token: String, fit: ByteArray, name: String, description: String, externalId: String): Long =
+    suspend fun upload(
+        token: String,
+        file: ByteArray,
+        dataType: String,
+        name: String,
+        description: String,
+        externalId: String,
+    ): Long =
         withContext(Dispatchers.IO) {
             val boundary = "rigg" + System.currentTimeMillis()
             val out = ByteArrayOutputStream()
@@ -106,13 +113,13 @@ object StravaClient {
             fun field(key: String, value: String) {
                 text("--$boundary\r\nContent-Disposition: form-data; name=\"$key\"\r\n\r\n$value\r\n")
             }
-            field("data_type", "fit")
+            field("data_type", dataType)
             field("name", name)
             field("description", description)
             field("external_id", externalId)
-            text("--$boundary\r\nContent-Disposition: form-data; name=\"file\"; filename=\"$externalId.fit\"\r\n")
-            text("Content-Type: application/octet-stream\r\n\r\n")
-            out.write(fit)
+            text("--$boundary\r\nContent-Disposition: form-data; name=\"file\"; filename=\"$externalId.$dataType\"\r\n")
+            text("Content-Type: ${if (dataType == "json") "application/json" else "application/octet-stream"}\r\n\r\n")
+            out.write(file)
             text("\r\n--$boundary--\r\n")
 
             val conn = open("$BASE/api/v3/uploads", "POST", token)

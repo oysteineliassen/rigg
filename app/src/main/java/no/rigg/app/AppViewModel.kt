@@ -501,9 +501,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             runCatching {
                 val s = StravaClient.freshToken(strava)
                 if (s != strava) updateStrava(s)
-                val fit = withContext(Dispatchers.Default) { StrengthFit.forLog(log, samples) }
                 val externalId = "rigg-${StrengthFit.startMsFor(log)}" + if (reupload) "-${System.currentTimeMillis() / 1000}" else ""
-                StravaClient.upload(s.accessToken, fit, log.dayTitle, StravaClient.describe(log), externalId)
+                val description = StravaClient.describe(log)
+                // Først Stravas eget JSON-format (Stravas øvelsesnavn, f.eks. rumensk markløft med manualer).
+                // Avviser Strava fila, prøves FIT-fila (Garmins øvelsesnavn) i stedet.
+                val json = withContext(Dispatchers.Default) { StravaJson.forLog(log, samples).toByteArray(Charsets.UTF_8) }
+                try {
+                    StravaClient.upload(s.accessToken, json, "json", log.dayTitle, description, externalId)
+                } catch (e: StravaException) {
+                    val fit = withContext(Dispatchers.Default) { StrengthFit.forLog(log, samples) }
+                    StravaClient.upload(s.accessToken, fit, "fit", log.dayTitle, description, "$externalId-fit")
+                }
             }.onSuccess { id ->
                 markUploaded(key, id)
                 stravaUploads = stravaUploads + (key to StravaUpload.Done(id))
