@@ -227,6 +227,10 @@ internal fun ExerciseInfoDialog(ex: Exercise, missing: String? = null, onDismiss
                     Spacer(Modifier.height(10.dp))
                     Text(ex.note, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
                 }
+                ex.perSideHint?.let {
+                    Spacer(Modifier.height(8.dp))
+                    Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.tertiary, textAlign = TextAlign.Center)
+                }
                 Spacer(Modifier.height(16.dp))
                 OutlinedButton(onClick = { openExerciseVideo(context, ex) }) { Text(tr("Watch video", "Se video")) }
                 Spacer(Modifier.height(8.dp))

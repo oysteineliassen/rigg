@@ -56,6 +56,12 @@ data class RestTimer(
 enum class WorkKind { WARMUP, SET }
 
 /**
+ * Hvor man er i et tidssett som tas én side om gangen (sideplanke ...): første side, bytte (kort pause), andre side.
+ * NONE = vanlig sett.
+ */
+enum class WorkSide { NONE, FIRST, SWITCH, SECOND }
+
+/**
  * Nedtelling for oppvarming og tidsøvelser. Lever her (ikke i skjermen), så den fortsetter når øktmodus skjules,
  * og tjenesten piper selv med skjermen av. [index] er oppvarmingsøvelsen eller settet (steget) den hører til.
  * [finished] settes av tjenesten ved null; AppViewModel går da videre (neste øvelse eller logger settet).
@@ -69,6 +75,11 @@ data class WorkTimer(
     val pausedLeftMs: Long? = null,
     val weightKg: Double? = null,
     val finished: Boolean = false,
+    val side: WorkSide = WorkSide.NONE,
+    /** Sekundene per side (for [side] != NONE); det er dette som logges. */
+    val holdSeconds: Int = totalSeconds,
+    /** Øvelsens navn, uten side-tillegget i [label]. */
+    val name: String = label,
 ) {
     val paused: Boolean get() = pausedLeftMs != null
     fun remainingMs(now: Long = SystemClock.elapsedRealtime()): Long =
@@ -163,13 +174,38 @@ object WorkoutTimers {
         changed(context)
     }
 
-    /** Starter en nedtelling for oppvarming eller et tidssett. Står økta på pause, starter den på pause. */
-    fun startWork(context: Context, kind: WorkKind, label: String, index: Int, seconds: Int, weightKg: Double? = null) {
+    /** Sekunder til å bytte side i tidsøvelser som tas én side om gangen. */
+    const val SWITCH_SECONDS = 5
+
+    /**
+     * Starter en nedtelling for oppvarming eller et tidssett. Står økta på pause, starter den på pause.
+     * [perSide]: først [seconds] på den ene siden, så [SWITCH_SECONDS] til å bytte, så [seconds] på den andre.
+     */
+    fun startWork(
+        context: Context, kind: WorkKind, label: String, index: Int, seconds: Int, weightKg: Double? = null,
+        perSide: Boolean = false,
+    ) {
         if (seconds <= 0) return
+        val first = WorkTimer(kind, label, index, seconds, 0, null, weightKg, holdSeconds = seconds, name = label)
+        work = phase(if (perSide) first.copy(side = WorkSide.FIRST) else first, if (perSide) WorkSide.FIRST else WorkSide.NONE)
+        changed(context)
+    }
+
+    /** [w] klar til å telle ned i fasen [side], med riktig lengde og etikett. */
+    private fun phase(w: WorkTimer, side: WorkSide): WorkTimer {
+        val seconds = if (side == WorkSide.SWITCH) SWITCH_SECONDS else w.holdSeconds
+        val label = when (side) {
+            WorkSide.NONE -> w.name
+            WorkSide.FIRST -> w.name + tr(" · side 1", " · side 1")
+            WorkSide.SWITCH -> tr("Switch sides", "Bytt side")
+            WorkSide.SECOND -> w.name + tr(" · side 2", " · side 2")
+        }
         val ms = seconds * 1000L
         val pausedLeft = if (session?.paused == true) ms else null
-        work = WorkTimer(kind, label, index, seconds, SystemClock.elapsedRealtime() + ms, pausedLeft, weightKg)
-        changed(context)
+        return w.copy(
+            side = side, label = label, totalSeconds = seconds,
+            endsAtElapsed = SystemClock.elapsedRealtime() + ms, pausedLeftMs = pausedLeft, finished = false,
+        )
     }
 
     fun stopWork(context: Context) {
@@ -178,9 +214,17 @@ object WorkoutTimers {
         changed(context)
     }
 
-    /** Kalles av tjenesten når nedtellingen når null (lyd og vibrasjon er allerede spilt). */
+    /**
+     * Kalles av tjenesten når nedtellingen når null (lyd og vibrasjon er allerede spilt). Tas settet én side om
+     * gangen, går den videre til bytte og andre side her, så det skjer selv med skjermen av.
+     */
     internal fun finishWork() {
-        work = work?.copy(finished = true)
+        val w = work ?: return
+        work = when (w.side) {
+            WorkSide.FIRST -> phase(w, WorkSide.SWITCH)
+            WorkSide.SWITCH -> phase(w, WorkSide.SECOND)
+            WorkSide.NONE, WorkSide.SECOND -> w.copy(finished = true)
+        }
     }
 
     /** Henter og fjerner en ferdig nedtelling, så den bare behandles én gang. */

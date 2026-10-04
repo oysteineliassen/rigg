@@ -227,13 +227,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Starter nedtellingen for et tidssett (planke, veggsitt ...). Vekten lagres med, så settet kan logges uten skjermen. */
-    fun startTimedSet(step: Int, label: String, seconds: Int, weightKg: Double?) =
-        WorkoutTimers.startWork(getApplication(), WorkKind.SET, label, step, seconds, weightKg)
+    fun startTimedSet(step: Int, label: String, seconds: Int, weightKg: Double?, perSide: Boolean = false) =
+        WorkoutTimers.startWork(getApplication(), WorkKind.SET, label, step, seconds, weightKg, perSide)
 
-    /** Stopper tidssettet før tiden og logger tiden som ble holdt. */
+    /** Stopper tidssettet før tiden og logger tiden som ble holdt (per side: på siden man var på). */
     fun stopTimedSetEarly() {
         val w = workTimer?.takeIf { it.kind == WorkKind.SET } ?: return
-        val held = (w.totalSeconds - w.secondsLeft()).coerceAtLeast(0)
+        val held = when (w.side) {
+            WorkSide.SWITCH -> w.holdSeconds
+            else -> (w.totalSeconds - w.secondsLeft()).coerceAtLeast(0)
+        }
         stopWork()
         guidedDay()?.let { completeSet(it, w.index, held, w.weightKg) }
     }
@@ -257,7 +260,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val g = guided ?: return
         when (w.kind) {
             WorkKind.WARMUP -> if (!g.warmupDone && w.index == g.warmupIndex) advanceWarmup(g, w.index)
-            WorkKind.SET -> if (w.index == g.step) guidedDay()?.let { completeSet(it, w.index, w.totalSeconds, w.weightKg) }
+            WorkKind.SET -> if (w.index == g.step) guidedDay()?.let { completeSet(it, w.index, w.holdSeconds, w.weightKg) }
         }
     }
 

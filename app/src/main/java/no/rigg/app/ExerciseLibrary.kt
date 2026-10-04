@@ -11,7 +11,19 @@ object ExerciseLibrary {
         id: String, en: String, no: String, pattern: Pattern, muscles: List<Muscle>,
         all: Set<Equipment> = emptySet(), any: Set<Equipment> = emptySet(),
         level: Int = 1, timed: Boolean = false, noteEn: String = "", note: String = "",
-    ) = Exercise(id, Txt(en, no), pattern, muscles, all, any, level, timed, Txt(noteEn, note))
+    ) = Exercise(id, Txt(en, no), pattern, muscles, all, any, level, timed, Txt(noteEn, note), perSide = id in PER_SIDE)
+
+    /**
+     * Øvelser som gjøres med én arm eller ett bein om gangen. Reps og tid gjelder per side: 8 reps = 8 med den ene
+     * siden, så 8 med den andre. Tidsøvelsene får nedtelling på hver side med bytte imellom.
+     */
+    private val PER_SIDE = setOf(
+        "pushup_archer", "db_floor_press_1arm", "kb_press",
+        "db_row", "db_row_bent", "kb_row",
+        "reverse_lunge", "db_lunge", "bulgarian", "db_bulgarian", "step_up", "walking_lunge", "lateral_lunge", "pistol_box",
+        "glute_bridge_1leg", "rdl_1leg_db",
+        "side_plank", "suitcase_carry", "bird_dog", "dead_bug", "pallof_press",
+    )
 
     val all: List<Exercise> = listOf(
         // ---------- PUSH ----------
@@ -92,9 +104,9 @@ object ExerciseLibrary {
         ex("db_row", "Single-arm dumbbell row", "Enarms roing med manual", PULL, listOf(BACK, BICEPS), all = setOf(DUMBBELLS), level = 1,
             noteEn = "Support yourself on a chair, bench or knee. Pull the elbow toward the hip.",
             note = "Støtt deg på stol, benk eller kne. Trekk albuen mot hoften."),
-        ex("db_row_bent", "Bent-over dumbbell row", "Bøyd roing med manualer", PULL, listOf(BACK, BICEPS), all = setOf(DUMBBELLS), level = 2,
-            noteEn = "Flat back, hinge at the hips, pull both dumbbells toward your stomach.",
-            note = "Rett rygg, bøy i hofta, trekk begge manualene mot magen."),
+        ex("db_row_bent", "Bent-over single-arm dumbbell row", "Bøyd enarms roing med manual", PULL, listOf(BACK, BICEPS), all = setOf(DUMBBELLS), level = 2,
+            noteEn = "Stand bent at the hips with the free hand on a chair, bench or your thigh. Flat back, pull the dumbbell toward the hip.",
+            note = "Stå bøyd i hofta med den ledige hånda på en stol, benk eller låret. Rett rygg, trekk manualen mot hofta."),
         ex("kb_row", "Single-arm kettlebell row", "Enarms roing med kettlebell", PULL, listOf(BACK, BICEPS), all = setOf(KETTLEBELL), level = 1,
             noteEn = "Same technique as with a dumbbell.",
             note = "Samme teknikk som med manual."),
@@ -230,8 +242,8 @@ object ExerciseLibrary {
             noteEn = "Straight line from head to heels.",
             note = "Rett linje fra hodet til hælene."),
         ex("side_plank", "Side plank", "Sideplanke", CORE, listOf(ABS), level = 1, timed = true,
-            noteEn = "Hips high. Both sides.",
-            note = "Hoftene høyt. Begge sider."),
+            noteEn = "Hips high.",
+            note = "Hoftene høyt."),
         ex("dead_bug", "Dead bug", "Dead bug", CORE, listOf(ABS), level = 1,
             noteEn = "Lower back pressed into the floor.",
             note = "Korsryggen presset mot gulvet."),

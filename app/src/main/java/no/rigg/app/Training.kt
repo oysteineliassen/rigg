@@ -68,8 +68,8 @@ fun stepWeight(current: Double?, options: List<Double>, up: Boolean): Double? {
 
 // ---------------------------------------------------------------- OPPVARMING
 
-/** Én oppvarmingsøvelse. [figure] er strekfiguren som vises mens den pågår. */
-data class WarmupItem(val text: Txt, val seconds: Int, val figure: IllustrationType) {
+/** Én oppvarmingsøvelse. [figure] er strekfiguren som vises mens den pågår, [video] et engelsk videosøk. */
+data class WarmupItem(val text: Txt, val seconds: Int, val figure: IllustrationType, val video: String = text.en) {
     val name: String get() = text.get()
 }
 
@@ -77,32 +77,32 @@ data class WarmupItem(val text: Txt, val seconds: Int, val figure: IllustrationT
 fun warmupFor(day: WorkoutDay, equipment: Set<Equipment>): List<WarmupItem> {
     val patterns = day.exercises.mapNotNull { ExerciseLibrary.get(it.exerciseId)?.pattern }.toSet()
     val items = mutableListOf(
-        WarmupItem(Txt("Jumping jacks or marching on the spot", "Jumping jacks eller marsj på stedet"), 60, IllustrationType.JUMPING_JACK),
+        WarmupItem(Txt("Jumping jacks or marching on the spot", "Jumping jacks eller marsj på stedet"), 60, IllustrationType.JUMPING_JACK, "jumping jacks"),
     )
     if (patterns.any { it == SQUAT || it == LUNGE || it == HINGE }) {
-        items += WarmupItem(Txt("Slow bodyweight squats", "Rolige knebøy uten vekt"), 45, IllustrationType.SQUAT)
+        items += WarmupItem(Txt("Slow bodyweight squats", "Rolige knebøy uten vekt"), 45, IllustrationType.SQUAT, "bodyweight squat form")
         items += WarmupItem(
             Txt("Hip hinges: hands on hips, push the hips back", "Hoftebøy: hendene på hofta, skyv rumpa bakover"), 30,
-            IllustrationType.HINGE_WARMUP,
+            IllustrationType.HINGE_WARMUP, "hip hinge drill warm up",
         )
     }
-    if (LUNGE in patterns) items += WarmupItem(Txt("Leg swings, both sides", "Beinsving, begge sider"), 40, IllustrationType.LEG_SWING)
+    if (LUNGE in patterns) items += WarmupItem(Txt("Leg swings, both sides", "Beinsving, begge sider"), 40, IllustrationType.LEG_SWING, "leg swings warm up")
     if (PUSH in patterns) {
-        items += WarmupItem(Txt("Arm circles, forward and back", "Armsirkler forover og bakover"), 30, IllustrationType.ARM_CIRCLES)
+        items += WarmupItem(Txt("Arm circles, forward and back", "Armsirkler forover og bakover"), 30, IllustrationType.ARM_CIRCLES, "arm circles warm up")
         items += WarmupItem(
             Txt("Easy push-ups (on knees or against a bench)", "Lette armhevinger (på knærne eller mot benk)"), 30,
-            IllustrationType.PUSHUP_INCLINE,
+            IllustrationType.PUSHUP_INCLINE, "incline push up",
         )
     }
     if (PULL in patterns) {
         items += if (RESISTANCE_BANDS in equipment) {
-            WarmupItem(Txt("Band pull-aparts in front of the chest", "Strikk trukket fra hverandre foran brystet"), 30, IllustrationType.SCAP_SQUEEZE)
+            WarmupItem(Txt("Band pull-aparts in front of the chest", "Strikk trukket fra hverandre foran brystet"), 30, IllustrationType.SCAP_SQUEEZE, "band pull apart")
         } else {
-            WarmupItem(Txt("Squeeze the shoulder blades together", "Klem skulderbladene sammen"), 30, IllustrationType.SCAP_SQUEEZE)
+            WarmupItem(Txt("Squeeze the shoulder blades together", "Klem skulderbladene sammen"), 30, IllustrationType.SCAP_SQUEEZE, "scapular squeeze exercise")
         }
     }
     if (HINGE in patterns || CORE in patterns) {
-        items += WarmupItem(Txt("Cat-cow on all fours", "Katt og ku på alle fire"), 30, IllustrationType.CAT_COW)
+        items += WarmupItem(Txt("Cat-cow on all fours", "Katt og ku på alle fire"), 30, IllustrationType.CAT_COW, "cat cow stretch")
     }
 
     // Hold den kort: kutt fra slutten til den er under ca. 5 minutter.
@@ -194,6 +194,18 @@ fun sessionSteps(day: WorkoutDay): List<WorkStep> {
     // Ingen pause etter aller siste sett.
     if (steps.isNotEmpty()) steps[steps.lastIndex] = steps.last().copy(restAfter = 0)
     return steps
+}
+
+/** Stegene fra [from] til og med det første som har pause etter seg (maks [max]). */
+fun stepsUntilRest(steps: List<WorkStep>, from: Int, max: Int = 4): List<WorkStep> {
+    val out = mutableListOf<WorkStep>()
+    var i = from
+    while (i < steps.size && out.size < max) {
+        out += steps[i]
+        if (steps[i].restAfter > 0) break
+        i++
+    }
+    return out
 }
 
 /** Forslag til ett sett: reps (sekunder for tidsøvelser) og vekt. */

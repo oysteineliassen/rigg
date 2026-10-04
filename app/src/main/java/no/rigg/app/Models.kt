@@ -57,6 +57,8 @@ data class Exercise(
     val level: Int, // 1 = enkel, 2 = middels, 3 = krevende
     val timed: Boolean,
     val notes: Txt,
+    /** Én arm eller ett bein om gangen: reps/tid gjelder per side. */
+    val perSide: Boolean = false,
 ) {
     /** Navnet på telefonens språk. */
     val name: String get() = names.get()
@@ -65,6 +67,19 @@ data class Exercise(
     val nameEn: String get() = names.en
 
     val note: String get() = notes.get()
+
+    /** Forklaring for øvelser som tas én side om gangen, ellers null. */
+    val perSideHint: String?
+        get() = when {
+            !perSide -> null
+            timed -> tr("Per side: hold the time on one side, switch, then the same on the other.",
+                "Per side: hold tiden på den ene siden, bytt, og like lenge på den andre.")
+            else -> tr("Per side: 8 reps = 8 with one side first, then 8 with the other.",
+                "Per side: 8 reps = 8 med den ene siden først, så 8 med den andre.")
+        }
+
+    /** " per side" / " per side" etter reps og tid, eller tom. */
+    val perSideSuffix: String get() = if (perSide) tr(" per side", " per side") else ""
 
     /** True hvis øvelsen bruker utstyr man kan legge på mer belastning på (manualer, kettlebell, stang, strikk, TRX). */
     fun isWeighted(): Boolean = (requiresAll + requiresAny).any { it in Equipment.loadBearing }

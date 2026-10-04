@@ -47,6 +47,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -268,7 +269,14 @@ private fun WarmupView(vm: AppViewModel, items: List<WarmupItem>, state: GuidedW
                 textAlign = TextAlign.Center,
             )
         }
-        Spacer(Modifier.height(2.dp))
+        val context = LocalContext.current
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            TextButton(onClick = { openVideoSearch(context, item.video) }) {
+                Icon(RiggIcons.Play, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(tr("Watch video", "Se video"))
+            }
+        }
         items.forEachIndexed { i, w ->
             val current = i == index
             Row(
@@ -334,6 +342,8 @@ private fun WarmupInfoDialog(item: WarmupItem, onDismiss: () -> Unit) {
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.onSurfaceVariant,
             )
+            val context = LocalContext.current
+            OutlinedButton(onClick = { openVideoSearch(context, item.video) }) { Text(tr("Watch video", "Se video")) }
             TextButton(onClick = onDismiss) { Text(tr("Close", "Lukk")) }
         }
     }
@@ -402,10 +412,11 @@ private fun SetView(vm: AppViewModel, day: WorkoutDay, steps: List<WorkStep>, st
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(ex.name, style = MaterialTheme.typography.headlineMedium)
             Text(
-                tr("Target ${pe.reps}", "Mål ${pe.reps}") + (lastTime?.let { tr(" · last $it", " · sist $it") } ?: ""),
+                tr("Target ${pe.reps}", "Mål ${pe.reps}") + ex.perSideSuffix + (lastTime?.let { tr(" · last $it", " · sist $it") } ?: ""),
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.onSurfaceVariant,
             )
+            ex.perSideHint?.let { PerSideHint(it) }
             if (pe.tip.isNotBlank()) {
                 Text(pe.tip, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
             }
@@ -416,8 +427,9 @@ private fun SetView(vm: AppViewModel, day: WorkoutDay, steps: List<WorkStep>, st
                 vm = vm,
                 step = state.step,
                 seconds = reps,
+                perSide = ex.perSide,
                 onSecondsChange = { reps = it },
-                onStart = { vm.startTimedSet(state.step, ex.name, reps, if (ex.isWeighted()) weight else null) },
+                onStart = { vm.startTimedSet(state.step, ex.name, reps, if (ex.isWeighted()) weight else null, ex.perSide) },
                 onLogWithoutTimer = { complete(reps) },
             )
         } else {
@@ -425,7 +437,7 @@ private fun SetView(vm: AppViewModel, day: WorkoutDay, steps: List<WorkStep>, st
                 RoundButton("−", tr("Fewer reps", "Færre reps"), onClick = { if (reps > 0) reps-- })
                 Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(reps.toString(), style = MaterialTheme.typography.displayLarge)
-                    SectionLabel("Reps")
+                    SectionLabel(if (ex.perSide) tr("Reps per side", "Reps per side") else "Reps")
                 }
                 RoundButton("+", tr("More reps", "Flere reps"), onClick = { reps++ })
             }
@@ -546,8 +558,9 @@ private fun RestView(vm: AppViewModel, timer: RestTimer, steps: List<WorkStep>, 
     val lastStep = steps[state.step - 1]
     val lastEx = ExerciseLibrary.get(lastStep.pe.exerciseId)
     val lastDone = state.done.find { it.slot == lastStep.exerciseNo - 1 && it.setIndex == lastStep.setIndex }
-    val next = steps[state.step]
-    val nextEx = ExerciseLibrary.get(next.pe.exerciseId)
+    val upcoming = remember(steps, state.step) { stepsUntilRest(steps, state.step) }
+    // Med flere kommende øvelser blir ringen litt mindre, så alt får plass.
+    val ringSize = if (upcoming.size > 1) 190.dp else 250.dp
 
     Column(Modifier.fillMaxSize().padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         // Siste sett, med mulighet til å rette det.
@@ -578,10 +591,10 @@ private fun RestView(vm: AppViewModel, timer: RestTimer, steps: List<WorkStep>, 
         Column(
             Modifier.weight(1f).fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterVertically),
+            verticalArrangement = Arrangement.spacedBy(if (upcoming.size > 1) 14.dp else 24.dp, Alignment.CenterVertically),
         ) {
             SectionLabel(tr("Rest", "Hvile"), color = colors.onSurfaceVariant)
-            Box(Modifier.size(250.dp), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(ringSize), contentAlignment = Alignment.Center) {
                 val track = colors.surfaceContainerHighest
                 val ring = colors.secondary
                 Canvas(Modifier.fillMaxSize()) {
@@ -593,7 +606,7 @@ private fun RestView(vm: AppViewModel, timer: RestTimer, steps: List<WorkStep>, 
                         drawArc(ring, -90f, 360f * fraction, false, topLeft = Offset(inset, inset), size = arcSize, style = Stroke(stroke, cap = StrokeCap.Round))
                     }
                 }
-                Text(formatDuration(left), style = MaterialTheme.typography.displayLarge.copy(fontSize = 84.sp))
+                Text(formatDuration(left), style = MaterialTheme.typography.displayLarge.copy(fontSize = if (upcoming.size > 1) 64.sp else 84.sp))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedButton(
@@ -610,38 +623,64 @@ private fun RestView(vm: AppViewModel, timer: RestTimer, steps: List<WorkStep>, 
             }
         }
 
-        // Neste sett.
-        if (nextEx != null) {
-            val weights = remember(nextEx, vm.profile) { weightOptions(nextEx, vm.profile) }
-            val target = remember(next) { setTarget(nextEx, next.pe, next.setIndex, vm.logs, weights) }
-            val sameEarlier = state.done.filter { it.slot == next.exerciseNo - 1 && it.setIndex < next.setIndex }.maxByOrNull { it.setIndex }
-            val w = sameEarlier?.weightKg ?: target.weightKg
-            val unit = if (nextEx.timed) tr(" s", " sek") else ""
-            var showNext by remember { mutableStateOf(false) }
-            if (showNext) ExerciseInfoDialog(nextEx, onDismiss = { showNext = false })
-            Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(colors.surfaceContainer)
-                    .clickable { showNext = true }.padding(14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                ExerciseTile(nextEx, size = 64.dp, animate = true)
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    SectionLabel(tr("Next", "Neste"))
-                    Text(
-                        "${nextEx.name} · ${tr("set", "sett")} ${next.setIndex + 1}",
-                        style = MaterialTheme.typography.titleMedium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        tr("Target ", "Mål ") + "${target.reps}$unit" + (if (nextEx.isWeighted() && w != null) " × ${formatWeight(w)} kg" else ""),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = colors.onSurfaceVariant,
-                    )
+        // Alt som kommer før neste pause (i et supersett flere øvelser rett etter hverandre), så alt kan planlegges nå.
+        upcoming.forEachIndexed { i, st ->
+            NextStepCard(vm, st, state, if (i == 0) tr("Next", "Neste") else tr("Straight after", "Rett etterpå"), compact = upcoming.size > 1)
+        }
+    }
+}
+
+/** Kort med et kommende sett: figur, navn, sett nummer og målet (reps/tid og vekt). Trykk for detaljer. */
+@Composable
+private fun NextStepCard(vm: AppViewModel, next: WorkStep, state: GuidedWorkout, label: String, compact: Boolean) {
+    val nextEx = ExerciseLibrary.get(next.pe.exerciseId) ?: return
+    val colors = MaterialTheme.colorScheme
+    val weights = remember(nextEx, vm.profile) { weightOptions(nextEx, vm.profile) }
+    val target = remember(next) { setTarget(nextEx, next.pe, next.setIndex, vm.logs, weights) }
+    val sameEarlier = state.done.filter { it.slot == next.exerciseNo - 1 && it.setIndex < next.setIndex }.maxByOrNull { it.setIndex }
+    val w = sameEarlier?.weightKg ?: target.weightKg
+    val unit = if (nextEx.timed) tr(" s", " sek") else ""
+    var showNext by remember { mutableStateOf(false) }
+    if (showNext) ExerciseInfoDialog(nextEx, onDismiss = { showNext = false })
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(colors.surfaceContainer)
+            .clickable { showNext = true }.padding(if (compact) 10.dp else 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        ExerciseTile(nextEx, size = if (compact) 52.dp else 64.dp, animate = true)
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SectionLabel(label)
+                if (next.pe.group.isNotEmpty()) {
+                    Text(tr("SUPERSET ${next.pe.group}", "SUPERSETT ${next.pe.group}"), style = MaterialTheme.typography.labelSmall, color = colors.tertiary)
                 }
             }
+            Text(
+                "${nextEx.name} · ${tr("set", "sett")} ${next.setIndex + 1}",
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                tr("Target ", "Mål ") + "${target.reps}$unit" + nextEx.perSideSuffix +
+                    (if (nextEx.isWeighted() && w != null) " × ${formatWeight(w)} kg" else ""),
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.onSurfaceVariant,
+            )
         }
+    }
+}
+
+/** Påminnelse om at øvelsen tas én side om gangen. */
+@Composable
+private fun PerSideHint(text: String) {
+    val colors = MaterialTheme.colorScheme
+    Row(
+        Modifier.padding(top = 4.dp).clip(RoundedCornerShape(10.dp)).background(colors.tertiaryContainer)
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+    ) {
+        Text(text, style = MaterialTheme.typography.bodySmall, color = colors.onTertiaryContainer)
     }
 }
 
@@ -655,6 +694,7 @@ private fun WorkTimer(
     vm: AppViewModel,
     step: Int,
     seconds: Int,
+    perSide: Boolean,
     onSecondsChange: (Int) -> Unit,
     onStart: () -> Unit,
     onLogWithoutTimer: () -> Unit,
@@ -669,8 +709,21 @@ private fun WorkTimer(
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             if (!running) RoundButton("−", tr("5 seconds less", "5 sekunder mindre"), onClick = { onSecondsChange((seconds - 5).coerceAtLeast(5)) })
             Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(formatDuration(left ?: seconds), style = MaterialTheme.typography.displayLarge)
-                SectionLabel(if (running) tr("Hold", "Hold") else tr("Seconds", "Sekunder"))
+                val switching = timer?.side == WorkSide.SWITCH
+                Text(
+                    formatDuration(left ?: seconds),
+                    style = MaterialTheme.typography.displayLarge,
+                    color = if (switching) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurface,
+                )
+                SectionLabel(
+                    when (timer?.side) {
+                        null -> if (perSide) tr("Seconds per side", "Sekunder per side") else tr("Seconds", "Sekunder")
+                        WorkSide.NONE -> tr("Hold", "Hold")
+                        WorkSide.FIRST -> tr("Hold · side 1 of 2", "Hold · side 1 av 2")
+                        WorkSide.SWITCH -> tr("Switch sides", "Bytt side")
+                        WorkSide.SECOND -> tr("Hold · side 2 of 2", "Hold · side 2 av 2")
+                    },
+                )
             }
             if (!running) RoundButton("+", tr("5 seconds more", "5 sekunder mer"), onClick = { onSecondsChange(seconds + 5) })
         }

@@ -119,10 +119,13 @@ internal fun formatDuration(totalSeconds: Int): String {
  * Bevisst ikke en pekt til én bestemt video: med ~90 øvelser i biblioteket kan vi ikke kvalitetssikre
  * og vedlikeholde en spesifikk lenke for hver, og et søk slutter aldri å virke selv om enkeltvideoer forsvinner.
  */
-fun openExerciseVideo(context: android.content.Context, exercise: Exercise) {
+fun openExerciseVideo(context: android.content.Context, exercise: Exercise) =
     // Alltid engelsk søk, uansett språk i appen: det gir langt flere og bedre treff.
-    val query = Uri.encode("${exercise.nameEn} exercise proper form")
-    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/results?search_query=$query"))
+    openVideoSearch(context, "${exercise.nameEn} exercise proper form")
+
+/** YouTube-søk etter [query] (engelsk). */
+fun openVideoSearch(context: android.content.Context, query: String) {
+    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/results?search_query=${Uri.encode(query)}"))
     runCatching { context.startActivity(intent) }
 }
 
@@ -1103,7 +1106,7 @@ private fun DayCard(vm: AppViewModel, day: WorkoutDay, requestNotificationPermis
                             Text(ex?.name ?: pe.exerciseId, style = MaterialTheme.typography.titleSmall)
                         }
                         Text(
-                            "${pe.sets} × ${pe.reps}",
+                            "${pe.sets} × ${pe.reps}" + (ex?.perSideSuffix ?: ""),
                             Modifier.clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.surfaceVariant).padding(horizontal = 10.dp, vertical = 5.dp),
                             style = MaterialTheme.typography.labelLarge,
                         )
@@ -1154,7 +1157,11 @@ private fun DayCard(vm: AppViewModel, day: WorkoutDay, requestNotificationPermis
                         Spacer(Modifier.height(12.dp))
                         Text(ex.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.height(4.dp))
-                        Text(tr("${pe.sets} ${if (pe.sets == 1) "set" else "sets"} × ${pe.reps} · rest ${pe.restSec} s", "${pe.sets} sett × ${pe.reps} · pause ${pe.restSec} sek"), style = MaterialTheme.typography.bodyMedium)
+                        Text(tr("${pe.sets} ${if (pe.sets == 1) "set" else "sets"} × ${pe.reps}${ex.perSideSuffix} · rest ${pe.restSec} s", "${pe.sets} sett × ${pe.reps}${ex.perSideSuffix} · pause ${pe.restSec} sek"), style = MaterialTheme.typography.bodyMedium)
+                        ex.perSideHint?.let {
+                            Spacer(Modifier.height(6.dp))
+                            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.tertiary, textAlign = TextAlign.Center)
+                        }
                         if (pe.tip.isNotBlank()) {
                             Spacer(Modifier.height(8.dp))
                             Text(pe.tip, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
@@ -1365,7 +1372,7 @@ private fun LogSessionDialog(
                                 }
                                 Text(ex?.name ?: pe.exerciseId, style = MaterialTheme.typography.titleMedium)
                                 Text(
-                                    tr("Target ${pe.sets} × ${pe.reps}", "Mål ${pe.sets} × ${pe.reps}"),
+                                    tr("Target ${pe.sets} × ${pe.reps}", "Mål ${pe.sets} × ${pe.reps}") + (ex?.perSideSuffix ?: ""),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = colors.onSurfaceVariant,
                                 )
