@@ -10,7 +10,7 @@ import java.time.temporal.TemporalAdjusters
 
 fun weekStart(date: LocalDate): LocalDate = date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
 
-private fun SessionLog.localDate(): LocalDate? = runCatching { LocalDate.parse(date) }.getOrNull()
+fun SessionLog.localDate(): LocalDate? = runCatching { LocalDate.parse(date) }.getOrNull()
 
 /** Loggene fra og med mandag denne uka. */
 fun logsThisWeek(logs: List<SessionLog>, today: LocalDate): List<SessionLog> {

@@ -45,17 +45,20 @@ import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
+import java.time.temporal.IsoFields
 import java.util.Locale
 
 private val locale: Locale get() = if (Lang.isNorwegian) Locale.forLanguageTag("nb") else Locale.ENGLISH
 
 /**
  * Historikken i full skjerm: alle øktene gruppert på måned. Trykk på en økt for detaljer med muskelkart (som i Strava),
- * tall, øvelser og sett, deling og sletting. [startWith] åpner rett på én økt.
+ * tall, øvelser og sett, deling og sletting. [startWith] åpner rett på én økt. [week] (en mandag) viser bare den uka,
+ * med en knapp for å se alt.
  */
 @Composable
-fun HistoryScreen(vm: AppViewModel, startWith: SessionLog? = null, onDismiss: () -> Unit) {
+fun HistoryScreen(vm: AppViewModel, startWith: SessionLog? = null, week: LocalDate? = null, onDismiss: () -> Unit) {
     var selectedKey by remember { mutableStateOf(startWith?.let { vm.logKey(it) }) }
+    var weekFilter by remember { mutableStateOf(week) }
     val selected = selectedKey?.let { key -> vm.logs.find { vm.logKey(it) == key } }
 
     // Egen skjerm i appen (ikke et vindu oppå), så Scaffold i MainActivity holder den unna status- og navigasjonslinja.
@@ -69,7 +72,7 @@ fun HistoryScreen(vm: AppViewModel, startWith: SessionLog? = null, onDismiss: ()
             SessionDetail(vm, selected, onBack = { back() }, onDeleted = { back() })
         } else {
             BackHandler(onBack = onDismiss)
-            HistoryList(vm, onBack = onDismiss, onOpen = { selectedKey = vm.logKey(it) })
+            HistoryList(vm, weekFilter, onShowAll = { weekFilter = null }, onBack = onDismiss, onOpen = { selectedKey = vm.logKey(it) })
         }
     }
 }
@@ -88,17 +91,39 @@ private fun TopBar(title: String, onBack: () -> Unit) {
 // ---------------------------------------------------------------- LISTA
 
 @Composable
-private fun HistoryList(vm: AppViewModel, onBack: () -> Unit, onOpen: (SessionLog) -> Unit) {
+private fun HistoryList(
+    vm: AppViewModel,
+    week: LocalDate?,
+    onShowAll: () -> Unit,
+    onBack: () -> Unit,
+    onOpen: (SessionLog) -> Unit,
+) {
     val colors = MaterialTheme.colorScheme
-    val logs = vm.logs.asReversed()
+    val logs = vm.logs.asReversed().filter { week == null || it.localDate()?.let(::weekStart) == week }
+    val weekNo = week?.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR)
     Column(Modifier.fillMaxSize()) {
-        TopBar(tr("History", "Historikk"), onBack)
+        TopBar(if (weekNo != null) tr("Week $weekNo", "Uke $weekNo") else tr("History", "Historikk"), onBack)
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
+            if (week != null) {
+                val fmt = DateTimeFormatter.ofPattern("d. MMM", locale)
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "${week.format(fmt)} – ${week.plusDays(6).format(fmt)}",
+                        Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.onSurfaceVariant,
+                    )
+                    TextButton(onClick = onShowAll) { Text(tr("Show all history", "Vis all historikk")) }
+                }
+            }
             if (logs.isEmpty()) {
-                Text(tr("No logged workouts yet.", "Ingen loggførte økter ennå."), color = colors.onSurfaceVariant)
+                Text(
+                    if (week != null) tr("No workouts this week.", "Ingen økter denne uka.") else tr("No logged workouts yet.", "Ingen loggførte økter ennå."),
+                    color = colors.onSurfaceVariant,
+                )
                 return@Column
             }
             // Oppsummering øverst.

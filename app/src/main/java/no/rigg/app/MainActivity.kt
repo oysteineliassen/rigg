@@ -173,8 +173,8 @@ private fun App(
         Scaffold(snackbarHost = { SnackbarHost(snackbar) }) { pad ->
             Box(Modifier.padding(pad).fillMaxSize()) {
                 // key: ny skjerm hver gang den åpnes, så den starter på riktig økt.
-                key(vm.historyStart) {
-                    HistoryScreen(vm, startWith = vm.historyStart, onDismiss = { vm.closeHistory() })
+                key(vm.historyStart, vm.historyWeek) {
+                    HistoryScreen(vm, startWith = vm.historyStart, week = vm.historyWeek, onDismiss = { vm.closeHistory() })
                 }
                 vm.shareLog?.let { log -> WorkoutShareDialog(log, vm, onDismiss = { vm.shareLog = null }) }
             }

@@ -270,15 +270,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Historikken som egen skjerm. [historyStart]: åpne rett på denne økta (null = lista). */
     var historyOpen by mutableStateOf(false); private set
     var historyStart by mutableStateOf<SessionLog?>(null); private set
+    /** Vis bare uka som starter denne mandagen (fra søylene på Fremgang), null = alt. */
+    var historyWeek by mutableStateOf<java.time.LocalDate?>(null); private set
 
-    fun openHistory(start: SessionLog? = null) {
+    fun openHistory(start: SessionLog? = null, week: java.time.LocalDate? = null) {
         historyStart = start
+        historyWeek = week
         historyOpen = true
     }
 
     fun closeHistory() {
         historyOpen = false
         historyStart = null
+        historyWeek = null
     }
 
     /** Viser øktmodus igjen etter [hideGuided], f.eks. fra hvilebaren. Gjør ingenting uten en påbegynt økt. */
