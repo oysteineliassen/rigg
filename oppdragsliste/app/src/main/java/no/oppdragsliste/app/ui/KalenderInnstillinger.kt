@@ -56,7 +56,11 @@ fun KalenderInnstillinger(oppsett: Oppsett, onEndre: ((Oppsett) -> Oppsett) -> U
                 "den til Google Kalender. Endrer du dato, klokkeslett eller annet på avtalen, oppdateres " +
                 "hendelsen; slettes avtalen eller endres den til en annen prioritet, fjernes den.",
         )
-        Forklaring("Synken går én vei: endringer gjort i kalenderen kommer ikke tilbake til appen.")
+        Forklaring(
+            "Synken går begge veier: flytter du hendelsen i kalenderen (dato eller klokkeslett), flyttes " +
+                "avtalen i appen, og påminnelsen med den. Er samme avtale endret begge steder, vinner appen. " +
+                "Sletter du hendelsen i kalenderen, beholdes avtalen i appen.",
+        )
         BryterRad("Legg avtaler i kalenderen", oppsett.kalenderSynk && tilgang) { pa ->
             if (pa && !tilgang) be.launch(Kalender.tillatelser()) else onEndre { it.copy(kalenderSynk = pa) }
         }

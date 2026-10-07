@@ -75,7 +75,9 @@ commits i git, så en nyere versjon er alltid høyere.
   Knappen «I nærheten» i listen sorterer på avstand fra der du er.
 - **Google Kalender:** avtaler med dato legges i en valgfri kalender på telefonen (Innstillinger >
   Google Kalender). Endres dato, klokkeslett eller annet, oppdateres hendelsen; slettes avtalen, fjernes
-  den. Synken går én vei (appen → kalender). Uten klokkeslett blir det heldagshendelse.
+  den. Synken går begge veier: flyttes hendelsen i kalenderen, flyttes avtalen (og påminnelsen) i appen.
+  Er samme avtale endret begge steder, vinner appen. Sletter du hendelsen i kalenderen, beholdes avtalen.
+  Uten klokkeslett blir det heldagshendelse.
 - **Sikkerhetskopi:** eksport/import av alle oppdrag som JSON (Innstillinger > Sikkerhetskopi).
   Import hopper over oppdrag som allerede finnes.
 
