@@ -47,10 +47,17 @@ class OppdragRepository(
         etterEndring()
     }
 
-    /** Fjerner et forslag: hele kunden (anlegg = null) eller ett anlegg. */
-    suspend fun glem(kunde: String, anlegg: String?) {
+    /**
+     * Fjerner et forslag: hele kunden (anlegg = null) eller ett anlegg. Rører ikke oppdragene.
+     * Returnerer det som ble fjernet, så det kan legges tilbake med [gjenopprett].
+     */
+    suspend fun glem(kunde: String, anlegg: String?): List<KjentAnlegg> {
+        val fjernet = if (anlegg == null) kjenteDao.hentKunde(kunde) else kjenteDao.hent(kunde, anlegg)
         if (anlegg == null) kjenteDao.slettKunde(kunde) else kjenteDao.slett(kunde, anlegg)
+        return fjernet
     }
+
+    suspend fun gjenopprett(rader: List<KjentAnlegg>) = rader.forEach { kjenteDao.settInn(it) }
 
     private suspend fun husk(o: Oppdrag, tidspunkt: Instant) {
         val kunde = o.kunde.trim()

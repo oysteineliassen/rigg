@@ -64,6 +64,7 @@ class MainActivity : ComponentActivity() {
             val naer by vm.naer.collectAsStateWithLifecycle()
             val kjente by vm.kjente.collectAsStateWithLifecycle()
             val harUtkast by vm.harUtkast.collectAsStateWithLifecycle()
+            val fjernet by vm.fjernet.collectAsStateWithLifecycle()
             val geokodStatus by vm.geokoder.collectAsStateWithLifecycle()
             val kopiStatus by vm.kopiStatus.collectAsStateWithLifecycle()
             var visInnstillinger by rememberSaveable { mutableStateOf(false) }
@@ -107,6 +108,8 @@ class MainActivity : ComponentActivity() {
                     onGlem = { k, a -> vm.glemForslag(k, a) },
                     onLagre = { vm.lagreSkjema() },
                     onTom = vm::tomSkjema,
+                    fjernet = fjernet?.melding,
+                    onAngre = vm::angreFjerning,
                     onLukk = vm::lukkSkjema,
                 )
             }

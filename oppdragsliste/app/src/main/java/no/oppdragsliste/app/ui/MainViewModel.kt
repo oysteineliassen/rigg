@@ -149,8 +149,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         oppdaterSkjema { it.fyllFra(treff) }
     }
 
-    /** Fjerner et forslag fra registeret (hele kunden når [anlegg] er null). */
-    fun glemForslag(kunde: String, anlegg: String?) = viewModelScope.launch { repo.glem(kunde, anlegg) }
+    /** Sist fjernede forslag, så det kan angres. */
+    data class Fjernet(val melding: String, val rader: List<KjentAnlegg>)
+    private val _fjernet = MutableStateFlow<Fjernet?>(null)
+    val fjernet: StateFlow<Fjernet?> = _fjernet.asStateFlow()
+
+    /** Fjerner et forslag fra registeret (hele kunden når [anlegg] er null). Kan angres. */
+    fun glemForslag(kunde: String, anlegg: String?) = viewModelScope.launch {
+        val rader = repo.glem(kunde, anlegg)
+        if (rader.isEmpty()) return@launch
+        val hva = if (anlegg == null) "«$kunde»" + (if (rader.any { it.anlegg.isNotBlank() }) " med anlegg" else "") else "«$anlegg»"
+        val ny = Fjernet("Fjernet $hva fra forslagene", rader)
+        _fjernet.value = ny
+        delay(8_000)
+        if (_fjernet.value === ny) _fjernet.value = null
+    }
+
+    fun angreFjerning() {
+        val f = _fjernet.value ?: return
+        _fjernet.value = null
+        viewModelScope.launch { repo.gjenopprett(f.rader) }
+    }
 
     /** Endre et oppdrag; fortsetter på et ulagret utkast for samme oppdrag hvis det finnes. */
     fun endre(o: Oppdrag) { sett(utkast.hentEndring(o.id)?.tilSkjema(o) ?: Skjema.fra(o)) }

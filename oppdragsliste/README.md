@@ -67,7 +67,9 @@ commits i git, så en nyere versjon er alltid høyere.
   - Bare anlegg: forslagene viser kunden («Rådhuset · Søgne kommune»), og kunden fylles inn når du velger.
     Kunden kan endres etterpå (flere kunder kan ha samme anlegg).
   - Kontaktperson og telefon følger kunden, sted og adresse følger anlegget. Det du har skrevet selv,
-    overskrives ikke. Krysset ved et forslag fjerner det fra minnet.
+    overskrives ikke.
+  - Hold fingeren på et forslag for å fjerne det fra minnet (f.eks. skrivefeil). Det må bekreftes, og kan
+    angres i noen sekunder etterpå. Oppdragene påvirkes ikke.
 - **Utkast:** skjemaet lagres mens du skriver. Tilbaketasten lukker først ved andre trykk, og det du har
   skrevet, står der neste gang (knappen viser da «Fortsett oppdrag»). «Tøm» starter på nytt.
 - **Etter samtaler** over minstelengden (standard 20 sek): «Nytt oppdrag fra 900 00 000?».

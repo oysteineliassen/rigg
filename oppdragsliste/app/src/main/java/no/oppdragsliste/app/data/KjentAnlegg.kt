@@ -34,6 +34,12 @@ interface KjentAnleggDao {
     @Query("SELECT * FROM kjent_anlegg ORDER BY sistBrukt DESC")
     fun observerAlle(): Flow<List<KjentAnlegg>>
 
+    @Query("SELECT * FROM kjent_anlegg WHERE kunde = :kunde COLLATE NOCASE AND anlegg = :anlegg COLLATE NOCASE")
+    suspend fun hent(kunde: String, anlegg: String): List<KjentAnlegg>
+
+    @Query("SELECT * FROM kjent_anlegg WHERE kunde = :kunde COLLATE NOCASE")
+    suspend fun hentKunde(kunde: String): List<KjentAnlegg>
+
     @Query("DELETE FROM kjent_anlegg WHERE kunde = :kunde COLLATE NOCASE AND anlegg = :anlegg COLLATE NOCASE")
     suspend fun slett(kunde: String, anlegg: String)
 

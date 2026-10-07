@@ -21,7 +21,11 @@ import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.delay
 import no.oppdragsliste.app.logikk.AnleggForslag
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -110,6 +114,8 @@ fun SkjemaArk(
     onGlem: (kunde: String, anlegg: String?) -> Unit,
     onLagre: () -> Unit,
     onTom: () -> Unit,
+    fjernet: String?,
+    onAngre: () -> Unit,
     onLukk: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -156,7 +162,7 @@ fun SkjemaArk(
                         .statusBarsPadding()
                         .padding(top = 16.dp),
                 ) {
-                    SkjemaInnhold(s, kjente, onEndre, onVelgKunde, onVelgAnlegg, onFeltForlatt, onGlem, onLagre, onTom, onLukk)
+                    SkjemaInnhold(s, kjente, onEndre, onVelgKunde, onVelgAnlegg, onFeltForlatt, onGlem, onLagre, onTom, fjernet, onAngre, onLukk)
                 }
             }
         }
@@ -175,6 +181,8 @@ private fun SkjemaInnhold(
     onGlem: (kunde: String, anlegg: String?) -> Unit,
     onLagre: () -> Unit,
     onTom: () -> Unit,
+    fjernet: String?,
+    onAngre: () -> Unit,
     onLukk: () -> Unit,
 ) {
     val fokus = LocalFocusManager.current
@@ -191,6 +199,7 @@ private fun SkjemaInnhold(
 
     Column(Modifier.fillMaxWidth()) {
         Topplinje(skjema, onTom, onLukk)
+        if (fjernet != null) AngreLinje(fjernet, onAngre)
         Column(
             Modifier
                 .fillMaxWidth()
@@ -240,6 +249,11 @@ private fun SkjemaInnhold(
                 Forslagsliste(
                     forslag = kundeTreff,
                     tekst = { it },
+                    bekreftTekst = { navn ->
+                        val n = kjente.count { it.kunde.trim().equals(navn, ignoreCase = true) && it.anlegg.isNotBlank() }
+                        if (n == 0) "Fjerne «$navn» fra forslagene?"
+                        else "Fjerne «$navn» og ${if (n == 1) "1 anlegg" else "$n anlegg"} fra forslagene?"
+                    },
                     onVelg = { navn ->
                         onVelgKunde(navn)
                         anleggFokus.requestFocus()
@@ -265,6 +279,10 @@ private fun SkjemaInnhold(
                 Forslagsliste(
                     forslag = anleggTreff,
                     tekst = { it.tekst },
+                    bekreftTekst = { f ->
+                        val kunde = f.kunde ?: skjema.kunde
+                        "Fjerne «${f.anlegg}»" + (if (kunde.isNotBlank()) " ($kunde)" else "") + " fra forslagene?"
+                    },
                     onVelg = { f ->
                         onVelgAnlegg(f)
                         fokus.clearFocus()
@@ -425,37 +443,82 @@ private fun Topplinje(skjema: Skjema, onTom: () -> Unit, onLukk: () -> Unit) {
     }
 }
 
-/** Forslag rett under feltet. Trykk velger; krysset fjerner forslaget fra minnet. */
+/**
+ * Forslag rett under feltet. Trykk velger. Hold inne for å fjerne et forslag fra minnet; det må bekreftes
+ * i raden, og kan angres etterpå. Oppdragene påvirkes ikke.
+ */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun <T> Forslagsliste(forslag: List<T>, tekst: (T) -> String, onVelg: (T) -> Unit, onGlem: (T) -> Unit) {
+private fun <T> Forslagsliste(
+    forslag: List<T>,
+    tekst: (T) -> String,
+    bekreftTekst: (T) -> String,
+    onVelg: (T) -> Unit,
+    onGlem: (T) -> Unit,
+) {
+    var bekreft by remember { mutableStateOf<T?>(null) }
+    val haptikk = LocalHapticFeedback.current
     Surface(
         shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surfaceVariant,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 0.dp),
+        modifier = Modifier.fillMaxWidth(),
     ) {
         Column {
             forslag.forEach { f ->
-                val navn = tekst(f)
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onVelg(f) }
-                        .padding(start = 14.dp),
-                ) {
-                    Icon(Icons.Outlined.History, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.width(10.dp))
-                    Text(navn, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-                    IconButton(onClick = { onGlem(f) }) {
-                        Icon(
-                            Icons.Outlined.Close, "Glem «$navn»",
-                            Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                if (bekreft == f) {
+                    Column(Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
+                        Text(bekreftTekst(f), style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            "Oppdragene påvirkes ikke.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
+                            OutlinedButton(onClick = { bekreft = null }) { Text("Avbryt") }
+                            TextButton(onClick = {
+                                bekreft = null
+                                onGlem(f)
+                            }) { Text("Fjern", color = MaterialTheme.colorScheme.error) }
+                        }
+                    }
+                } else {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .combinedClickable(
+                                onClick = { onVelg(f) },
+                                onLongClick = {
+                                    haptikk.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    bekreft = f
+                                },
+                            )
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                    ) {
+                        Icon(Icons.Outlined.History, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.width(10.dp))
+                        Text(tekst(f), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
                     }
                 }
             }
+        }
+    }
+}
+
+/** «Fjernet … fra forslagene  [Angre]», vises noen sekunder etter at et forslag er fjernet. */
+@Composable
+private fun AngreLinje(melding: String, onAngre: () -> Unit) {
+    Surface(
+        color = MaterialTheme.colorScheme.inverseSurface,
+        contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+        shape = RoundedCornerShape(10.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 14.dp)) {
+            Text(melding, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+            TextButton(onClick = onAngre) { Text("Angre", color = MaterialTheme.colorScheme.inversePrimary) }
         }
     }
 }
