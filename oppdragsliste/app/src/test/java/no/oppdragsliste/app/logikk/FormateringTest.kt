@@ -21,5 +21,7 @@ class FormateringTest {
         assertEquals("I dag", formaterDato(idag, idag))
         assertEquals("I morgen", formaterDato(idag.plusDays(1), idag))
         assertEquals("I går", formaterDato(idag.minusDays(1), idag))
+        assertEquals("I dag kl. 08:00–10:30", formaterDatoTid(idag, java.time.LocalTime.of(8, 0), idag, java.time.LocalTime.of(10, 30)))
+        assertEquals("I dag kl. 08:00", formaterDatoTid(idag, java.time.LocalTime.of(8, 0), idag))
     }
 }

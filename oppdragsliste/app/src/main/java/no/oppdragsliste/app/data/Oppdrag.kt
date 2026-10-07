@@ -29,6 +29,8 @@ data class Oppdrag(
     val prioritet: Prioritet = Prioritet.OMRADE,
     val dato: LocalDate? = null,
     val tid: LocalTime? = null,
+    /** Når jobben er ferdig (samme dag). Uten sluttid brukes standardvarigheten i kalenderen. */
+    val sluttid: LocalTime? = null,
     val opprettet: Instant = Instant.now(),
     val ferdig: Boolean = false,
     val ferdigDato: Instant? = null,

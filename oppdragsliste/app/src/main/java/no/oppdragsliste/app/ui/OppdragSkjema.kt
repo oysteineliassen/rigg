@@ -193,7 +193,8 @@ private fun SkjemaInnhold(
     val anleggTreff = remember(kjente, skjema.kunde, skjema.anlegg) { anleggForslag(kjente, skjema.kunde, skjema.anlegg) }
 
     var visDato by remember { mutableStateOf(false) }
-    var visTid by remember { mutableStateOf(false) }
+    // Hvilket klokkeslett som velges: null = ingen, false = start, true = slutt.
+    var velgSlutt by remember { mutableStateOf<Boolean?>(null) }
     val idag = LocalDate.now()
     fun feil(f: Feil) = skjema.visFeil && f in skjema.feil
 
@@ -324,7 +325,7 @@ private fun SkjemaInnhold(
                 modifier = Modifier.fillMaxWidth(),
             )
 
-            // Dato og klokkeslett
+            // Dato, og klokkeslett fra–til
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedButton(onClick = { visDato = true }, modifier = Modifier.weight(1f)) {
                     Icon(Icons.Outlined.Event, null, Modifier.size(18.dp))
@@ -332,18 +333,32 @@ private fun SkjemaInnhold(
                     Text(skjema.dato?.let { formaterDato(it, idag) } ?: "Dato")
                 }
                 if (skjema.dato != null) {
-                    IconButton(onClick = { onEndre { it.copy(dato = null, tid = null) } }) {
+                    IconButton(onClick = { onEndre { it.copy(dato = null, tid = null, sluttid = null) } }) {
                         Icon(Icons.Outlined.Close, "Fjern dato")
                     }
                 }
-                OutlinedButton(onClick = { visTid = true }, modifier = Modifier.weight(1f)) {
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedButton(onClick = { velgSlutt = false }, modifier = Modifier.weight(1f)) {
                     Icon(Icons.Outlined.Schedule, null, Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text(skjema.tid?.let { formaterTid(it) } ?: "Klokkeslett")
+                    Text(skjema.tid?.let { "Fra " + formaterTid(it) } ?: "Fra")
                 }
                 if (skjema.tid != null) {
-                    IconButton(onClick = { onEndre { it.copy(tid = null) } }) {
-                        Icon(Icons.Outlined.Close, "Fjern klokkeslett")
+                    IconButton(onClick = { onEndre { it.copy(tid = null, sluttid = null) } }) {
+                        Icon(Icons.Outlined.Close, "Fjern starttid")
+                    }
+                }
+                OutlinedButton(
+                    onClick = { velgSlutt = true },
+                    enabled = skjema.tid != null,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(skjema.sluttid?.let { "Til " + formaterTid(it) } ?: "Til")
+                }
+                if (skjema.sluttid != null) {
+                    IconButton(onClick = { onEndre { it.copy(sluttid = null) } }) {
+                        Icon(Icons.Outlined.Close, "Fjern sluttid")
                     }
                 }
             }
@@ -351,7 +366,7 @@ private fun SkjemaInnhold(
                 AssistChip(onClick = { onEndre { it.copy(dato = idag) } }, label = { Text("I dag") })
                 AssistChip(onClick = { onEndre { it.copy(dato = idag.plusDays(1)) } }, label = { Text("I morgen") })
             }
-            listOf(Feil.MANGLER_DATO, Feil.TID_UTEN_DATO).filter { feil(it) }.forEach {
+            listOf(Feil.MANGLER_DATO, Feil.TID_UTEN_DATO, Feil.SLUTT_UTEN_START, Feil.SLUTT_FOR_START).filter { feil(it) }.forEach {
                 Text(it.melding, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
             }
 
@@ -382,22 +397,36 @@ private fun SkjemaInnhold(
         ) { DatePicker(state = tilstand) }
     }
 
-    if (visTid) {
-        val start = skjema.tid ?: LocalTime.of(8, 0)
+    velgSlutt?.let { slutt ->
+        // Sluttid foreslås én time etter start.
+        val start = if (slutt) skjema.sluttid ?: skjema.tid?.plusHours(1) ?: LocalTime.of(9, 0) else skjema.tid ?: LocalTime.of(8, 0)
         val tilstand = rememberTimePickerState(initialHour = start.hour, initialMinute = start.minute, is24Hour = true)
         AlertDialog(
-            onDismissRequest = { visTid = false },
-            title = { Text("Klokkeslett") },
+            onDismissRequest = { velgSlutt = null },
+            title = { Text(if (slutt) "Til (sluttid)" else "Fra (starttid)") },
             text = { TimePicker(state = tilstand) },
             confirmButton = {
                 TextButton(onClick = {
                     val t = LocalTime.of(tilstand.hour, tilstand.minute)
-                    // Klokkeslett uten dato gir mening bare for i dag.
-                    onEndre { it.copy(tid = t, dato = it.dato ?: idag) }
-                    visTid = false
+                    if (slutt) {
+                        onEndre { it.copy(sluttid = t) }
+                    } else {
+                        // Flyttes starten, flyttes sluttiden like mye, så lengden beholdes.
+                        onEndre {
+                            val flyttet = if (it.tid != null && it.sluttid != null) {
+                                it.sluttid.plusMinutes(java.time.Duration.between(it.tid, t).toMinutes())
+                                    .takeIf { ny -> ny.isAfter(t) }
+                            } else {
+                                it.sluttid
+                            }
+                            // Klokkeslett uten dato gir mening bare for i dag.
+                            it.copy(tid = t, sluttid = flyttet, dato = it.dato ?: idag)
+                        }
+                    }
+                    velgSlutt = null
                 }) { Text("OK") }
             },
-            dismissButton = { TextButton(onClick = { visTid = false }) { Text("Avbryt") } },
+            dismissButton = { TextButton(onClick = { velgSlutt = null }) { Text("Avbryt") } },
         )
     }
 }

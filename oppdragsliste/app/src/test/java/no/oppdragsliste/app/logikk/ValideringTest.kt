@@ -35,6 +35,15 @@ class ValideringTest {
     }
 
     @Test
+    fun sluttid() {
+        val t = LocalTime.of(8, 0)
+        assertEquals(emptySet<Feil>(), valider(Prioritet.AVTALE, "x", "", dato, t, LocalTime.of(10, 0)))
+        assertEquals(setOf(Feil.SLUTT_FOR_START), valider(Prioritet.AVTALE, "x", "", dato, t, LocalTime.of(7, 0)))
+        assertEquals(setOf(Feil.SLUTT_FOR_START), valider(Prioritet.AVTALE, "x", "", dato, t, t))
+        assertEquals(setOf(Feil.SLUTT_UTEN_START), valider(Prioritet.AVTALE, "x", "", dato, null, LocalTime.of(10, 0)))
+    }
+
+    @Test
     fun `flere feil samtidig`() {
         assertEquals(
             setOf(Feil.MANGLER_BESKRIVELSE_ELLER_KUNDE, Feil.MANGLER_DATO),

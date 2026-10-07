@@ -24,6 +24,7 @@ data class OppdragJson(
     val prioritet: String = Prioritet.OMRADE.name,
     val dato: String? = null,
     val tid: String? = null,
+    val sluttid: String? = null,
     val opprettet: String,
     val ferdig: Boolean = false,
     val ferdigDato: String? = null,
@@ -45,7 +46,7 @@ private val json = Json {
 
 fun Oppdrag.tilJson() = OppdragJson(
     beskrivelse = beskrivelse, kunde = kunde, anlegg = anlegg, kontaktperson = kontaktperson, telefon = telefon, sted = sted, adresse = adresse,
-    lat = lat, lng = lng, prioritet = prioritet.name, dato = dato?.toString(), tid = tid?.toString(),
+    lat = lat, lng = lng, prioritet = prioritet.name, dato = dato?.toString(), tid = tid?.toString(), sluttid = sluttid?.toString(),
     opprettet = opprettet.toString(), ferdig = ferdig, ferdigDato = ferdigDato?.toString(),
 )
 
@@ -55,6 +56,7 @@ fun OppdragJson.tilOppdrag() = Oppdrag(
     prioritet = runCatching { Prioritet.valueOf(prioritet) }.getOrDefault(Prioritet.OMRADE),
     dato = dato?.let(LocalDate::parse),
     tid = tid?.let(LocalTime::parse),
+    sluttid = sluttid?.let(LocalTime::parse),
     opprettet = Instant.parse(opprettet),
     ferdig = ferdig,
     ferdigDato = ferdigDato?.let(Instant::parse),

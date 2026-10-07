@@ -98,7 +98,7 @@ object Kalender {
         val endringer = prefs.edit()
         var appEndret = false
         fun lagre(id: Long, hendelse: Long, h: Kalenderhendelse, stand: Kalenderstand) {
-            endringer.putString(id.toString(), Kobling(hendelse, oppsett.kalenderId, h.signatur, stand.start, stand.heldag).tilTekst())
+            endringer.putString(id.toString(), Kobling(hendelse, oppsett.kalenderId, h.signatur, stand.start, stand.heldag, stand.slutt).tilTekst())
         }
         try {
             // Fjern hendelser for oppdrag som er slettet, eller ikke lenger er avtaler med dato.
@@ -110,18 +110,18 @@ object Kalender {
                 val k = koblinger[o.id]
                 val stand = k?.takeIf { it.kalender == oppsett.kalenderId }?.let { les(ctx, it.hendelse) }
                 when (velgSynkhandling(k, oppsett.kalenderId, h.signatur, stand)) {
-                    Synkhandling.OPPRETT -> settInn(ctx, oppsett.kalenderId, h)?.let { lagre(o.id, it, h, Kalenderstand(h.start, h.heldag)) }
+                    Synkhandling.OPPRETT -> settInn(ctx, oppsett.kalenderId, h)?.let { lagre(o.id, it, h, Kalenderstand(h.start, h.heldag, h.slutt)) }
                     Synkhandling.FLYTT_KALENDER -> {
                         slett(ctx, k!!.hendelse)
-                        settInn(ctx, oppsett.kalenderId, h)?.let { lagre(o.id, it, h, Kalenderstand(h.start, h.heldag)) }
+                        settInn(ctx, oppsett.kalenderId, h)?.let { lagre(o.id, it, h, Kalenderstand(h.start, h.heldag, h.slutt)) }
                     }
                     Synkhandling.OPPDATER_KALENDER -> {
                         oppdater(ctx, k!!.hendelse, h)
-                        lagre(o.id, k.hendelse, h, Kalenderstand(h.start, h.heldag))
+                        lagre(o.id, k.hendelse, h, Kalenderstand(h.start, h.heldag, h.slutt))
                     }
                     Synkhandling.OPPDATER_APP -> {
-                        val (dato, tid) = fraKalender(stand!!)
-                        val ny = o.copy(dato = dato, tid = tid)
+                        val fra = fraKalender(stand!!, k, haddeSluttid = o.sluttid != null)
+                        val ny = o.copy(dato = fra.dato, tid = fra.tid, sluttid = fra.sluttid)
                         repo.oppdaterStille(ny)
                         appEndret = true
                         // Det appen nå ville skrevet, så neste synk ikke tror appen er endret.
@@ -178,9 +178,14 @@ object Kalender {
     private fun les(ctx: Context, id: Long): Kalenderstand? =
         ctx.contentResolver.query(
             ContentUris.withAppendedId(Events.CONTENT_URI, id),
-            arrayOf(Events.DTSTART, Events.ALL_DAY, Events.DELETED), null, null, null,
+            arrayOf(Events.DTSTART, Events.ALL_DAY, Events.DELETED, Events.DTEND), null, null, null,
         )?.use { c ->
-            if (c.moveToFirst() && c.getInt(2) == 0) Kalenderstand(c.getLong(0), c.getInt(1) == 1) else null
+            if (c.moveToFirst() && c.getInt(2) == 0) {
+                val start = c.getLong(0)
+                Kalenderstand(start, c.getInt(1) == 1, if (c.isNull(3)) start else c.getLong(3))
+            } else {
+                null
+            }
         }
 
     private fun verdier(h: Kalenderhendelse) = ContentValues().apply {

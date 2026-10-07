@@ -186,13 +186,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun oppdaterSkjema(endring: (Skjema) -> Skjema) {
         val ny = _skjema.value?.let(endring) ?: return
-        sett(ny.copy(feil = valider(ny.prioritet, ny.beskrivelse, ny.kunde, ny.dato, ny.tid)))
+        sett(ny.copy(feil = valider(ny.prioritet, ny.beskrivelse, ny.kunde, ny.dato, ny.tid, ny.sluttid)))
     }
 
     /** Returnerer false (og viser feilene) hvis skjemaet ikke er gyldig. */
     fun lagreSkjema(): Boolean {
         val s = _skjema.value ?: return false
-        val feil = valider(s.prioritet, s.beskrivelse, s.kunde, s.dato, s.tid)
+        val feil = valider(s.prioritet, s.beskrivelse, s.kunde, s.dato, s.tid, s.sluttid)
         if (feil.isNotEmpty()) {
             _skjema.value = s.copy(feil = feil, visFeil = true)
             return false
@@ -209,6 +209,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             adresse = s.adresse.trim(),
             dato = s.dato,
             tid = if (s.dato == null) null else s.tid,
+            sluttid = if (s.dato == null || s.tid == null) null else s.sluttid,
         )
         _skjema.value = null
         utkast.slett(s)

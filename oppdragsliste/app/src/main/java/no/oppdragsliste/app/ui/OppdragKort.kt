@@ -125,7 +125,7 @@ fun OppdragKort(
                 if (o.stedTekst.isNotBlank()) Linje(Icons.Outlined.Place, o.stedTekst)
                 val kontakt = listOf(o.kontaktperson, formaterTelefon(o.telefon)).filter { it.isNotBlank() }.joinToString(" · ")
                 if (kontakt.isNotBlank()) Linje(Icons.Outlined.Phone, kontakt)
-                formaterDatoTid(o.dato, o.tid, idag)?.let { tekst ->
+                formaterDatoTid(o.dato, o.tid, idag, o.sluttid)?.let { tekst ->
                     Linje(
                         Icons.Outlined.Event,
                         if (forfalt) "$tekst · forfalt" else tekst,

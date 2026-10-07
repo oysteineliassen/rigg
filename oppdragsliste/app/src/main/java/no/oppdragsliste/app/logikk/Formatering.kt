@@ -20,10 +20,14 @@ fun formaterDato(d: LocalDate, idag: LocalDate): String = when (d) {
     else -> d.format(if (d.year == idag.year) datoFormat else datoMedArFormat)
 }
 
-fun formaterDatoTid(d: LocalDate?, t: LocalTime?, idag: LocalDate): String? {
+/** «I dag kl. 08:00» eller «I dag kl. 08:00–10:30». */
+fun formaterDatoTid(d: LocalDate?, t: LocalTime?, idag: LocalDate, slutt: LocalTime? = null): String? {
     if (d == null) return null
-    return formaterDato(d, idag) + (t?.let { " kl. " + formaterTid(it) } ?: "")
+    return formaterDato(d, idag) + (t?.let { " kl. " + formaterTidsrom(it, slutt) } ?: "")
 }
+
+fun formaterTidsrom(t: LocalTime, slutt: LocalTime?): String =
+    formaterTid(t) + (slutt?.let { "–" + formaterTid(it) } ?: "")
 
 /**
  * Norske nummer: mobil (4xx/9xx) som «900 00 000», fasttelefon som «38 12 34 56».

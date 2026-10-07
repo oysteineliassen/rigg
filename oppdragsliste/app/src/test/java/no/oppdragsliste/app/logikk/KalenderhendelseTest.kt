@@ -33,6 +33,13 @@ class KalenderhendelseTest {
     }
 
     @Test
+    fun `med sluttid brukes den i stedet for varigheten`() {
+        val h = kalenderhendelse(avtale.copy(sluttid = LocalTime.of(16, 30)), 60, oslo)!!
+        assertEquals(Instant.parse("2026-10-09T14:30:00Z").toEpochMilli(), h.slutt)
+        assertNotEquals(kalenderhendelse(avtale, 60, oslo)!!.signatur, h.signatur)
+    }
+
+    @Test
     fun `uten klokkeslett blir heldag ved midnatt UTC`() {
         val h = kalenderhendelse(avtale.copy(tid = null), 60, oslo)!!
         assertTrue(h.heldag)

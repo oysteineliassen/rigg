@@ -57,7 +57,7 @@ fun KalenderInnstillinger(oppsett: Oppsett, onEndre: ((Oppsett) -> Oppsett) -> U
                 "hendelsen; slettes avtalen eller endres den til en annen prioritet, fjernes den.",
         )
         Forklaring(
-            "Synken går begge veier: flytter du hendelsen i kalenderen (dato eller klokkeslett), flyttes " +
+            "Synken går begge veier: flytter du hendelsen i kalenderen eller endrer start- eller sluttid, flyttes " +
                 "avtalen i appen, og påminnelsen med den. Er samme avtale endret begge steder, vinner appen. " +
                 "Sletter du hendelsen i kalenderen, beholdes avtalen i appen.",
         )
@@ -92,7 +92,7 @@ fun KalenderInnstillinger(oppsett: Oppsett, onEndre: ((Oppsett) -> Oppsett) -> U
                 }
                 if (oppsett.kalenderId < 0) Forklaring("Velg en kalender for å starte synken.")
             }
-            Forklaring("Varighet for avtaler med klokkeslett (uten klokkeslett blir det heldagshendelse):")
+            Forklaring("Varighet når avtalen har starttid, men ikke sluttid (uten klokkeslett blir det heldagshendelse):")
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 varighetValg.forEach { m ->
                     FilterChip(

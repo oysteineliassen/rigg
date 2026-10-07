@@ -60,7 +60,8 @@ commits i git, så en nyere versjon er alltid høyere.
   siden». Forfalte datoer vises i rødt. Utførte oppdrag ligger sammenfoldet nederst og kan gjenåpnes.
 - **Søk** i sted, adresse, kunde, beskrivelse og telefon (også uten mellomrom i nummeret).
 - **Trykk på et kort** for Ring, Vis i kart, Ferdig, Endre og Slett (bekreftes i kortet).
-- **Nytt oppdrag:** krever beskrivelse eller kunde, og dato for Avtalt tid.
+- **Nytt oppdrag:** krever beskrivelse eller kunde, og dato for Avtalt tid. Tid settes som «Fra» og
+  eventuelt «Til» (sluttid samme dag); flyttes starten, flyttes sluttiden med.
 - **Kunde og anlegg huskes** i et eget register i databasen, sammen med kontaktperson, telefon, sted
   og adresse. Forslag kommer rett under feltet mens du skriver:
   - Kunde først: anleggene til kunden foreslås under Anlegg.
@@ -82,7 +83,8 @@ commits i git, så en nyere versjon er alltid høyere.
   Knappen «I nærheten» i listen sorterer på avstand fra der du er.
 - **Google Kalender:** avtaler med dato legges i en valgfri kalender på telefonen (Innstillinger >
   Google Kalender). Endres dato, klokkeslett eller annet, oppdateres hendelsen; slettes avtalen, fjernes
-  den. Synken går begge veier: flyttes hendelsen i kalenderen, flyttes avtalen (og påminnelsen) i appen.
+  den. Med sluttid brukes den, ellers varigheten fra innstillingene. Synken går begge veier: flyttes
+  hendelsen i kalenderen eller endres start/slutt, oppdateres avtalen (og påminnelsen) i appen.
   Er samme avtale endret begge steder, vinner appen. Sletter du hendelsen i kalenderen, beholdes avtalen.
   Uten klokkeslett blir det heldagshendelse.
 - **Sikkerhetskopi:** eksport/import av alle oppdrag som JSON (Innstillinger > Sikkerhetskopi).

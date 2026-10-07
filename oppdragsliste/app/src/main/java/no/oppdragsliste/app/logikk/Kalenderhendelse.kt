@@ -24,7 +24,8 @@ data class Kalenderhendelse(
 fun skalIKalender(o: Oppdrag): Boolean = o.prioritet == Prioritet.AVTALE && o.dato != null
 
 /**
- * Lager kalenderhendelsen. Med klokkeslett: fra klokkeslettet og [varighetMin] minutter. Uten: heldags.
+ * Lager kalenderhendelsen. Med klokkeslett: fra start til sluttid, eller [varighetMin] minutter når
+ * sluttid mangler. Uten klokkeslett: heldags.
  * Utførte avtaler får «✓» foran tittelen.
  */
 fun kalenderhendelse(o: Oppdrag, varighetMin: Int, sone: ZoneId = ZoneId.systemDefault()): Kalenderhendelse? {
@@ -52,7 +53,8 @@ fun kalenderhendelse(o: Oppdrag, varighetMin: Int, sone: ZoneId = ZoneId.systemD
         Kalenderhendelse(
             tittel, o.stedTekst, beskrivelse,
             start.toInstant().toEpochMilli(),
-            start.plusMinutes(varighetMin.toLong()).toInstant().toEpochMilli(),
+            (o.sluttid?.takeIf { it.isAfter(tid) }?.let { LocalDateTime.of(dato, it).atZone(sone) }
+                ?: start.plusMinutes(varighetMin.toLong())).toInstant().toEpochMilli(),
             heldag = false, tidssone = sone.id,
         )
     } else {

@@ -13,6 +13,7 @@ import no.oppdragsliste.app.app
 import no.oppdragsliste.app.data.Oppdrag
 import no.oppdragsliste.app.data.Prioritet
 import no.oppdragsliste.app.logikk.formaterTid
+import no.oppdragsliste.app.logikk.formaterTidsrom
 import no.oppdragsliste.app.logikk.morgenTekst
 import no.oppdragsliste.app.logikk.sorter
 import no.oppdragsliste.app.logikk.varighetTekst
@@ -58,7 +59,7 @@ class AlarmMottaker : BroadcastReceiver() {
         val nar = if (minutter <= 1) "Nå" else "Om ${varighetTekst(((minutter + 2) / 5) * 5)}"
         val tittel = "$nar: ${o.tittel}"
         val tekst = listOfNotNull(
-            "kl. ${formaterTid(tid)}",
+            "kl. ${formaterTidsrom(tid, o.sluttid)}",
             o.kunde.takeIf { it.isNotBlank() && it != o.tittel },
             o.anlegg.takeIf { it.isNotBlank() },
             o.stedTekst.takeIf { it.isNotBlank() },
@@ -86,7 +87,7 @@ class AlarmMottaker : BroadcastReceiver() {
         val dagens = sorter(Prioritet.AVTALE, alle.filter { it.prioritet == Prioritet.AVTALE && it.dato == idag })
         val detaljer = buildString {
             append(tekst)
-            dagens.forEach { o -> append("\n").append(o.tid?.let { formaterTid(it) + " " } ?: "").append(o.tittel) }
+            dagens.forEach { o -> append("\n").append(o.tid?.let { formaterTidsrom(it, o.sluttid) + " " } ?: "").append(o.tittel) }
         }
         val b = Varsler.bygg(ctx, Varsler.KANAL_MORGEN, "Dagens oppdrag", tekst)
             .setStyle(androidx.core.app.NotificationCompat.BigTextStyle().bigText(detaljer))

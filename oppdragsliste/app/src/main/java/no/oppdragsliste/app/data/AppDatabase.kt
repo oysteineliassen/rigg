@@ -8,7 +8,7 @@ import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [Oppdrag::class, KjentAnlegg::class], version = 3, exportSchema = false)
+@Database(entities = [Oppdrag::class, KjentAnlegg::class], version = 4, exportSchema = false)
 @TypeConverters(Konverterere::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun oppdragDao(): OppdragDao
@@ -17,7 +17,7 @@ abstract class AppDatabase : RoomDatabase() {
     companion object {
         fun bygg(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, "oppdrag.db")
-                .addMigrations(FRA_1_TIL_2, FRA_2_TIL_3)
+                .addMigrations(FRA_1_TIL_2, FRA_2_TIL_3, FRA_3_TIL_4)
                 .build()
 
         /** Versjon 2: feltet «anlegg» og registeret over kjente kunder/anlegg (fylt fra eksisterende oppdrag). */
@@ -43,6 +43,13 @@ abstract class AppDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE oppdrag ADD COLUMN kontaktperson TEXT NOT NULL DEFAULT ''")
                 db.execSQL("ALTER TABLE kjent_anlegg ADD COLUMN kontaktperson TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
+        /** Versjon 4: sluttid på oppdrag. */
+        val FRA_3_TIL_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE oppdrag ADD COLUMN sluttid INTEGER")
             }
         }
     }
