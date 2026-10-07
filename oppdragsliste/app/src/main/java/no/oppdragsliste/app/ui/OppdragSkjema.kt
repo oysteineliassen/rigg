@@ -1,6 +1,13 @@
 package no.oppdragsliste.app.ui
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
 import android.os.SystemClock
+import android.provider.ContactsContract
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.outlined.Contacts
+import no.oppdragsliste.app.samtale.lesValgtKontakt
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -108,6 +115,7 @@ fun SkjemaArk(
     skjema: Skjema?,
     kjente: List<KjentAnlegg>,
     onEndre: ((Skjema) -> Skjema) -> Unit,
+    onVelgKontakt: (navn: String, nummer: String) -> Unit,
     onVelgKunde: (String) -> Unit,
     onVelgAnlegg: (AnleggForslag) -> Unit,
     onFeltForlatt: () -> Unit,
@@ -162,7 +170,7 @@ fun SkjemaArk(
                         .statusBarsPadding()
                         .padding(top = 16.dp),
                 ) {
-                    SkjemaInnhold(s, kjente, onEndre, onVelgKunde, onVelgAnlegg, onFeltForlatt, onGlem, onLagre, onTom, fjernet, onAngre, onLukk)
+                    SkjemaInnhold(s, kjente, onEndre, onVelgKontakt, onVelgKunde, onVelgAnlegg, onFeltForlatt, onGlem, onLagre, onTom, fjernet, onAngre, onLukk)
                 }
             }
         }
@@ -175,6 +183,7 @@ private fun SkjemaInnhold(
     skjema: Skjema,
     kjente: List<KjentAnlegg>,
     onEndre: ((Skjema) -> Skjema) -> Unit,
+    onVelgKontakt: (navn: String, nummer: String) -> Unit,
     onVelgKunde: (String) -> Unit,
     onVelgAnlegg: (AnleggForslag) -> Unit,
     onFeltForlatt: () -> Unit,
@@ -186,6 +195,12 @@ private fun SkjemaInnhold(
     onLukk: () -> Unit,
 ) {
     val fokus = LocalFocusManager.current
+    val kontekst = LocalContext.current
+    // Telefonens egen kontaktvelger; gir tilgang til bare den valgte kontakten.
+    val hentKontakt = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        val uri = r.data?.data ?: return@rememberLauncherForActivityResult
+        lesValgtKontakt(kontekst, uri)?.let { (navn, nummer) -> onVelgKontakt(navn, nummer) }
+    }
     val anleggFokus = remember { FocusRequester() }
     var kundeAktiv by remember { mutableStateOf(false) }
     var anleggAktiv by remember { mutableStateOf(false) }
@@ -295,6 +310,16 @@ private fun SkjemaInnhold(
                 value = skjema.kontaktperson,
                 onValueChange = { v -> onEndre { it.copy(kontaktperson = v) } },
                 label = { Text("Kontaktperson") },
+                trailingIcon = {
+                    IconButton(onClick = {
+                        try {
+                            hentKontakt.launch(Intent(Intent.ACTION_PICK, ContactsContract.CommonDataKinds.Phone.CONTENT_URI))
+                        } catch (e: ActivityNotFoundException) {
+                            Toast.makeText(kontekst, "Fant ingen kontaktapp", Toast.LENGTH_SHORT).show()
+                        }
+                    }) { Icon(Icons.Outlined.Contacts, "Hent fra kontakter") }
+                },
+                supportingText = { Text("Trykk på ikonet for å hente navn og nummer fra kontaktene") },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                 modifier = Modifier.fillMaxWidth(),

@@ -23,6 +23,8 @@ import no.oppdragsliste.app.data.Oppdrag
 import no.oppdragsliste.app.data.Oppsett
 import no.oppdragsliste.app.data.Prioritet
 import no.oppdragsliste.app.logikk.AnleggForslag
+import no.oppdragsliste.app.logikk.Autofelt
+import no.oppdragsliste.app.logikk.formaterTelefon
 import no.oppdragsliste.app.logikk.Feil
 import no.oppdragsliste.app.logikk.finnPaTelefon
 import no.oppdragsliste.app.logikk.finnUtfylling
@@ -118,7 +120,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             )
             return
         }
-        sett(Skjema(telefon = telefon, kontaktperson = kontaktperson))
+        sett(Skjema(prioritet = innstillinger.na.standardPrioritet, telefon = telefon, kontaktperson = kontaktperson))
         if (telefon.isBlank()) return
         viewModelScope.launch {
             val treff = finnPaTelefon(repo.kjente.first(), telefon) ?: return@launch
@@ -126,6 +128,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if (s.original != null || s.kunde.isNotBlank()) return@launch
             sett(s.copy(kunde = treff.kunde, anlegg = treff.anlegg).fyllFra(treff))
         }
+    }
+
+    /**
+     * Kontakt valgt fra telefonens kontakter: navn og nummer fylles inn (det brukeren uttrykkelig valgte,
+     * så det erstatter det som stod der). Er nummeret brukt før og kunden tom, fylles kunde og anlegg inn.
+     */
+    fun velgKontakt(navn: String, nummer: String) {
+        val s = _skjema.value ?: return
+        var ny = s.copy(
+            kontaktperson = navn.ifBlank { s.kontaktperson },
+            telefon = formaterTelefon(nummer).ifBlank { s.telefon },
+            autofylt = s.autofylt - Autofelt.KONTAKTPERSON - Autofelt.TELEFON,
+        )
+        if (ny.kunde.isBlank()) {
+            finnPaTelefon(kjente.value, nummer)?.let { treff ->
+                ny = ny.copy(kunde = treff.kunde, anlegg = ny.anlegg.ifBlank { treff.anlegg }).fyllFra(treff)
+            }
+        }
+        oppdaterSkjema { ny }
     }
 
     /** Kunde valgt fra forslag: fyll inn fra det som sist ble brukt for kunden (og anlegget, hvis valgt). */

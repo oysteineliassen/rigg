@@ -3,6 +3,8 @@ package no.oppdragsliste.app.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -29,9 +31,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import no.oppdragsliste.app.data.Oppsett
+import no.oppdragsliste.app.data.Prioritet
 import no.oppdragsliste.app.data.Tema
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun InnstillingerSkjerm(
     oppsett: Oppsett,
@@ -66,6 +69,18 @@ fun InnstillingerSkjerm(
                             selected = oppsett.tema == t,
                             onClick = { onEndre { it.copy(tema = t) } },
                             label = { Text(t.tittel) },
+                        )
+                    }
+                }
+            }
+            Gruppe("Nytt oppdrag") {
+                Forklaring("Prioriteten et nytt oppdrag starter med:")
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Prioritet.entries.forEach { p ->
+                        FilterChip(
+                            selected = oppsett.standardPrioritet == p,
+                            onClick = { onEndre { it.copy(standardPrioritet = p) } },
+                            label = { Text(p.tittel) },
                         )
                     }
                 }

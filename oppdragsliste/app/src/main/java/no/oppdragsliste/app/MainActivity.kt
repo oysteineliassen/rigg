@@ -102,6 +102,7 @@ class MainActivity : ComponentActivity() {
                     skjema = skjema,
                     kjente = kjente,
                     onEndre = vm::oppdaterSkjema,
+                    onVelgKontakt = vm::velgKontakt,
                     onVelgKunde = vm::velgKunde,
                     onVelgAnlegg = vm::velgAnlegg,
                     onFeltForlatt = vm::fyllFraKjente,

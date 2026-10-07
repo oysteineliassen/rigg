@@ -60,7 +60,9 @@ commits i git, så en nyere versjon er alltid høyere.
   siden». Forfalte datoer vises i rødt. Utførte oppdrag ligger sammenfoldet nederst og kan gjenåpnes.
 - **Søk** i sted, adresse, kunde, beskrivelse og telefon (også uten mellomrom i nummeret).
 - **Trykk på et kort** for Ring, Vis i kart, Ferdig, Endre og Slett (bekreftes i kortet).
-- **Nytt oppdrag:** krever beskrivelse eller kunde, og dato for Avtalt tid. Tid settes som «Fra» og
+- **Nytt oppdrag:** starter som Avtalt tid (kan endres i Innstillinger > Nytt oppdrag). Krever beskrivelse
+  eller kunde, og dato for Avtalt tid. Kontaktbok-ikonet i Kontaktperson henter navn og nummer fra
+  kontaktene (telefonens egen velger, ingen ekstra tillatelse). Tid settes som «Fra» og
   eventuelt «Til» (sluttid samme dag); flyttes starten, flyttes sluttiden med.
 - **Kunde og anlegg huskes** i et eget register i databasen, sammen med kontaktperson, telefon, sted
   og adresse. Forslag kommer rett under feltet mens du skriver:

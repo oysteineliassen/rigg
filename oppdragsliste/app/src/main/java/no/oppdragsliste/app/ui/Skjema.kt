@@ -19,7 +19,7 @@ import java.time.LocalTime
 /** Skjemaet for nytt eller endret oppdrag. [original] er null for nye. */
 data class Skjema(
     val original: Oppdrag? = null,
-    val prioritet: Prioritet = Prioritet.OMRADE,
+    val prioritet: Prioritet = Prioritet.AVTALE,
     val beskrivelse: String = "",
     val kunde: String = "",
     val anlegg: String = "",

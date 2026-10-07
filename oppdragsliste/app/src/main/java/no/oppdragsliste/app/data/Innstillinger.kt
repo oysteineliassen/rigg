@@ -11,6 +11,8 @@ enum class Tema(val tittel: String) { SYSTEM("Følg telefonen"), LYS("Lys"), MOR
 
 data class Oppsett(
     val tema: Tema = Tema.SYSTEM,
+    /** Prioriteten et nytt oppdrag starter med. */
+    val standardPrioritet: Prioritet = Prioritet.AVTALE,
     /** Fase 2: varsel etter telefonsamtaler. */
     val samtaleVarsel: Boolean = false,
     val minSamtaleSekunder: Int = 20,
@@ -38,6 +40,8 @@ class Innstillinger(context: Context) {
 
     private fun les() = Oppsett(
         tema = runCatching { Tema.valueOf(prefs.getString("tema", null) ?: "SYSTEM") }.getOrDefault(Tema.SYSTEM),
+        standardPrioritet = runCatching { Prioritet.valueOf(prefs.getString("standardPrioritet", null) ?: "AVTALE") }
+            .getOrDefault(Prioritet.AVTALE),
         samtaleVarsel = prefs.getBoolean("samtaleVarsel", false),
         minSamtaleSekunder = prefs.getInt("minSamtaleSekunder", 20),
         avtaleVarsel = prefs.getBoolean("avtaleVarsel", true),
@@ -55,6 +59,7 @@ class Innstillinger(context: Context) {
         val ny = endring(_oppsett.value)
         prefs.edit()
             .putString("tema", ny.tema.name)
+            .putString("standardPrioritet", ny.standardPrioritet.name)
             .putBoolean("samtaleVarsel", ny.samtaleVarsel)
             .putInt("minSamtaleSekunder", ny.minSamtaleSekunder)
             .putBoolean("avtaleVarsel", ny.avtaleVarsel)
