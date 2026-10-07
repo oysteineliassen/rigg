@@ -57,7 +57,9 @@ commits i git, så en nyere versjon er alltid høyere.
 
 - **Liste** i seksjonene Akutt → Avtalt tid → Haster → Når i området, med fargekant per prioritet.
   Avtaler sorteres på dato og klokkeslett, «Når i området» eldste først med «Lagt inn for X dager
-  siden». Forfalte datoer vises i rødt. Utførte oppdrag ligger sammenfoldet nederst og kan gjenåpnes.
+  siden». Forfalte datoer vises i rødt. Avtalt tid er delt i Forfalt, I dag, I morgen, Resten av uka,
+  Neste uke og én gruppe per uke etter det (de senere ukene er foldet sammen). Alle overskrifter kan
+  trykkes for å folde sammen/åpne; ved søk vises alt. Utførte oppdrag ligger sammenfoldet nederst og kan gjenåpnes.
 - **Søk** i sted, adresse, kunde, beskrivelse og telefon (også uten mellomrom i nummeret).
 - **Trykk på et kort** for Ring, Vis i kart, Ferdig, Endre og Slett (bekreftes i kortet).
 - **Nytt oppdrag:** starter som Avtalt tid (kan endres i Innstillinger > Nytt oppdrag). Krever beskrivelse

@@ -16,7 +16,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.remember
+import no.oppdragsliste.app.data.Prioritet
+import no.oppdragsliste.app.logikk.Avtalegruppe
+import no.oppdragsliste.app.logikk.grupperAvtaler
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
@@ -72,6 +80,11 @@ fun ListeSkjerm(
     var utvidet by rememberSaveable { mutableStateOf<Long?>(null) }
     var visUtforte by rememberSaveable { mutableStateOf(false) }
     fun klikk(o: Oppdrag) { utvidet = if (utvidet == o.id) null else o.id }
+    // Seksjoner og avtalegrupper brukeren har åpnet eller lukket (ellers gjelder standarden).
+    val valgtApen = remember { mutableStateMapOf<String, Boolean>() }
+    // Ved søk vises alt, så ingen treff skjules i en lukket gruppe.
+    fun erApen(nokkel: String, standard: Boolean) = sok.isNotBlank() || (valgtApen[nokkel] ?: standard)
+    fun veksle(nokkel: String, standard: Boolean) { valgtApen[nokkel] = !(valgtApen[nokkel] ?: standard) }
 
     Scaffold(
         topBar = {
@@ -139,18 +152,50 @@ fun ListeSkjerm(
                     }
                 }
                 tilstand.seksjoner.forEach { seksjon ->
-                    item(key = "s-${seksjon.prioritet}") {
-                        SeksjonsTittel(seksjon.prioritet.tittel, seksjon.oppdrag.size, seksjon.prioritet.farge())
-                    }
-                    items(seksjon.oppdrag, key = { it.id }) { o ->
-                        OppdragKort(
-                            o = o, na = tilstand.na, utvidet = utvidet == o.id,
-                            onKlikk = { klikk(o) },
-                            onFerdig = { f -> onFerdig(o, f); utvidet = null },
-                            onEndre = { onEndre(o) },
-                            onSlett = { onSlett(o); utvidet = null },
-                            modifier = Modifier.animateItem(),
+                    val nokkel = "s-${seksjon.prioritet}"
+                    val apen = erApen(nokkel, true)
+                    item(key = nokkel) {
+                        SeksjonsTittel(
+                            seksjon.prioritet.tittel, seksjon.oppdrag.size, seksjon.prioritet.farge(),
+                            apen = apen, onKlikk = { veksle(nokkel, true) },
                         )
+                    }
+                    if (!apen) return@forEach
+                    // Avtalene deles i Forfalt, I dag, I morgen, resten av uka og én gruppe per uke.
+                    val grupper = if (seksjon.prioritet == Prioritet.AVTALE) {
+                        grupperAvtaler(seksjon.oppdrag, tilstand.na.toLocalDate())
+                    } else {
+                        emptyList()
+                    }
+                    if (grupper.isEmpty()) {
+                        items(seksjon.oppdrag, key = { it.id }) { o ->
+                            OppdragKort(
+                                o = o, na = tilstand.na, utvidet = utvidet == o.id,
+                                onKlikk = { klikk(o) },
+                                onFerdig = { f -> onFerdig(o, f); utvidet = null },
+                                onEndre = { onEndre(o) },
+                                onSlett = { onSlett(o); utvidet = null },
+                                modifier = Modifier.animateItem(),
+                            )
+                        }
+                    }
+                    grupper.forEach { g ->
+                        val gApen = erApen(g.nokkel, g.apenSomStandard)
+                        item(key = "g-${g.nokkel}") {
+                            Gruppetittel(g, gApen, Modifier.animateItem()) { veksle(g.nokkel, g.apenSomStandard) }
+                        }
+                        if (gApen) {
+                            items(g.oppdrag, key = { it.id }) { o ->
+                                OppdragKort(
+                                    o = o, na = tilstand.na, utvidet = utvidet == o.id,
+                                    onKlikk = { klikk(o) },
+                                    onFerdig = { f -> onFerdig(o, f); utvidet = null },
+                                    onEndre = { onEndre(o) },
+                                    onSlett = { onSlett(o); utvidet = null },
+                                    modifier = Modifier.animateItem(),
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -221,9 +266,19 @@ private fun androidx.compose.foundation.lazy.LazyListScope.naerInnhold(
 }
 
 @Composable
-private fun SeksjonsTittel(tittel: String, antall: Int, farge: androidx.compose.ui.graphics.Color) {
+private fun SeksjonsTittel(
+    tittel: String,
+    antall: Int,
+    farge: androidx.compose.ui.graphics.Color,
+    apen: Boolean? = null,
+    onKlikk: (() -> Unit)? = null,
+) {
     Row(
-        Modifier.padding(top = 14.dp, bottom = 2.dp, start = 4.dp),
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .then(if (onKlikk != null) Modifier.clickable(onClick = onKlikk) else Modifier)
+            .padding(top = 14.dp, bottom = 4.dp, start = 4.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
@@ -236,6 +291,50 @@ private fun SeksjonsTittel(tittel: String, antall: Int, farge: androidx.compose.
         Text(tittel, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         Spacer(Modifier.width(6.dp))
         Text("$antall", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (apen != null) {
+            Spacer(Modifier.weight(1f))
+            Icon(
+                if (apen) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                if (apen) "Fold sammen" else "Vis",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/** Overskrift for en gruppe avtaler («I dag 2», «Uke 43 · 19.–25. okt. 3»). Trykk åpner/lukker. */
+@Composable
+private fun Gruppetittel(g: Avtalegruppe, apen: Boolean, modifier: Modifier = Modifier, onKlikk: () -> Unit) {
+    val farge = if (g.forfalt) forfaltFarge else MaterialTheme.colorScheme.onSurface
+    Surface(
+        onClick = onKlikk,
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (apen) 0.5f else 1f),
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(start = 12.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+        ) {
+            Text(g.tittel, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = farge)
+            g.undertittel?.let {
+                Spacer(Modifier.width(8.dp))
+                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Spacer(Modifier.weight(1f))
+            Text(
+                "${g.oppdrag.size}",
+                style = MaterialTheme.typography.titleSmall,
+                color = farge,
+            )
+            Icon(
+                if (apen) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                if (apen) "Fold sammen" else "Vis",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
