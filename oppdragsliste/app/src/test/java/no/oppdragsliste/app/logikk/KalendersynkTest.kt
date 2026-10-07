@@ -28,11 +28,11 @@ class KalendersynkTest {
     }
 
     @Test
-    fun `endret begge steder: appen vinner`() =
+    fun `endret begge steder, appen vinner`() =
         assertEquals(Synkhandling.OPPDATER_KALENDER, velgSynkhandling(k, 3, "xyz", Kalenderstand(5000, false)))
 
     @Test
-    fun `slettet i kalenderen: la vaere til appen endrer avtalen`() {
+    fun `slettet i kalenderen, la vaere til appen endrer avtalen`() {
         assertEquals(Synkhandling.INGEN, velgSynkhandling(k, 3, "abc", null))
         assertEquals(Synkhandling.OPPRETT, velgSynkhandling(k, 3, "xyz", null))
     }
