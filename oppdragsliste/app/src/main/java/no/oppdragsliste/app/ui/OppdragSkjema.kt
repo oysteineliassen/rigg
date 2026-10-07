@@ -188,18 +188,18 @@ fun SkjemaArk(
                 modifier = Modifier.fillMaxWidth(),
             )
             OutlinedTextField(
-                value = skjema.sted,
-                onValueChange = { v -> onEndre { it.copy(sted = v) } },
-                label = { Text("Sted") },
-                placeholder = { Text("F.eks. Søgne") },
+                value = skjema.adresse,
+                onValueChange = { v -> onEndre { it.copy(adresse = v) } },
+                label = { Text("Adresse") },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                 modifier = Modifier.fillMaxWidth(),
             )
             OutlinedTextField(
-                value = skjema.adresse,
-                onValueChange = { v -> onEndre { it.copy(adresse = v) } },
-                label = { Text("Adresse") },
+                value = skjema.sted,
+                onValueChange = { v -> onEndre { it.copy(sted = v) } },
+                label = { Text("Sted") },
+                placeholder = { Text("F.eks. Søgne") },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                 modifier = Modifier.fillMaxWidth(),

@@ -5,6 +5,7 @@ import kotlinx.coroutines.launch
 import no.oppdragsliste.app.data.AppDatabase
 import no.oppdragsliste.app.data.Innstillinger
 import no.oppdragsliste.app.data.OppdragRepository
+import no.oppdragsliste.app.kalender.Kalender
 import no.oppdragsliste.app.sted.Geofencer
 import no.oppdragsliste.app.varsler.Planlegger
 import no.oppdragsliste.app.varsler.Varsler
@@ -24,6 +25,7 @@ class OppdragApp : Application() {
     suspend fun planleggAlt(tvingGeofencer: Boolean = false) {
         Planlegger.planleggAlle(this)
         Geofencer.synk(this, tvingGeofencer)
+        Kalender.synk(this)
     }
 
     /** Som [planleggAlt], men fra kode som ikke kjører i en korutine. */

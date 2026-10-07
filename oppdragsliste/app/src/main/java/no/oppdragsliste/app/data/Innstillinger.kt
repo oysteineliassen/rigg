@@ -22,6 +22,10 @@ data class Oppsett(
     /** Fase 4: «Du er i området». */
     val naerVarsel: Boolean = false,
     val naerRadiusMeter: Int = 2000,
+    /** Avtaler legges i denne kalenderen på telefonen (f.eks. Google-kalenderen), -1 = ingen valgt. */
+    val kalenderSynk: Boolean = false,
+    val kalenderId: Long = -1,
+    val kalenderVarighetMin: Int = 60,
 )
 
 /** Innstillingene lagres i SharedPreferences, så de kan leses synkront også fra mottakere. */
@@ -42,6 +46,9 @@ class Innstillinger(context: Context) {
         morgenTid = LocalTime.ofSecondOfDay(prefs.getInt("morgenTid", 7 * 3600).toLong()),
         naerVarsel = prefs.getBoolean("naerVarsel", false),
         naerRadiusMeter = prefs.getInt("naerRadiusMeter", 2000),
+        kalenderSynk = prefs.getBoolean("kalenderSynk", false),
+        kalenderId = prefs.getLong("kalenderId", -1),
+        kalenderVarighetMin = prefs.getInt("kalenderVarighetMin", 60),
     )
 
     fun endre(endring: (Oppsett) -> Oppsett) {
@@ -56,6 +63,9 @@ class Innstillinger(context: Context) {
             .putInt("morgenTid", ny.morgenTid.toSecondOfDay())
             .putBoolean("naerVarsel", ny.naerVarsel)
             .putInt("naerRadiusMeter", ny.naerRadiusMeter)
+            .putBoolean("kalenderSynk", ny.kalenderSynk)
+            .putLong("kalenderId", ny.kalenderId)
+            .putInt("kalenderVarighetMin", ny.kalenderVarighetMin)
             .apply()
         _oppsett.value = ny
     }

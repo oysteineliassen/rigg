@@ -73,6 +73,9 @@ commits i git, så en nyere versjon er alltid høyere.
   f.eks. «3 oppdrag i nærheten: Søgne (2), Tangvall (1)», maks én gang per oppdrag per dag.
   Android tillater 100 geofencer; akutte og haster prioriteres, deretter de eldste.
   Knappen «I nærheten» i listen sorterer på avstand fra der du er.
+- **Google Kalender:** avtaler med dato legges i en valgfri kalender på telefonen (Innstillinger >
+  Google Kalender). Endres dato, klokkeslett eller annet, oppdateres hendelsen; slettes avtalen, fjernes
+  den. Synken går én vei (appen → kalender). Uten klokkeslett blir det heldagshendelse.
 - **Sikkerhetskopi:** eksport/import av alle oppdrag som JSON (Innstillinger > Sikkerhetskopi).
   Import hopper over oppdrag som allerede finnes.
 

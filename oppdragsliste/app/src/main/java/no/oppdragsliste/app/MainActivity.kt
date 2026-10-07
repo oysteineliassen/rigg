@@ -17,6 +17,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import no.oppdragsliste.app.ui.InnstillingerSkjerm
+import no.oppdragsliste.app.ui.KalenderInnstillinger
 import no.oppdragsliste.app.ui.KopiInnstillinger
 import no.oppdragsliste.app.ui.ListeSkjerm
 import no.oppdragsliste.app.ui.MainViewModel
@@ -75,6 +76,7 @@ class MainActivity : ComponentActivity() {
                         onTilbake = { visInnstillinger = false },
                     ) {
                         VarselInnstillinger(oppsett, vm::endreOppsett)
+                        KalenderInnstillinger(oppsett, vm::endreOppsett)
                         SamtaleInnstillinger(oppsett, vm::endreOppsett)
                         NaerInnstillinger(oppsett, vm::endreOppsett, geokodStatus, vm::geokodManglende)
                         KopiInnstillinger(kopiStatus, vm::eksporterTil, vm::importerFra)
