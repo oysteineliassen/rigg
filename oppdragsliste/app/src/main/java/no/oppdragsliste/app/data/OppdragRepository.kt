@@ -58,7 +58,7 @@ class OppdragRepository(
         if (kunde.isEmpty() && anlegg.isEmpty()) return
         kjenteDao.husk(
             KjentAnlegg(
-                kunde = kunde, anlegg = anlegg, telefon = o.telefon.trim(), sted = o.sted.trim(),
+                kunde = kunde, anlegg = anlegg, kontaktperson = o.kontaktperson.trim(), telefon = o.telefon.trim(), sted = o.sted.trim(),
                 adresse = o.adresse.trim(), lat = o.lat, lng = o.lng, sistBrukt = tidspunkt,
             ),
         )

@@ -40,17 +40,29 @@ class ForslagTest {
     @Test
     fun `anleggsforslag for kunden, sist brukt forst, uansett store og sma bokstaver`() {
         assertEquals(
-            listOf("Søgne skole", "Rådhuset", "Tangvall skole"),
+            listOf("Søgne skole", "Rådhuset", "Tangvall skole").map { AnleggForslag(it) },
             anleggForslag(kjente, "SØGNE KOMMUNE", ""),
         )
-        assertEquals(listOf("Søgne skole", "Tangvall skole"), anleggForslag(kjente, "Søgne kommune", "sko"))
-        assertEquals(emptyList<String>(), anleggForslag(kjente, "Ola Hansen", ""))
+        assertEquals(listOf("Søgne skole", "Tangvall skole"), anleggForslag(kjente, "Søgne kommune", "sko").map { it.anlegg })
+        assertEquals(emptyList<AnleggForslag>(), anleggForslag(kjente, "Ola Hansen", ""))
     }
 
     @Test
-    fun `anlegg uten kunde sokes i alle kunder`() {
-        assertEquals(emptyList<String>(), anleggForslag(kjente, "", ""))
-        assertEquals(listOf("Butikk"), anleggForslag(kjente, "", "but"))
+    fun `sok bare pa anlegg viser kunden, sa den kan fylles inn`() {
+        assertEquals(emptyList<AnleggForslag>(), anleggForslag(kjente, "", ""))
+        assertEquals(listOf(AnleggForslag("Butikk", "Bakeriet Søgne AS")), anleggForslag(kjente, "", "but"))
+        assertEquals(
+            listOf(AnleggForslag("Søgne skole", "Søgne kommune"), AnleggForslag("Tangvall skole", "søgne kommune")),
+            anleggForslag(kjente, "", "skole"),
+        )
+        assertEquals("Butikk · Bakeriet Søgne AS", AnleggForslag("Butikk", "Bakeriet Søgne AS").tekst)
+    }
+
+    @Test
+    fun `med kunde kommer egne anlegg forst, sa anlegg hos andre kunder`() {
+        assertEquals(listOf(AnleggForslag("Rådhuset", "Søgne kommune")), anleggForslag(kjente, "Ola Hansen", "rådh"))
+        // Søgne kommune har selv Rådhuset, så det vises uten kunde.
+        assertEquals(listOf(AnleggForslag("Rådhuset")), anleggForslag(kjente, "Søgne kommune", "rådh"))
     }
 
     @Test
@@ -59,8 +71,20 @@ class ForslagTest {
         // Uten anlegg: det som sist ble brukt for kunden.
         assertEquals("Søgne skole", finnUtfylling(kjente, "Søgne kommune", "")?.anlegg)
         assertEquals("Tangvall", finnUtfylling(kjente, "Ola Hansen", "")?.sted)
-        assertNull(finnUtfylling(kjente, "Søgne kommune", "Ukjent"))
         assertNull(finnUtfylling(kjente, "", ""))
+        assertNull(finnUtfylling(kjente, "Ny kunde", "Ukjent"))
+    }
+
+    @Test
+    fun `kunde og anlegg som ikke er kjent sammen`() {
+        // Nytt anlegg for kjent kunde: telefon fra kunden, men ikke sted fra et annet anlegg.
+        val nyttAnlegg = finnUtfylling(kjente, "Søgne kommune", "Ukjent")!!
+        assertEquals("38 05 55 00", nyttAnlegg.telefon)
+        assertEquals("", nyttAnlegg.sted)
+        // Ny kunde på kjent anlegg: sted fra anlegget, men ikke telefonen til den andre kunden.
+        val nyKunde = finnUtfylling(kjente, "Ny kunde AS", "Rådhuset")!!
+        assertEquals("Søgne", nyKunde.sted)
+        assertEquals("", nyKunde.telefon)
     }
 
     @Test

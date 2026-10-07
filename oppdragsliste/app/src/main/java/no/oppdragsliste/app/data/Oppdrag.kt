@@ -20,6 +20,7 @@ data class Oppdrag(
     val beskrivelse: String = "",
     val kunde: String = "",
     val anlegg: String = "",
+    val kontaktperson: String = "",
     val telefon: String = "",
     val sted: String = "",
     val adresse: String = "",

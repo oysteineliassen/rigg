@@ -61,13 +61,18 @@ commits i git, så en nyere versjon er alltid høyere.
 - **Søk** i sted, adresse, kunde, beskrivelse og telefon (også uten mellomrom i nummeret).
 - **Trykk på et kort** for Ring, Vis i kart, Ferdig, Endre og Slett (bekreftes i kortet).
 - **Nytt oppdrag:** krever beskrivelse eller kunde, og dato for Avtalt tid.
-- **Kunde og anlegg huskes** i et eget register i databasen. Mens du skriver kunde, kommer forslag
-  rett under feltet; velg en, og anleggene til kunden foreslås under Anlegg. Telefon, sted og adresse
-  fylles inn fra sist gang kunden/anlegget ble brukt (det du har skrevet selv, overskrives ikke).
-  Krysset ved et forslag fjerner det fra minnet. Ringer en kjent kunde, fylles kunde og anlegg inn
-  fra nummeret i samtalevarselet.
+- **Kunde og anlegg huskes** i et eget register i databasen, sammen med kontaktperson, telefon, sted
+  og adresse. Forslag kommer rett under feltet mens du skriver:
+  - Kunde først: anleggene til kunden foreslås under Anlegg.
+  - Bare anlegg: forslagene viser kunden («Rådhuset · Søgne kommune»), og kunden fylles inn når du velger.
+    Kunden kan endres etterpå (flere kunder kan ha samme anlegg).
+  - Kontaktperson og telefon følger kunden, sted og adresse følger anlegget. Det du har skrevet selv,
+    overskrives ikke. Krysset ved et forslag fjerner det fra minnet.
+- **Utkast:** skjemaet lagres mens du skriver. Tilbaketasten lukker først ved andre trykk, og det du har
+  skrevet, står der neste gang (knappen viser da «Fortsett oppdrag»). «Tøm» starter på nytt.
 - **Etter samtaler** over minstelengden (standard 20 sek): «Nytt oppdrag fra 900 00 000?».
-  Trykk åpner skjemaet med nummer og navn fra kontaktene ferdig utfylt.
+  Trykk åpner skjemaet med nummeret, navnet fra kontaktene som kontaktperson, og kunde/anlegg hvis
+  nummeret er brukt før.
 - **Påminnelser** med eksakte alarmer, planlegges på nytt etter omstart.
 - **I nærheten:** sted/adresse geokodes når du lagrer. Geofencer (standard 2 km) gir ett samlet varsel,
   f.eks. «3 oppdrag i nærheten: Søgne (2), Tangvall (1)», maks én gang per oppdrag per dag.

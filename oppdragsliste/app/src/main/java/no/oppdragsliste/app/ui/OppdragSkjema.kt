@@ -1,5 +1,25 @@
 package no.oppdragsliste.app.ui
 
+import android.os.SystemClock
+import android.widget.Toast
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.delay
+import no.oppdragsliste.app.logikk.AnleggForslag
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -30,7 +50,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -38,7 +57,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberDatePickerState
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -77,16 +95,86 @@ private val Prioritet.forklaring: String
     }
 
 @OptIn(ExperimentalMaterial3Api::class)
+/**
+ * Skjemaet som et ark nedenfra. Tilbaketasten (og trykk utenfor) lukker først ved andre trykk, og det som
+ * er skrevet, er tatt vare på som utkast uansett. «Lukk» lukker med en gang, «Tøm» starter på nytt.
+ */
 @Composable
 fun SkjemaArk(
+    skjema: Skjema?,
+    kjente: List<KjentAnlegg>,
+    onEndre: ((Skjema) -> Skjema) -> Unit,
+    onVelgKunde: (String) -> Unit,
+    onVelgAnlegg: (AnleggForslag) -> Unit,
+    onFeltForlatt: () -> Unit,
+    onGlem: (kunde: String, anlegg: String?) -> Unit,
+    onLagre: () -> Unit,
+    onTom: () -> Unit,
+    onLukk: () -> Unit,
+) {
+    val context = LocalContext.current
+    // Siste skjema vises mens arket glir ut.
+    var sist by remember { mutableStateOf(skjema) }
+    if (skjema != null) sist = skjema
+    var sisteTilbake by remember { mutableLongStateOf(0L) }
+    val forsokLukke: () -> Unit = {
+        val na = SystemClock.uptimeMillis()
+        if (skjema == null || !skjema.harInnhold || na - sisteTilbake < 2500) {
+            sisteTilbake = 0L
+            onLukk()
+        } else {
+            sisteTilbake = na
+            Toast.makeText(context, "Trykk tilbake én gang til for å lukke. Det du har skrevet, blir husket.", Toast.LENGTH_SHORT).show()
+        }
+    }
+    BackHandler(enabled = skjema != null) { forsokLukke() }
+
+    Box(Modifier.fillMaxSize()) {
+        AnimatedVisibility(visible = skjema != null, enter = fadeIn(), exit = fadeOut()) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.45f))
+                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { forsokLukke() },
+            )
+        }
+        AnimatedVisibility(
+            visible = skjema != null,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .imePadding(),
+            enter = slideInVertically { it },
+            exit = slideOutVertically { it },
+        ) {
+            sist?.let { s ->
+                Surface(
+                    shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 2.dp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(top = 16.dp),
+                ) {
+                    SkjemaInnhold(s, kjente, onEndre, onVelgKunde, onVelgAnlegg, onFeltForlatt, onGlem, onLagre, onTom, onLukk)
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SkjemaInnhold(
     skjema: Skjema,
     kjente: List<KjentAnlegg>,
     onEndre: ((Skjema) -> Skjema) -> Unit,
     onVelgKunde: (String) -> Unit,
-    onVelgAnlegg: (String) -> Unit,
+    onVelgAnlegg: (AnleggForslag) -> Unit,
     onFeltForlatt: () -> Unit,
     onGlem: (kunde: String, anlegg: String?) -> Unit,
     onLagre: () -> Unit,
+    onTom: () -> Unit,
     onLukk: () -> Unit,
 ) {
     val fokus = LocalFocusManager.current
@@ -96,26 +184,29 @@ fun SkjemaArk(
     val kundeTreff = remember(kjente, skjema.kunde) { kundeForslag(kjente, skjema.kunde) }
     val anleggTreff = remember(kjente, skjema.kunde, skjema.anlegg) { anleggForslag(kjente, skjema.kunde, skjema.anlegg) }
 
-    val arkTilstand = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var visDato by remember { mutableStateOf(false) }
     var visTid by remember { mutableStateOf(false) }
     val idag = LocalDate.now()
     fun feil(f: Feil) = skjema.visFeil && f in skjema.feil
 
-    ModalBottomSheet(onDismissRequest = onLukk, sheetState = arkTilstand) {
+    Column(Modifier.fillMaxWidth()) {
+        Topplinje(skjema, onTom, onLukk)
         Column(
             Modifier
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
-                .imePadding()
+                .navigationBarsPadding()
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(
-                if (skjema.original == null) "Nytt oppdrag" else "Endre oppdrag",
-                style = MaterialTheme.typography.headlineSmall,
-            )
+            if (skjema.fraUtkast) {
+                Text(
+                    "Fortsetter der du slapp. Trykk «${if (skjema.original == null) "Tøm" else "Tilbakestill"}» for å starte på nytt.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
 
             PrioritetVelger(skjema.prioritet) { p -> onEndre { it.copy(prioritet = p) } }
 
@@ -148,6 +239,7 @@ fun SkjemaArk(
             if (kundeAktiv && kundeTreff.isNotEmpty()) {
                 Forslagsliste(
                     forslag = kundeTreff,
+                    tekst = { it },
                     onVelg = { navn ->
                         onVelgKunde(navn)
                         anleggFokus.requestFocus()
@@ -172,13 +264,22 @@ fun SkjemaArk(
             if (anleggAktiv && anleggTreff.isNotEmpty()) {
                 Forslagsliste(
                     forslag = anleggTreff,
-                    onVelg = { navn ->
-                        onVelgAnlegg(navn)
+                    tekst = { it.tekst },
+                    onVelg = { f ->
+                        onVelgAnlegg(f)
                         fokus.clearFocus()
                     },
-                    onGlem = { navn -> onGlem(skjema.kunde, navn) },
+                    onGlem = { f -> onGlem(f.kunde ?: skjema.kunde, f.anlegg) },
                 )
             }
+            OutlinedTextField(
+                value = skjema.kontaktperson,
+                onValueChange = { v -> onEndre { it.copy(kontaktperson = v) } },
+                label = { Text("Kontaktperson") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                modifier = Modifier.fillMaxWidth(),
+            )
             OutlinedTextField(
                 value = skjema.telefon,
                 onValueChange = { v -> onEndre { it.copy(telefon = v) } },
@@ -283,9 +384,50 @@ fun SkjemaArk(
     }
 }
 
+@Composable
+private fun Topplinje(skjema: Skjema, onTom: () -> Unit, onLukk: () -> Unit) {
+    // «Tøm» må trykkes to ganger (innen tre sekunder), så det ikke skjer ved et uhell.
+    var bekreft by remember { mutableStateOf(false) }
+    LaunchedEffect(bekreft) {
+        if (bekreft) {
+            delay(3000)
+            bekreft = false
+        }
+    }
+    val nytt = skjema.original == null
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.padding(start = 20.dp, end = 8.dp, top = 12.dp, bottom = 4.dp),
+    ) {
+        Text(
+            if (nytt) "Nytt oppdrag" else "Endre oppdrag",
+            style = MaterialTheme.typography.headlineSmall,
+            modifier = Modifier.weight(1f),
+        )
+        TextButton(
+            onClick = {
+                if (bekreft) {
+                    bekreft = false
+                    onTom()
+                } else {
+                    bekreft = true
+                }
+            },
+            enabled = skjema.harInnhold,
+        ) {
+            val tekst = if (nytt) "Tøm" else "Tilbakestill"
+            Text(
+                if (bekreft) "$tekst – sikker?" else tekst,
+                color = if (bekreft) MaterialTheme.colorScheme.error else Color.Unspecified,
+            )
+        }
+        IconButton(onClick = onLukk) { Icon(Icons.Outlined.Close, "Lukk (det du har skrevet, blir husket)") }
+    }
+}
+
 /** Forslag rett under feltet. Trykk velger; krysset fjerner forslaget fra minnet. */
 @Composable
-private fun Forslagsliste(forslag: List<String>, onVelg: (String) -> Unit, onGlem: (String) -> Unit) {
+private fun <T> Forslagsliste(forslag: List<T>, tekst: (T) -> String, onVelg: (T) -> Unit, onGlem: (T) -> Unit) {
     Surface(
         shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surfaceVariant,
@@ -294,18 +436,19 @@ private fun Forslagsliste(forslag: List<String>, onVelg: (String) -> Unit, onGle
             .padding(top = 0.dp),
     ) {
         Column {
-            forslag.forEach { navn ->
+            forslag.forEach { f ->
+                val navn = tekst(f)
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { onVelg(navn) }
+                        .clickable { onVelg(f) }
                         .padding(start = 14.dp),
                 ) {
                     Icon(Icons.Outlined.History, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.width(10.dp))
                     Text(navn, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-                    IconButton(onClick = { onGlem(navn) }) {
+                    IconButton(onClick = { onGlem(f) }) {
                         Icon(
                             Icons.Outlined.Close, "Glem «$navn»",
                             Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant,

@@ -41,6 +41,7 @@ fun kalenderhendelse(o: Oppdrag, varighetMin: Int, sone: ZoneId = ZoneId.systemD
         if (o.beskrivelse.isNotBlank()) add(o.beskrivelse)
         if (o.kunde.isNotBlank()) add("Kunde: ${o.kunde}")
         if (o.anlegg.isNotBlank()) add("Anlegg: ${o.anlegg}")
+        if (o.kontaktperson.isNotBlank()) add("Kontaktperson: ${o.kontaktperson}")
         if (o.telefon.isNotBlank()) add("Telefon: ${formaterTelefon(o.telefon)}")
         add("")
         add("Fra Oppdragsliste")

@@ -22,11 +22,10 @@ import no.oppdragsliste.app.data.KjentAnlegg
 import no.oppdragsliste.app.data.Oppdrag
 import no.oppdragsliste.app.data.Oppsett
 import no.oppdragsliste.app.data.Prioritet
-import no.oppdragsliste.app.logikk.Autofelt
+import no.oppdragsliste.app.logikk.AnleggForslag
 import no.oppdragsliste.app.logikk.Feil
 import no.oppdragsliste.app.logikk.finnPaTelefon
 import no.oppdragsliste.app.logikk.finnUtfylling
-import no.oppdragsliste.app.logikk.nyVerdi
 import no.oppdragsliste.app.logikk.Seksjon
 import no.oppdragsliste.app.logikk.filtrer
 import no.oppdragsliste.app.logikk.grupper
@@ -50,50 +49,6 @@ data class ListeTilstand(
     val antallApne: Int = 0,
     val lastet: Boolean = false,
 )
-
-/** Skjemaet for nytt eller endret oppdrag. [original] er null for nye. */
-data class Skjema(
-    val original: Oppdrag? = null,
-    val prioritet: Prioritet = Prioritet.OMRADE,
-    val beskrivelse: String = "",
-    val kunde: String = "",
-    val anlegg: String = "",
-    val telefon: String = "",
-    val sted: String = "",
-    val adresse: String = "",
-    val dato: LocalDate? = null,
-    val tid: LocalTime? = null,
-    val feil: Set<Feil> = emptySet(),
-    val visFeil: Boolean = false,
-    /** Verdiene vi selv fylte inn sist, så de kan byttes ut hvis kunde eller anlegg endres. */
-    val autofylt: Map<Autofelt, String> = emptyMap(),
-    /** Registeroppføringen sist utfylt fra; koordinatene gjenbrukes hvis stedet ikke er endret. */
-    val kilde: KjentAnlegg? = null,
-) {
-    /** Fyller telefon, sted og adresse fra registeret, uten å røre det brukeren har skrevet selv. */
-    fun fyllFra(k: KjentAnlegg): Skjema {
-        val auto = autofylt.toMutableMap()
-        fun felt(f: Autofelt, naa: String, forslag: String): String {
-            val ny = nyVerdi(naa, autofylt[f], forslag)
-            if (ny != naa || naa == autofylt[f]) auto[f] = ny else auto.remove(f)
-            return ny
-        }
-        return copy(
-            telefon = felt(Autofelt.TELEFON, telefon, k.telefon),
-            sted = felt(Autofelt.STED, sted, k.sted),
-            adresse = felt(Autofelt.ADRESSE, adresse, k.adresse),
-            autofylt = auto,
-            kilde = k,
-        )
-    }
-
-    companion object {
-        fun fra(o: Oppdrag) = Skjema(
-            original = o, prioritet = o.prioritet, beskrivelse = o.beskrivelse, kunde = o.kunde, anlegg = o.anlegg,
-            telefon = o.telefon, sted = o.sted, adresse = o.adresse, dato = o.dato, tid = o.tid,
-        )
-    }
-}
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val repo = application.app.repository
@@ -137,32 +92,53 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** Kjente kunder og anlegg, sist brukt først. */
     val kjente: StateFlow<List<KjentAnlegg>> = repo.kjente.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    private val utkast = Utkastlager(application)
+    /** Finnes det et påbegynt nytt oppdrag? (Knappen viser da «Fortsett oppdrag».) */
+    val harUtkast: StateFlow<Boolean> = utkast.harNytt
+
+    /** Viser skjemaet og tar vare på det som utkast. */
+    private fun sett(s: Skjema?) {
+        _skjema.value = s
+        if (s != null) utkast.lagre(s)
+    }
+
     /**
-     * Nytt skjema. Fra en samtale: er navnet kjent, fylles sted og adresse fra sist; er bare nummeret
-     * kjent, fylles også kunde og anlegg.
+     * Nytt skjema, eller utkastet hvis et nytt oppdrag er påbegynt. Fra en samtale: navnet fra kontaktene
+     * blir kontaktperson, og er nummeret kjent fra før, fylles kunde, anlegg, sted og adresse inn.
      */
-    fun nyttOppdrag(telefon: String = "", kunde: String = "") {
-        _skjema.value = Skjema(telefon = telefon, kunde = kunde)
-        if (telefon.isBlank() && kunde.isBlank()) return
+    fun nyttOppdrag(telefon: String = "", kontaktperson: String = "") {
+        val lagret = utkast.hentNytt()?.tilSkjema(null)
+        if (lagret != null) {
+            // Påbegynt oppdrag: fortsett der, og legg bare inn nummeret/navnet hvis feltene er tomme.
+            sett(
+                lagret.copy(
+                    telefon = lagret.telefon.ifBlank { telefon },
+                    kontaktperson = lagret.kontaktperson.ifBlank { kontaktperson },
+                ),
+            )
+            return
+        }
+        sett(Skjema(telefon = telefon, kontaktperson = kontaktperson))
+        if (telefon.isBlank()) return
         viewModelScope.launch {
-            val kjente = repo.kjente.first()
-            val treff = if (kunde.isNotBlank()) finnUtfylling(kjente, kunde, "") else finnPaTelefon(kjente, telefon)
-            treff ?: return@launch
-            _skjema.update { s ->
-                s?.let { if (kunde.isBlank()) it.copy(kunde = treff.kunde, anlegg = treff.anlegg) else it }?.fyllFra(treff)
-            }
+            val treff = finnPaTelefon(repo.kjente.first(), telefon) ?: return@launch
+            val s = _skjema.value ?: return@launch
+            if (s.original != null || s.kunde.isNotBlank()) return@launch
+            sett(s.copy(kunde = treff.kunde, anlegg = treff.anlegg).fyllFra(treff))
         }
     }
 
-    /** Kunde valgt fra forslag: fyll inn fra det som sist ble brukt for kunden. */
+    /** Kunde valgt fra forslag: fyll inn fra det som sist ble brukt for kunden (og anlegget, hvis valgt). */
     fun velgKunde(navn: String) {
         oppdaterSkjema { it.copy(kunde = navn) }
         fyllFraKjente()
     }
 
-    /** Anlegg valgt fra forslag: fyll inn fra det som sist ble brukt for kunden og anlegget. */
-    fun velgAnlegg(navn: String) {
-        oppdaterSkjema { it.copy(anlegg = navn) }
+    /** Anlegg valgt fra forslag. Er kundefeltet tomt, fylles kunden fra forslaget inn også. */
+    fun velgAnlegg(forslag: AnleggForslag) {
+        oppdaterSkjema { s ->
+            s.copy(anlegg = forslag.anlegg, kunde = if (s.kunde.isBlank()) forslag.kunde.orEmpty() else s.kunde)
+        }
         fyllFraKjente()
     }
 
@@ -176,16 +152,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** Fjerner et forslag fra registeret (hele kunden når [anlegg] er null). */
     fun glemForslag(kunde: String, anlegg: String?) = viewModelScope.launch { repo.glem(kunde, anlegg) }
 
-    fun endre(o: Oppdrag) { _skjema.value = Skjema.fra(o) }
+    /** Endre et oppdrag; fortsetter på et ulagret utkast for samme oppdrag hvis det finnes. */
+    fun endre(o: Oppdrag) { sett(utkast.hentEndring(o.id)?.tilSkjema(o) ?: Skjema.fra(o)) }
 
+    /** Lukker skjemaet. Det som er skrevet, ligger igjen som utkast. */
     fun lukkSkjema() { _skjema.value = null }
 
+    /** Starter på nytt: tomt skjema for nye oppdrag, originalen for endringer. */
+    fun tomSkjema() {
+        val s = _skjema.value ?: return
+        utkast.slett(s)
+        _skjema.value = s.original?.let { Skjema.fra(it) } ?: Skjema(prioritet = s.prioritet)
+    }
+
     fun oppdaterSkjema(endring: (Skjema) -> Skjema) {
-        _skjema.update { s ->
-            s?.let(endring)?.let { ny ->
-                ny.copy(feil = valider(ny.prioritet, ny.beskrivelse, ny.kunde, ny.dato, ny.tid))
-            }
-        }
+        val ny = _skjema.value?.let(endring) ?: return
+        sett(ny.copy(feil = valider(ny.prioritet, ny.beskrivelse, ny.kunde, ny.dato, ny.tid)))
     }
 
     /** Returnerer false (og viser feilene) hvis skjemaet ikke er gyldig. */
@@ -202,6 +184,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             beskrivelse = s.beskrivelse.trim(),
             kunde = s.kunde.trim(),
             anlegg = s.anlegg.trim(),
+            kontaktperson = s.kontaktperson.trim(),
             telefon = s.telefon.trim(),
             sted = s.sted.trim(),
             adresse = s.adresse.trim(),
@@ -209,6 +192,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             tid = if (s.dato == null) null else s.tid,
         )
         _skjema.value = null
+        utkast.slett(s)
         val stedEndret = s.original == null || s.original.stedTekst != nytt.stedTekst
         // Lagres med en gang. Koordinatene hentes etterpå, i appens omfang så det fullføres selv om skjermen lukkes.
         mottakerOmfang.launch {

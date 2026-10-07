@@ -65,6 +65,7 @@ fun ListeSkjerm(
     onFerdig: (Oppdrag, Boolean) -> Unit,
     onSlett: (Oppdrag) -> Unit,
     onInnstillinger: () -> Unit,
+    harUtkast: Boolean,
     naer: NaerVisning?,
     onNaer: ((Boolean) -> Unit)?,
 ) {
@@ -86,7 +87,7 @@ fun ListeSkjerm(
             ExtendedFloatingActionButton(
                 onClick = onNytt,
                 icon = { Icon(Icons.Outlined.Add, null, Modifier.size(28.dp)) },
-                text = { Text("Nytt oppdrag", style = MaterialTheme.typography.titleMedium) },
+                text = { Text(if (harUtkast) "Fortsett oppdrag" else "Nytt oppdrag", style = MaterialTheme.typography.titleMedium) },
                 modifier = Modifier.height(64.dp),
             )
         },

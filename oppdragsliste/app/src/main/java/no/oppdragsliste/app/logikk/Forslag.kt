@@ -9,53 +9,85 @@ private fun String.norm() = trim().lowercase()
  * teksten. Innenfor samme rang beholdes rekkefølgen (sist brukt først). Det som allerede står i feltet,
  * foreslås ikke.
  */
-private fun ranger(navn: List<String>, tekst: String, maks: Int): List<String> {
-    val t = tekst.norm()
-    val unike = navn.filter { it.isNotBlank() }.distinctBy { it.norm() }.filter { it.norm() != t }
-    if (t.isEmpty()) return unike.take(maks)
-    fun rang(n: String): Int? {
-        val x = n.norm()
-        return when {
-            x.startsWith(t) -> 0
-            x.split(Regex("[\\s\\-/,.]+")).any { it.startsWith(t) } -> 1
-            x.contains(t) -> 2
-            else -> null
-        }
+private fun rang(navn: String, t: String): Int? {
+    val x = navn.norm()
+    return when {
+        t.isEmpty() -> 0
+        x.startsWith(t) -> 0
+        x.split(Regex("[\\s\\-/,.]+")).any { it.startsWith(t) } -> 1
+        x.contains(t) -> 2
+        else -> null
     }
-    return unike.mapNotNull { n -> rang(n)?.let { n to it } }
+}
+
+/** Som [ranger], men for elementer med et navn ([navn]) og noe mer. Duplikater (samme nøkkel) fjernes. */
+private fun <T> rangerAlle(elementer: List<T>, tekst: String, maks: Int, navn: (T) -> String, nokkel: (T) -> String): List<T> {
+    val t = tekst.norm()
+    return elementer.filter { navn(it).isNotBlank() && navn(it).norm() != t }
+        .distinctBy(nokkel)
+        .mapNotNull { e -> rang(navn(e), t)?.let { e to it } }
         .sortedBy { it.second } // stabil sortering: sist brukt først innenfor hver rang
         .map { it.first }
         .take(maks)
 }
 
+private fun ranger(navn: List<String>, tekst: String, maks: Int): List<String> =
+    rangerAlle(navn, tekst, maks, { it }, { it.norm() })
+
 /** Kundeforslag mens man skriver. [kjente] må være sortert sist brukt først. Tomt felt gir ingen forslag. */
 fun kundeForslag(kjente: List<KjentAnlegg>, tekst: String, maks: Int = 5): List<String> =
     if (tekst.isBlank()) emptyList() else ranger(kjente.map { it.kunde.trim() }, tekst, maks)
 
-/**
- * Anleggsforslag for kunden. Er feltet tomt, vises alle anleggene til kunden (sist brukt først).
- * Uten kunde foreslås anlegg fra alle kunder, men bare når noe er skrevet.
- */
-fun anleggForslag(kjente: List<KjentAnlegg>, kunde: String, tekst: String, maks: Int = 6): List<String> {
-    val k = kunde.norm()
-    if (k.isEmpty() && tekst.isBlank()) return emptyList()
-    val aktuelle = if (k.isEmpty()) kjente else kjente.filter { it.kunde.norm() == k }
-    return ranger(aktuelle.map { it.anlegg.trim() }, tekst, maks)
+/** Et anleggsforslag. [kunde] er satt når anlegget hører til en annen kunde enn den i kundefeltet. */
+data class AnleggForslag(val anlegg: String, val kunde: String? = null) {
+    val tekst: String get() = if (kunde.isNullOrBlank()) anlegg else "$anlegg · $kunde"
 }
 
 /**
- * Hva som skal fylles inn. Med anlegg: akkurat den kunden og det anlegget. Uten anlegg: det som sist ble
- * brukt for kunden (uansett anlegg). Null hvis ingenting passer.
+ * Anleggsforslag.
+ * - Med kunde: kundens anlegg først (alle når feltet er tomt). Når noe er skrevet, kommer også
+ *   anlegg fra andre kunder etterpå, merket med kunden (flere kunder kan ha samme anlegg).
+ * - Uten kunde: søk i alle anlegg, merket med kunden, så kunden kan fylles inn når et velges.
+ */
+fun anleggForslag(kjente: List<KjentAnlegg>, kunde: String, tekst: String, maks: Int = 6): List<AnleggForslag> {
+    val k = kunde.norm()
+    if (k.isEmpty() && tekst.isBlank()) return emptyList()
+    val andre = if (tekst.isBlank()) emptyList() else rangerAlle(
+        kjente.filter { it.kunde.norm() != k },
+        tekst, maks, { it.anlegg.trim() }, { it.anlegg.norm() + "\u0000" + it.kunde.norm() },
+    ).map { AnleggForslag(it.anlegg.trim(), it.kunde.trim().ifBlank { null }) }
+    if (k.isEmpty()) return andre
+    val egne = ranger(kjente.filter { it.kunde.norm() == k }.map { it.anlegg.trim() }, tekst, maks).map { AnleggForslag(it) }
+    val egneNavn = egne.map { it.anlegg.norm() }.toSet()
+    return (egne + andre.filter { it.anlegg.norm() !in egneNavn }).take(maks)
+}
+
+/**
+ * Hva som skal fylles inn.
+ * - Kjent kombinasjon av kunde og anlegg: alt derfra.
+ * - Ellers: kontaktperson og telefon fra det som sist ble brukt for kunden, sted og adresse fra det som sist ble brukt
+ *   for anlegget (uansett kunde, siden flere kunder kan ha samme anlegg). Uten anlegg: alt fra kunden.
+ *   Ukjent kunde gir tom telefon, ukjent anlegg tomt sted, så det som ble fylt inn fra før forsvinner.
+ * Null hvis verken kunden eller anlegget er kjent.
  */
 fun finnUtfylling(kjente: List<KjentAnlegg>, kunde: String, anlegg: String): KjentAnlegg? {
     val k = kunde.norm()
     val a = anlegg.norm()
     if (k.isEmpty() && a.isEmpty()) return null
-    return if (a.isNotEmpty()) {
-        kjente.firstOrNull { it.kunde.norm() == k && it.anlegg.norm() == a }
-    } else {
-        kjente.filter { it.kunde.norm() == k }.maxByOrNull { it.sistBrukt }
-    }
+    kjente.firstOrNull { it.kunde.norm() == k && it.anlegg.norm() == a }?.let { return it }
+    val kundeSist = if (k.isEmpty()) null else kjente.filter { it.kunde.norm() == k }.maxByOrNull { it.sistBrukt }
+    val anleggSist = if (a.isEmpty()) null else kjente.filter { it.anlegg.norm() == a }.maxByOrNull { it.sistBrukt }
+    if (kundeSist == null && anleggSist == null) return null
+    // Kontaktperson og telefon hører sammen og følger kunden.
+    val kontaktKilde = if (k.isNotEmpty()) kundeSist else anleggSist
+    val stedKilde = if (a.isNotEmpty()) anleggSist else kundeSist
+    return KjentAnlegg(
+        kunde = kunde.trim(), anlegg = anlegg.trim(),
+        kontaktperson = kontaktKilde?.kontaktperson.orEmpty(), telefon = kontaktKilde?.telefon.orEmpty(),
+        sted = stedKilde?.sted.orEmpty(), adresse = stedKilde?.adresse.orEmpty(),
+        lat = stedKilde?.lat, lng = stedKilde?.lng,
+        sistBrukt = listOfNotNull(kundeSist?.sistBrukt, anleggSist?.sistBrukt).max(),
+    )
 }
 
 /** Finner kunde og anlegg for et telefonnummer (f.eks. etter en samtale), sist brukt først. */
@@ -66,7 +98,7 @@ fun finnPaTelefon(kjente: List<KjentAnlegg>, telefon: String): KjentAnlegg? {
 }
 
 /** Felt som kan fylles inn automatisk. */
-enum class Autofelt { TELEFON, STED, ADRESSE }
+enum class Autofelt { KONTAKTPERSON, TELEFON, STED, ADRESSE }
 
 /**
  * Ny verdi for et felt: overskriv bare hvis feltet er tomt eller fortsatt har verdien vi selv fylte inn

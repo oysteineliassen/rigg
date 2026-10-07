@@ -123,7 +123,8 @@ fun OppdragKort(
                     .filter { it.isNotBlank() }.joinToString(" · ")
                 if (kundeLinje.isNotBlank()) Linje(Icons.Outlined.Person, kundeLinje)
                 if (o.stedTekst.isNotBlank()) Linje(Icons.Outlined.Place, o.stedTekst)
-                if (o.telefon.isNotBlank()) Linje(Icons.Outlined.Phone, formaterTelefon(o.telefon))
+                val kontakt = listOf(o.kontaktperson, formaterTelefon(o.telefon)).filter { it.isNotBlank() }.joinToString(" · ")
+                if (kontakt.isNotBlank()) Linje(Icons.Outlined.Phone, kontakt)
                 formaterDatoTid(o.dato, o.tid, idag)?.let { tekst ->
                     Linje(
                         Icons.Outlined.Event,

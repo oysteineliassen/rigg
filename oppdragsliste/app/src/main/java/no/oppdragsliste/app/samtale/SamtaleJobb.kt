@@ -43,7 +43,7 @@ class SamtaleJobb(context: Context, params: WorkerParameters) : CoroutineWorker(
         val apne = Varsler.apneApp(ctx, varselId) {
             action = MainActivity.HANDLING_NYTT
             putExtra(MainActivity.EKSTRA_TELEFON, pent)
-            putExtra(MainActivity.EKSTRA_KUNDE, navn.orEmpty())
+            putExtra(MainActivity.EKSTRA_KONTAKT, navn.orEmpty())
             putExtra(MainActivity.EKSTRA_VARSEL, varselId)
         }
         Varsler.vis(ctx, varselId, Varsler.bygg(ctx, Varsler.KANAL_SAMTALE, tittel, tekst).setContentIntent(apne))

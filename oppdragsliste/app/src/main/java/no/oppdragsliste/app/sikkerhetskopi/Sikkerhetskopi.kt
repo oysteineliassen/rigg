@@ -15,6 +15,7 @@ data class OppdragJson(
     val beskrivelse: String = "",
     val kunde: String = "",
     val anlegg: String = "",
+    val kontaktperson: String = "",
     val telefon: String = "",
     val sted: String = "",
     val adresse: String = "",
@@ -43,13 +44,13 @@ private val json = Json {
 }
 
 fun Oppdrag.tilJson() = OppdragJson(
-    beskrivelse = beskrivelse, kunde = kunde, anlegg = anlegg, telefon = telefon, sted = sted, adresse = adresse,
+    beskrivelse = beskrivelse, kunde = kunde, anlegg = anlegg, kontaktperson = kontaktperson, telefon = telefon, sted = sted, adresse = adresse,
     lat = lat, lng = lng, prioritet = prioritet.name, dato = dato?.toString(), tid = tid?.toString(),
     opprettet = opprettet.toString(), ferdig = ferdig, ferdigDato = ferdigDato?.toString(),
 )
 
 fun OppdragJson.tilOppdrag() = Oppdrag(
-    beskrivelse = beskrivelse, kunde = kunde, anlegg = anlegg, telefon = telefon, sted = sted, adresse = adresse,
+    beskrivelse = beskrivelse, kunde = kunde, anlegg = anlegg, kontaktperson = kontaktperson, telefon = telefon, sted = sted, adresse = adresse,
     lat = lat, lng = lng,
     prioritet = runCatching { Prioritet.valueOf(prioritet) }.getOrDefault(Prioritet.OMRADE),
     dato = dato?.let(LocalDate::parse),

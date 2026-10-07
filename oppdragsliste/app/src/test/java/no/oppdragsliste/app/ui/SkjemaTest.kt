@@ -25,6 +25,23 @@ class SkjemaTest {
     }
 
     @Test
+    fun `utkast tar vare pa alt som er skrevet`() {
+        val s = Skjema(beskrivelse = "Lampe", kunde = "Kari", kontaktperson = "Per", dato = java.time.LocalDate.of(2026, 10, 9))
+            .fyllFra(skole)
+        val tilbake = Utkast.fra(s).tilSkjema(null)
+        assertEquals(s.copy(kilde = null, fraUtkast = true), tilbake)
+    }
+
+    @Test
+    fun `tomt skjema har ikke innhold, endring uten forskjell heller ikke`() {
+        assertEquals(false, Skjema().harInnhold)
+        assertEquals(true, Skjema(kunde = "K").harInnhold)
+        val o = no.oppdragsliste.app.data.Oppdrag(id = 3, kunde = "K")
+        assertEquals(false, Skjema.fra(o).harInnhold)
+        assertEquals(true, Skjema.fra(o).copy(sted = "Søgne").harInnhold)
+    }
+
+    @Test
     fun `det brukeren har skrevet, og nummer fra samtale, beholdes`() {
         val s = Skjema(telefon = "900 00 000").fyllFra(skole).copy(sted = "Mandal").fyllFra(radhus)
         assertEquals("900 00 000", s.telefon)

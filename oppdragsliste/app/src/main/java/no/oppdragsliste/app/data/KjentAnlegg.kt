@@ -18,6 +18,7 @@ import java.time.Instant
 data class KjentAnlegg(
     val kunde: String,
     val anlegg: String,
+    val kontaktperson: String = "",
     val telefon: String = "",
     val sted: String = "",
     val adresse: String = "",

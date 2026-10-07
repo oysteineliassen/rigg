@@ -63,6 +63,7 @@ class MainActivity : ComponentActivity() {
             val skjema by vm.skjema.collectAsStateWithLifecycle()
             val naer by vm.naer.collectAsStateWithLifecycle()
             val kjente by vm.kjente.collectAsStateWithLifecycle()
+            val harUtkast by vm.harUtkast.collectAsStateWithLifecycle()
             val geokodStatus by vm.geokoder.collectAsStateWithLifecycle()
             val kopiStatus by vm.kopiStatus.collectAsStateWithLifecycle()
             var visInnstillinger by rememberSaveable { mutableStateOf(false) }
@@ -91,23 +92,23 @@ class MainActivity : ComponentActivity() {
                         onFerdig = { o, f -> vm.settFerdig(o, f) },
                         onSlett = { vm.slett(it) },
                         onInnstillinger = { visInnstillinger = true },
+                        harUtkast = harUtkast,
                         naer = naer,
                         onNaer = ::visNaer,
                     )
                 }
-                skjema?.let { s ->
-                    SkjemaArk(
-                        skjema = s,
-                        kjente = kjente,
-                        onEndre = vm::oppdaterSkjema,
-                        onVelgKunde = vm::velgKunde,
-                        onVelgAnlegg = vm::velgAnlegg,
-                        onFeltForlatt = vm::fyllFraKjente,
-                        onGlem = { k, a -> vm.glemForslag(k, a) },
-                        onLagre = { vm.lagreSkjema() },
-                        onLukk = vm::lukkSkjema,
-                    )
-                }
+                SkjemaArk(
+                    skjema = skjema,
+                    kjente = kjente,
+                    onEndre = vm::oppdaterSkjema,
+                    onVelgKunde = vm::velgKunde,
+                    onVelgAnlegg = vm::velgAnlegg,
+                    onFeltForlatt = vm::fyllFraKjente,
+                    onGlem = { k, a -> vm.glemForslag(k, a) },
+                    onLagre = { vm.lagreSkjema() },
+                    onTom = vm::tomSkjema,
+                    onLukk = vm::lukkSkjema,
+                )
             }
         }
     }
@@ -125,7 +126,7 @@ class MainActivity : ComponentActivity() {
             if (varsel != -1) NotificationManagerCompat.from(this).cancel(varsel)
             vm.nyttOppdrag(
                 telefon = intent.getStringExtra(EKSTRA_TELEFON).orEmpty(),
-                kunde = intent.getStringExtra(EKSTRA_KUNDE).orEmpty(),
+                kontaktperson = intent.getStringExtra(EKSTRA_KONTAKT).orEmpty(),
             )
         }
     }
@@ -134,7 +135,7 @@ class MainActivity : ComponentActivity() {
         const val HANDLING_NYTT = "no.oppdragsliste.app.NYTT_OPPDRAG"
         const val HANDLING_NAER = "no.oppdragsliste.app.I_NAERHETEN"
         const val EKSTRA_TELEFON = "telefon"
-        const val EKSTRA_KUNDE = "kunde"
+        const val EKSTRA_KONTAKT = "kontakt"
         const val EKSTRA_VARSEL = "varsel"
     }
 }
