@@ -21,6 +21,10 @@ import no.oppdragsliste.app.logikk.Feil
 import no.oppdragsliste.app.logikk.Seksjon
 import no.oppdragsliste.app.logikk.filtrer
 import no.oppdragsliste.app.logikk.grupper
+import no.oppdragsliste.app.logikk.sorterPaAvstand
+import no.oppdragsliste.app.sted.geokod
+import no.oppdragsliste.app.sted.naverendePosisjon
+import no.oppdragsliste.app.varsler.mottakerOmfang
 import no.oppdragsliste.app.logikk.utforte
 import no.oppdragsliste.app.logikk.valider
 import java.time.LocalDate
@@ -88,7 +92,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ListeTilstand())
 
-    fun endreOppsett(endring: (Oppsett) -> Oppsett) = innstillinger.endre(endring)
+    fun endreOppsett(endring: (Oppsett) -> Oppsett) {
+        val forrige = innstillinger.na
+        innstillinger.endre(endring)
+        if (innstillinger.na.copy(tema = forrige.tema) != forrige) getApplication<Application>().app.planleggAltSenere()
+    }
 
     fun settSok(tekst: String) { _sok.value = tekst }
 
@@ -128,8 +136,69 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             tid = if (s.dato == null) null else s.tid,
         )
         _skjema.value = null
-        viewModelScope.launch { repo.lagre(nytt) }
+        val stedEndret = s.original == null || s.original.stedTekst != nytt.stedTekst
+        // Lagres med en gang. Koordinatene hentes etterpå, i appens omfang så det fullføres selv om skjermen lukkes.
+        mottakerOmfang.launch {
+            val lagret = if (stedEndret) nytt.copy(lat = null, lng = null) else nytt
+            val id = repo.lagre(lagret)
+            if ((stedEndret || !lagret.harKoordinater) && lagret.stedTekst.isNotBlank()) {
+                val koordinater = geokod(getApplication(), lagret) ?: return@launch
+                val na = repo.hent(id) ?: return@launch
+                // Bare hvis stedet ikke er endret på nytt i mellomtiden.
+                if (na.stedTekst == lagret.stedTekst) repo.lagre(na.copy(lat = koordinater.first, lng = koordinater.second))
+            }
+        }
         return true
+    }
+
+    private val _geokoder = MutableStateFlow<String?>(null)
+    /** Status for «finn koordinater for oppdrag som mangler». */
+    val geokoder: StateFlow<String?> = _geokoder.asStateFlow()
+
+    fun geokodManglende() = mottakerOmfang.launch {
+        val mangler = repo.apne().filter { !it.harKoordinater && it.stedTekst.isNotBlank() }
+        var funnet = 0
+        mangler.forEachIndexed { i, o ->
+            _geokoder.value = "Søker ${i + 1} av ${mangler.size} …"
+            geokod(getApplication(), o)?.let { (lat, lng) ->
+                repo.hent(o.id)?.let { repo.oppdaterStille(it.copy(lat = lat, lng = lng)) }
+                funnet++
+            }
+        }
+        if (funnet > 0) getApplication<Application>().app.planleggAlt()
+        _geokoder.value = if (mangler.isEmpty()) "Alle åpne oppdrag med sted har koordinater."
+        else "Fant koordinater for $funnet av ${mangler.size}."
+    }
+
+    // «I nærheten»: null = av. Ellers posisjonen (eller at vi venter på den / ikke fant den).
+    private sealed interface Posisjon {
+        data object Laster : Posisjon
+        data class Feil(val melding: String) : Posisjon
+        data class Funnet(val lat: Double, val lng: Double) : Posisjon
+    }
+    private val _posisjon = MutableStateFlow<Posisjon?>(null)
+
+    val naer: StateFlow<NaerVisning?> = combine(repo.alle, _posisjon) { alle, pos ->
+        when (pos) {
+            null -> null
+            Posisjon.Laster -> NaerVisning(emptyList(), laster = true)
+            is Posisjon.Feil -> NaerVisning(emptyList(), feil = pos.melding)
+            is Posisjon.Funnet -> NaerVisning(sorterPaAvstand(alle, pos.lat, pos.lng))
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    fun visNaer(pa: Boolean) {
+        if (!pa) {
+            _posisjon.value = null
+            return
+        }
+        _posisjon.value = Posisjon.Laster
+        viewModelScope.launch {
+            val p = naverendePosisjon(getApplication())
+            if (_posisjon.value == null) return@launch // slått av mens vi ventet
+            _posisjon.value = if (p != null) Posisjon.Funnet(p.first, p.second)
+            else Posisjon.Feil("Fant ikke posisjonen din. Sjekk at posisjon er slått på og at appen har tilgang.")
+        }
     }
 
     fun settFerdig(o: Oppdrag, ferdig: Boolean) = viewModelScope.launch { repo.settFerdig(o, ferdig) }
