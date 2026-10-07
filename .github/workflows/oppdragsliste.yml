@@ -1,0 +1,62 @@
+# Bygger Oppdragsliste og kjører testene når noe i oppdragsliste/ endres.
+name: Oppdragsliste
+
+on:
+  push:
+    paths:
+      - "oppdragsliste/**"
+      - ".github/workflows/oppdragsliste.yml"
+  pull_request:
+    paths:
+      - "oppdragsliste/**"
+      - ".github/workflows/oppdragsliste.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    working-directory: oppdragsliste
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # versjonsnummeret er antall commits
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Enhetstester og APK
+        run: ./gradlew testDebugUnitTest assembleDebug --stacktrace
+
+      - name: Gi APK-en et navn med byggenummeret
+        run: cp app/build/outputs/apk/debug/app-debug.apk oppdragsliste-${{ github.run_number }}.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: oppdragsliste-apk
+          path: oppdragsliste/oppdragsliste-${{ github.run_number }}.apk
+
+      - name: Testrapport ved feil
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: oppdragsliste-testrapport
+          path: oppdragsliste/app/build/reports/tests/
+
+      - name: Legg ut som release
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: oppdragsliste-${{ github.run_number }}
+          name: Oppdragsliste bygg ${{ github.run_number }}
+          prerelease: true
+          files: oppdragsliste/oppdragsliste-${{ github.run_number }}.apk
