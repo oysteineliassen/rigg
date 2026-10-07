@@ -69,7 +69,7 @@ class ForslagTest {
     fun utfylling() {
         assertEquals("38 05 55 01", finnUtfylling(kjente, "søgne kommune", "rådhuset")?.telefon)
         // Uten anlegg: det som sist ble brukt for kunden.
-        assertEquals("Søgne skole", finnUtfylling(kjente, "Søgne kommune", "")?.anlegg)
+        assertEquals("38 05 55 00", finnUtfylling(kjente, "Søgne kommune", "")?.telefon)
         assertEquals("Tangvall", finnUtfylling(kjente, "Ola Hansen", "")?.sted)
         assertNull(finnUtfylling(kjente, "", ""))
         assertNull(finnUtfylling(kjente, "Ny kunde", "Ukjent"))
