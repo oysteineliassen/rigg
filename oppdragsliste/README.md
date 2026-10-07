@@ -1,0 +1,91 @@
+# Oppdragsliste
+
+Android-app for å holde styr på oppdrag som kommer inn over telefon: akutte, faste avtaler,
+de som haster og de som tas «når jeg er i området». Kun til eget bruk, installeres som APK.
+
+- Pakke: `no.oppdragsliste.app`
+- Kotlin, Jetpack Compose (Material3), Room, MVVM (ViewModel + StateFlow), WorkManager
+- minSdk 26, targetSdk/compileSdk 36
+- Ingen backend: alt lagres lokalt på telefonen
+
+## Bygge APK-en
+
+### Alternativ 1: Android Studio
+1. File > Open > velg mappen `oppdragsliste` (ikke rotmappen til repoet).
+2. La Gradle synkronisere ferdig.
+3. Build > Build App Bundle(s) / APK(s) > Build APK(s).
+   APK-en havner i `app/build/outputs/apk/debug/app-debug.apk`.
+
+### Alternativ 2: kommandolinje
+Krever JDK 17 eller nyere og Android SDK (sett `ANDROID_HOME`, eller lag `local.properties` med
+`sdk.dir=/sti/til/Android/Sdk`).
+
+    cd oppdragsliste
+    ./gradlew assembleDebug          # APK i app/build/outputs/apk/debug/
+    ./gradlew testDebugUnitTest      # enhetstestene
+
+På Windows: `gradlew.bat assembleDebug`.
+
+### Alternativ 3: GitHub
+`.github/workflows/oppdragsliste.yml` bygger appen og kjører testene hver gang noe i `oppdragsliste/`
+pushes. APK-en ligger under **Actions** > siste kjøring > **Artifacts** > `oppdragsliste-apk` (en zip
+med APK-en i). Pushes det til `main`, legges APK-en også ut under **Releases** (`oppdragsliste-N`).
+
+## Installere på telefonen
+
+**Med kabel (adb):** Slå på utvikleralternativer og USB-feilsøking på telefonen, koble til og kjør
+
+    adb install -r app/build/outputs/apk/debug/app-debug.apk
+
+**Uten kabel:** Last ned APK-en på telefonen (fra GitHub, Google Disk e.l.), åpne den og tillat
+installasjon fra den appen (nettleser/filbehandler) når Android spør.
+
+Alle bygg signeres med den samme debug-nøkkelen (`app/oppdragsliste-debug.keystore`, ikke hemmelig),
+så nye versjoner kan installeres over gamle uten at dataene forsvinner. Versjonsnummeret er antall
+commits i git, så en nyere versjon er alltid høyere.
+
+## Første oppstart
+1. Gi tillatelse til varsler.
+2. Gå til **Innstillinger** (tannhjulet) og slå på det du vil bruke:
+   - **Påminnelser:** varsel før avtaler (standard 60 min) og morgenoversikt.
+   - **Etter telefonsamtaler:** ber om telefonstatus, anropslogg og kontakter.
+   - **Du er i området:** ber først om posisjon, deretter om posisjon «hele tiden».
+3. Legg gjerne til flisen «Nytt oppdrag» i hurtiginnstillingene (knapp i innstillingene på Android 13+).
+   Snarveien «Nytt oppdrag» finnes også ved å holde på app-ikonet.
+
+## Funksjoner
+
+- **Liste** i seksjonene Akutt → Avtalt tid → Haster → Når i området, med fargekant per prioritet.
+  Avtaler sorteres på dato og klokkeslett, «Når i området» eldste først med «Lagt inn for X dager
+  siden». Forfalte datoer vises i rødt. Utførte oppdrag ligger sammenfoldet nederst og kan gjenåpnes.
+- **Søk** i sted, adresse, kunde, beskrivelse og telefon (også uten mellomrom i nummeret).
+- **Trykk på et kort** for Ring, Vis i kart, Ferdig, Endre og Slett (bekreftes i kortet).
+- **Nytt oppdrag:** krever beskrivelse eller kunde, og dato for Avtalt tid.
+- **Etter samtaler** over minstelengden (standard 20 sek): «Nytt oppdrag fra 900 00 000?».
+  Trykk åpner skjemaet med nummer og navn fra kontaktene ferdig utfylt.
+- **Påminnelser** med eksakte alarmer, planlegges på nytt etter omstart.
+- **I nærheten:** sted/adresse geokodes når du lagrer. Geofencer (standard 2 km) gir ett samlet varsel,
+  f.eks. «3 oppdrag i nærheten: Søgne (2), Tangvall (1)», maks én gang per oppdrag per dag.
+  Android tillater 100 geofencer; akutte og haster prioriteres, deretter de eldste.
+  Knappen «I nærheten» i listen sorterer på avstand fra der du er.
+- **Sikkerhetskopi:** eksport/import av alle oppdrag som JSON (Innstillinger > Sikkerhetskopi).
+  Import hopper over oppdrag som allerede finnes.
+
+Geokoding og geofencer krever Google Play-tjenester (finnes på vanlige Android-telefoner). Uten nett
+eller treff lagres oppdraget uten koordinater; bruk «Finn koordinater for oppdrag som mangler» senere.
+
+## Filer (`app/src/main/java/no/oppdragsliste/app`)
+
+| Mappe / fil | Innhold |
+|---|---|
+| `MainActivity.kt`, `OppdragApp.kt` | Oppstart, intenter fra varsler/snarveier, felles avhengigheter |
+| `data/` | Room-entitet `Oppdrag`, DAO, database, repository, innstillinger |
+| `logikk/` | Rene funksjoner: sortering, søk, validering, formatering, oversikt, avstand |
+| `ui/` | Compose-skjermer: liste, kort, skjema, innstillinger, tema |
+| `samtale/` | Samtalevarsel (mottaker + WorkManager-jobb), kontaktoppslag, Quick Settings-flis |
+| `varsler/` | Varselkanaler, AlarmManager-planlegging, alarm- og oppstartsmottaker |
+| `sted/` | Geokoding, nåværende posisjon, geofencer |
+| `sikkerhetskopi/` | JSON-eksport og -import |
+
+Enhetstestene ligger i `app/src/test` (sortering, søk, forfall, validering, formatering,
+morgenoversikt, avstand/geofence-utvalg, samtalefilter og sikkerhetskopi).

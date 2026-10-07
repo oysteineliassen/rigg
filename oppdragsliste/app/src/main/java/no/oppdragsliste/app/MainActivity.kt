@@ -17,6 +17,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import no.oppdragsliste.app.ui.InnstillingerSkjerm
+import no.oppdragsliste.app.ui.KopiInnstillinger
 import no.oppdragsliste.app.ui.ListeSkjerm
 import no.oppdragsliste.app.ui.MainViewModel
 import no.oppdragsliste.app.ui.NaerInnstillinger
@@ -61,6 +62,7 @@ class MainActivity : ComponentActivity() {
             val skjema by vm.skjema.collectAsStateWithLifecycle()
             val naer by vm.naer.collectAsStateWithLifecycle()
             val geokodStatus by vm.geokoder.collectAsStateWithLifecycle()
+            val kopiStatus by vm.kopiStatus.collectAsStateWithLifecycle()
             var visInnstillinger by rememberSaveable { mutableStateOf(false) }
 
             OppdragTema(oppsett.tema) {
@@ -74,6 +76,7 @@ class MainActivity : ComponentActivity() {
                         VarselInnstillinger(oppsett, vm::endreOppsett)
                         SamtaleInnstillinger(oppsett, vm::endreOppsett)
                         NaerInnstillinger(oppsett, vm::endreOppsett, geokodStatus, vm::geokodManglende)
+                        KopiInnstillinger(kopiStatus, vm::eksporterTil, vm::importerFra)
                     }
                 } else {
                     ListeSkjerm(

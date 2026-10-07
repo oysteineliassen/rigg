@@ -1,9 +1,12 @@
 package no.oppdragsliste.app.ui
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -22,6 +25,9 @@ import no.oppdragsliste.app.logikk.Seksjon
 import no.oppdragsliste.app.logikk.filtrer
 import no.oppdragsliste.app.logikk.grupper
 import no.oppdragsliste.app.logikk.sorterPaAvstand
+import no.oppdragsliste.app.sikkerhetskopi.eksporter
+import no.oppdragsliste.app.sikkerhetskopi.les
+import no.oppdragsliste.app.sikkerhetskopi.nyeOppdrag
 import no.oppdragsliste.app.sted.geokod
 import no.oppdragsliste.app.sted.naverendePosisjon
 import no.oppdragsliste.app.varsler.mottakerOmfang
@@ -198,6 +204,39 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if (_posisjon.value == null) return@launch // slått av mens vi ventet
             _posisjon.value = if (p != null) Posisjon.Funnet(p.first, p.second)
             else Posisjon.Feil("Fant ikke posisjonen din. Sjekk at posisjon er slått på og at appen har tilgang.")
+        }
+    }
+
+    private val _kopiStatus = MutableStateFlow<String?>(null)
+    val kopiStatus: StateFlow<String?> = _kopiStatus.asStateFlow()
+
+    fun eksporterTil(uri: Uri) = viewModelScope.launch {
+        _kopiStatus.value = try {
+            val alle = repo.alleNa()
+            val tekst = eksporter(alle)
+            withContext(Dispatchers.IO) {
+                getApplication<Application>().contentResolver.openOutputStream(uri, "wt")!!.use {
+                    it.write(tekst.toByteArray(Charsets.UTF_8))
+                }
+            }
+            "Eksporterte ${alle.size} oppdrag."
+        } catch (e: Exception) {
+            "Eksporten feilet: ${e.message ?: e.javaClass.simpleName}"
+        }
+    }
+
+    fun importerFra(uri: Uri) = viewModelScope.launch {
+        _kopiStatus.value = try {
+            val tekst = withContext(Dispatchers.IO) {
+                getApplication<Application>().contentResolver.openInputStream(uri)!!.use { it.readBytes().toString(Charsets.UTF_8) }
+            }
+            val importerte = les(tekst)
+            val nye = nyeOppdrag(repo.alleNa(), importerte)
+            if (nye.isNotEmpty()) repo.settInnAlle(nye)
+            val hoppet = importerte.size - nye.size
+            "Importerte ${nye.size} oppdrag." + if (hoppet > 0) " $hoppet fantes fra før og ble hoppet over." else ""
+        } catch (e: Exception) {
+            "Kunne ikke lese filen. Er det en sikkerhetskopi fra Oppdragsliste?"
         }
     }
 
