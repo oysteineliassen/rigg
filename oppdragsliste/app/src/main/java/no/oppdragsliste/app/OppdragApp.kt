@@ -13,7 +13,7 @@ import no.oppdragsliste.app.varsler.mottakerOmfang
 class OppdragApp : Application() {
     val database by lazy { AppDatabase.bygg(this) }
     val innstillinger by lazy { Innstillinger(this) }
-    val repository by lazy { OppdragRepository(database.oppdragDao()) { planleggAlt() } }
+    val repository by lazy { OppdragRepository(database.oppdragDao(), database.kjentAnleggDao()) { planleggAlt() } }
 
     override fun onCreate() {
         super.onCreate()

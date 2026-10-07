@@ -19,6 +19,7 @@ data class Oppdrag(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val beskrivelse: String = "",
     val kunde: String = "",
+    val anlegg: String = "",
     val telefon: String = "",
     val sted: String = "",
     val adresse: String = "",

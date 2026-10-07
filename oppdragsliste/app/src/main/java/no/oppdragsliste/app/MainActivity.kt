@@ -61,6 +61,7 @@ class MainActivity : ComponentActivity() {
             val sok by vm.sok.collectAsStateWithLifecycle()
             val skjema by vm.skjema.collectAsStateWithLifecycle()
             val naer by vm.naer.collectAsStateWithLifecycle()
+            val kjente by vm.kjente.collectAsStateWithLifecycle()
             val geokodStatus by vm.geokoder.collectAsStateWithLifecycle()
             val kopiStatus by vm.kopiStatus.collectAsStateWithLifecycle()
             var visInnstillinger by rememberSaveable { mutableStateOf(false) }
@@ -95,7 +96,12 @@ class MainActivity : ComponentActivity() {
                 skjema?.let { s ->
                     SkjemaArk(
                         skjema = s,
+                        kjente = kjente,
                         onEndre = vm::oppdaterSkjema,
+                        onVelgKunde = vm::velgKunde,
+                        onVelgAnlegg = vm::velgAnlegg,
+                        onFeltForlatt = vm::fyllFraKjente,
+                        onGlem = { k, a -> vm.glemForslag(k, a) },
                         onLagre = { vm.lagreSkjema() },
                         onLukk = vm::lukkSkjema,
                     )

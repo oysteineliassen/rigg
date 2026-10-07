@@ -39,13 +39,13 @@ fun grupper(oppdrag: List<Oppdrag>): List<Seksjon> {
 fun utforte(oppdrag: List<Oppdrag>): List<Oppdrag> =
     oppdrag.filter { it.ferdig }.sortedWith(compareByDescending<Oppdrag> { it.ferdigDato ?: it.opprettet })
 
-/** Søk i sted, adresse, kunde, beskrivelse og telefon. Telefon matcher også uten mellomrom. */
+/** Søk i sted, adresse, kunde, anlegg, beskrivelse og telefon. Telefon matcher også uten mellomrom. */
 fun filtrer(oppdrag: List<Oppdrag>, sok: String): List<Oppdrag> {
     val ord = sok.trim().lowercase().split(Regex("\\s+")).filter { it.isNotEmpty() }
     if (ord.isEmpty()) return oppdrag
     val sifferSok = sok.filter { it.isDigit() }
     return oppdrag.filter { o ->
-        val tekst = listOf(o.sted, o.adresse, o.kunde, o.beskrivelse, o.telefon).joinToString(" ").lowercase()
+        val tekst = listOf(o.sted, o.adresse, o.kunde, o.anlegg, o.beskrivelse, o.telefon).joinToString(" ").lowercase()
         ord.all { tekst.contains(it) } ||
             (sifferSok.length >= 3 && o.telefon.filter { it.isDigit() }.contains(sifferSok))
     }

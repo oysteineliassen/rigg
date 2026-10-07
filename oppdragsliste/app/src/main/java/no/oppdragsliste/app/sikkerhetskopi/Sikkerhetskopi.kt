@@ -14,6 +14,7 @@ import java.time.LocalTime
 data class OppdragJson(
     val beskrivelse: String = "",
     val kunde: String = "",
+    val anlegg: String = "",
     val telefon: String = "",
     val sted: String = "",
     val adresse: String = "",
@@ -42,13 +43,13 @@ private val json = Json {
 }
 
 fun Oppdrag.tilJson() = OppdragJson(
-    beskrivelse = beskrivelse, kunde = kunde, telefon = telefon, sted = sted, adresse = adresse,
+    beskrivelse = beskrivelse, kunde = kunde, anlegg = anlegg, telefon = telefon, sted = sted, adresse = adresse,
     lat = lat, lng = lng, prioritet = prioritet.name, dato = dato?.toString(), tid = tid?.toString(),
     opprettet = opprettet.toString(), ferdig = ferdig, ferdigDato = ferdigDato?.toString(),
 )
 
 fun OppdragJson.tilOppdrag() = Oppdrag(
-    beskrivelse = beskrivelse, kunde = kunde, telefon = telefon, sted = sted, adresse = adresse,
+    beskrivelse = beskrivelse, kunde = kunde, anlegg = anlegg, telefon = telefon, sted = sted, adresse = adresse,
     lat = lat, lng = lng,
     prioritet = runCatching { Prioritet.valueOf(prioritet) }.getOrDefault(Prioritet.OMRADE),
     dato = dato?.let(LocalDate::parse),
@@ -66,7 +67,7 @@ fun les(tekst: String): List<Oppdrag> =
     json.decodeFromString<SikkerhetskopiFil>(tekst).oppdrag.map { it.tilOppdrag() }
 
 /** Samme oppdrag: lagt inn samtidig og med samme innhold. Brukes for å ikke importere duplikater. */
-private fun Oppdrag.nokkel() = listOf(opprettet.toEpochMilli(), beskrivelse, kunde, telefon, sted, adresse).joinToString("\u0000")
+private fun Oppdrag.nokkel() = listOf(opprettet.toEpochMilli(), beskrivelse, kunde, anlegg, telefon, sted, adresse).joinToString("\u0000")
 
 /** Oppdragene i [importerte] som ikke allerede finnes, klare til å settes inn (med ny id). */
 fun nyeOppdrag(eksisterende: List<Oppdrag>, importerte: List<Oppdrag>): List<Oppdrag> {

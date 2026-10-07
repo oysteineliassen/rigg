@@ -12,15 +12,21 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import no.oppdragsliste.app.app
+import no.oppdragsliste.app.data.KjentAnlegg
 import no.oppdragsliste.app.data.Oppdrag
 import no.oppdragsliste.app.data.Oppsett
 import no.oppdragsliste.app.data.Prioritet
+import no.oppdragsliste.app.logikk.Autofelt
 import no.oppdragsliste.app.logikk.Feil
+import no.oppdragsliste.app.logikk.finnPaTelefon
+import no.oppdragsliste.app.logikk.finnUtfylling
+import no.oppdragsliste.app.logikk.nyVerdi
 import no.oppdragsliste.app.logikk.Seksjon
 import no.oppdragsliste.app.logikk.filtrer
 import no.oppdragsliste.app.logikk.grupper
@@ -51,6 +57,7 @@ data class Skjema(
     val prioritet: Prioritet = Prioritet.OMRADE,
     val beskrivelse: String = "",
     val kunde: String = "",
+    val anlegg: String = "",
     val telefon: String = "",
     val sted: String = "",
     val adresse: String = "",
@@ -58,10 +65,31 @@ data class Skjema(
     val tid: LocalTime? = null,
     val feil: Set<Feil> = emptySet(),
     val visFeil: Boolean = false,
+    /** Verdiene vi selv fylte inn sist, så de kan byttes ut hvis kunde eller anlegg endres. */
+    val autofylt: Map<Autofelt, String> = emptyMap(),
+    /** Registeroppføringen sist utfylt fra; koordinatene gjenbrukes hvis stedet ikke er endret. */
+    val kilde: KjentAnlegg? = null,
 ) {
+    /** Fyller telefon, sted og adresse fra registeret, uten å røre det brukeren har skrevet selv. */
+    fun fyllFra(k: KjentAnlegg): Skjema {
+        val auto = autofylt.toMutableMap()
+        fun felt(f: Autofelt, naa: String, forslag: String): String {
+            val ny = nyVerdi(naa, autofylt[f], forslag)
+            if (ny != naa || naa == autofylt[f]) auto[f] = ny else auto.remove(f)
+            return ny
+        }
+        return copy(
+            telefon = felt(Autofelt.TELEFON, telefon, k.telefon),
+            sted = felt(Autofelt.STED, sted, k.sted),
+            adresse = felt(Autofelt.ADRESSE, adresse, k.adresse),
+            autofylt = auto,
+            kilde = k,
+        )
+    }
+
     companion object {
         fun fra(o: Oppdrag) = Skjema(
-            original = o, prioritet = o.prioritet, beskrivelse = o.beskrivelse, kunde = o.kunde,
+            original = o, prioritet = o.prioritet, beskrivelse = o.beskrivelse, kunde = o.kunde, anlegg = o.anlegg,
             telefon = o.telefon, sted = o.sted, adresse = o.adresse, dato = o.dato, tid = o.tid,
         )
     }
@@ -106,9 +134,47 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun settSok(tekst: String) { _sok.value = tekst }
 
+    /** Kjente kunder og anlegg, sist brukt først. */
+    val kjente: StateFlow<List<KjentAnlegg>> = repo.kjente.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /**
+     * Nytt skjema. Fra en samtale: er navnet kjent, fylles sted og adresse fra sist; er bare nummeret
+     * kjent, fylles også kunde og anlegg.
+     */
     fun nyttOppdrag(telefon: String = "", kunde: String = "") {
         _skjema.value = Skjema(telefon = telefon, kunde = kunde)
+        if (telefon.isBlank() && kunde.isBlank()) return
+        viewModelScope.launch {
+            val kjente = repo.kjente.first()
+            val treff = if (kunde.isNotBlank()) finnUtfylling(kjente, kunde, "") else finnPaTelefon(kjente, telefon)
+            treff ?: return@launch
+            _skjema.update { s ->
+                s?.let { if (kunde.isBlank()) it.copy(kunde = treff.kunde, anlegg = treff.anlegg) else it }?.fyllFra(treff)
+            }
+        }
     }
+
+    /** Kunde valgt fra forslag: fyll inn fra det som sist ble brukt for kunden. */
+    fun velgKunde(navn: String) {
+        oppdaterSkjema { it.copy(kunde = navn) }
+        fyllFraKjente()
+    }
+
+    /** Anlegg valgt fra forslag: fyll inn fra det som sist ble brukt for kunden og anlegget. */
+    fun velgAnlegg(navn: String) {
+        oppdaterSkjema { it.copy(anlegg = navn) }
+        fyllFraKjente()
+    }
+
+    /** Fyller inn hvis kunde (og eventuelt anlegg) finnes i registeret. Kalles også når feltene forlates. */
+    fun fyllFraKjente() {
+        val s = _skjema.value ?: return
+        val treff = finnUtfylling(kjente.value, s.kunde, s.anlegg) ?: return
+        oppdaterSkjema { it.fyllFra(treff) }
+    }
+
+    /** Fjerner et forslag fra registeret (hele kunden når [anlegg] er null). */
+    fun glemForslag(kunde: String, anlegg: String?) = viewModelScope.launch { repo.glem(kunde, anlegg) }
 
     fun endre(o: Oppdrag) { _skjema.value = Skjema.fra(o) }
 
@@ -135,6 +201,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             prioritet = s.prioritet,
             beskrivelse = s.beskrivelse.trim(),
             kunde = s.kunde.trim(),
+            anlegg = s.anlegg.trim(),
             telefon = s.telefon.trim(),
             sted = s.sted.trim(),
             adresse = s.adresse.trim(),
@@ -145,9 +212,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val stedEndret = s.original == null || s.original.stedTekst != nytt.stedTekst
         // Lagres med en gang. Koordinatene hentes etterpå, i appens omfang så det fullføres selv om skjermen lukkes.
         mottakerOmfang.launch {
-            val lagret = if (stedEndret) nytt.copy(lat = null, lng = null) else nytt
+            // Samme sted som sist for kunden/anlegget: bruk koordinatene derfra i stedet for å geokode på nytt.
+            val kjentPos = s.kilde?.takeIf { it.lat != null && it.lng != null && it.stedTekst == nytt.stedTekst }
+            val lagret = when {
+                kjentPos != null -> nytt.copy(lat = kjentPos.lat, lng = kjentPos.lng)
+                stedEndret -> nytt.copy(lat = null, lng = null)
+                else -> nytt
+            }
             val id = repo.lagre(lagret)
-            if ((stedEndret || !lagret.harKoordinater) && lagret.stedTekst.isNotBlank()) {
+            if (!lagret.harKoordinater && lagret.stedTekst.isNotBlank()) {
                 val koordinater = geokod(getApplication(), lagret) ?: return@launch
                 val na = repo.hent(id) ?: return@launch
                 // Bare hvis stedet ikke er endret på nytt i mellomtiden.

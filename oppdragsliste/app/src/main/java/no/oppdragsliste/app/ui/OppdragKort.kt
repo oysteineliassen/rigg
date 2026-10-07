@@ -118,9 +118,10 @@ fun OppdragKort(
                 if (visPrioritet) {
                     Text(o.prioritet.tittel, style = MaterialTheme.typography.labelMedium, color = o.prioritet.farge())
                 }
-                if (o.beskrivelse.isNotBlank() && o.kunde.isNotBlank()) {
-                    Linje(Icons.Outlined.Person, o.kunde)
-                }
+                // Kunde står i overskriften når beskrivelsen er tom.
+                val kundeLinje = listOf(o.kunde.takeIf { o.beskrivelse.isNotBlank() }.orEmpty(), o.anlegg)
+                    .filter { it.isNotBlank() }.joinToString(" · ")
+                if (kundeLinje.isNotBlank()) Linje(Icons.Outlined.Person, kundeLinje)
                 if (o.stedTekst.isNotBlank()) Linje(Icons.Outlined.Place, o.stedTekst)
                 if (o.telefon.isNotBlank()) Linje(Icons.Outlined.Phone, formaterTelefon(o.telefon))
                 formaterDatoTid(o.dato, o.tid, idag)?.let { tekst ->

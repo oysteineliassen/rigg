@@ -1,6 +1,7 @@
 package no.oppdragsliste.app.ui
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,6 +19,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Event
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
@@ -45,12 +47,20 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import no.oppdragsliste.app.data.KjentAnlegg
 import no.oppdragsliste.app.data.Prioritet
 import no.oppdragsliste.app.logikk.Feil
+import no.oppdragsliste.app.logikk.anleggForslag
+import no.oppdragsliste.app.logikk.kundeForslag
 import no.oppdragsliste.app.logikk.formaterDato
 import no.oppdragsliste.app.logikk.formaterTid
 import java.time.Instant
@@ -70,10 +80,22 @@ private val Prioritet.forklaring: String
 @Composable
 fun SkjemaArk(
     skjema: Skjema,
+    kjente: List<KjentAnlegg>,
     onEndre: ((Skjema) -> Skjema) -> Unit,
+    onVelgKunde: (String) -> Unit,
+    onVelgAnlegg: (String) -> Unit,
+    onFeltForlatt: () -> Unit,
+    onGlem: (kunde: String, anlegg: String?) -> Unit,
     onLagre: () -> Unit,
     onLukk: () -> Unit,
 ) {
+    val fokus = LocalFocusManager.current
+    val anleggFokus = remember { FocusRequester() }
+    var kundeAktiv by remember { mutableStateOf(false) }
+    var anleggAktiv by remember { mutableStateOf(false) }
+    val kundeTreff = remember(kjente, skjema.kunde) { kundeForslag(kjente, skjema.kunde) }
+    val anleggTreff = remember(kjente, skjema.kunde, skjema.anlegg) { anleggForslag(kjente, skjema.kunde, skjema.anlegg) }
+
     val arkTilstand = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var visDato by remember { mutableStateOf(false) }
     var visTid by remember { mutableStateOf(false) }
@@ -115,9 +137,48 @@ fun SkjemaArk(
                 supportingText = if (feil(Feil.MANGLER_BESKRIVELSE_ELLER_KUNDE)) {
                     { Text(Feil.MANGLER_BESKRIVELSE_ELLER_KUNDE.melding) }
                 } else null,
-                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
-                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Next),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .onFocusChanged { f ->
+                        if (kundeAktiv && !f.isFocused) onFeltForlatt()
+                        kundeAktiv = f.isFocused
+                    },
             )
+            if (kundeAktiv && kundeTreff.isNotEmpty()) {
+                Forslagsliste(
+                    forslag = kundeTreff,
+                    onVelg = { navn ->
+                        onVelgKunde(navn)
+                        anleggFokus.requestFocus()
+                    },
+                    onGlem = { navn -> onGlem(navn, null) },
+                )
+            }
+            OutlinedTextField(
+                value = skjema.anlegg,
+                onValueChange = { v -> onEndre { it.copy(anlegg = v) } },
+                label = { Text("Anlegg") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Next),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(anleggFokus)
+                    .onFocusChanged { f ->
+                        if (anleggAktiv && !f.isFocused) onFeltForlatt()
+                        anleggAktiv = f.isFocused
+                    },
+            )
+            if (anleggAktiv && anleggTreff.isNotEmpty()) {
+                Forslagsliste(
+                    forslag = anleggTreff,
+                    onVelg = { navn ->
+                        onVelgAnlegg(navn)
+                        fokus.clearFocus()
+                    },
+                    onGlem = { navn -> onGlem(skjema.kunde, navn) },
+                )
+            }
             OutlinedTextField(
                 value = skjema.telefon,
                 onValueChange = { v -> onEndre { it.copy(telefon = v) } },
@@ -219,6 +280,40 @@ fun SkjemaArk(
             },
             dismissButton = { TextButton(onClick = { visTid = false }) { Text("Avbryt") } },
         )
+    }
+}
+
+/** Forslag rett under feltet. Trykk velger; krysset fjerner forslaget fra minnet. */
+@Composable
+private fun Forslagsliste(forslag: List<String>, onVelg: (String) -> Unit, onGlem: (String) -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 0.dp),
+    ) {
+        Column {
+            forslag.forEach { navn ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onVelg(navn) }
+                        .padding(start = 14.dp),
+                ) {
+                    Icon(Icons.Outlined.History, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.width(10.dp))
+                    Text(navn, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                    IconButton(onClick = { onGlem(navn) }) {
+                        Icon(
+                            Icons.Outlined.Close, "Glem «$navn»",
+                            Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 

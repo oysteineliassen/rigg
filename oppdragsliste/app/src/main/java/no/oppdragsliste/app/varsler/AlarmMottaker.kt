@@ -60,6 +60,7 @@ class AlarmMottaker : BroadcastReceiver() {
         val tekst = listOfNotNull(
             "kl. ${formaterTid(tid)}",
             o.kunde.takeIf { it.isNotBlank() && it != o.tittel },
+            o.anlegg.takeIf { it.isNotBlank() },
             o.stedTekst.takeIf { it.isNotBlank() },
         ).joinToString(" · ")
         val id = Varsler.avtaleId(o.id)
