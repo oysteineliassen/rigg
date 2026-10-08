@@ -1159,7 +1159,7 @@ S_ = "OPPVARMING"
 
 # Jumping jacks sett forfra: beina sammen og armene ned, så beina ut og armene over hodet.
 jj_closed = front((0.5, 0.578), [("p", (0.45, FLOOR_Y), 180), ("p", (0.55, FLOOR_Y), 0)], [("a", 100, 95), ("a", 80, 85)])
-jj_open = front((0.5, 0.6), [("p", (0.33, FLOOR_Y), 180), ("p", (0.67, FLOOR_Y), 0)], [("a", -125, -120), ("a", -55, -60)])
+jj_open = front((0.5, 0.592), [("p", (0.34, FLOOR_Y), 180), ("p", (0.66, FLOOR_Y), 0)], [("a", -125, -120), ("a", -55, -60)])
 put("JUMPING_JACK", S_, [jj_open, jj_closed],
     "Jumping jacks sett forfra: beina ut og armene over hodet, så samlet igjen med armene langs siden.")
 
@@ -1212,6 +1212,28 @@ cat, cow = cat_cow(0.54, 0.62, (0.21, 0.72)), cat_cow(0.7, 0.621, (0.2, 0.52))
 put("CAT_COW", S_, [cat, cat, cow, cow, cat],
     "Katt og ku: på alle fire runder du ryggen opp med haka mot brystet, så svaier den ned med blikket frem.",
     keys=[(250, "holder"), (1300, "svaier ned"), (250, "holder"), (1300, "runder opp")])
+
+# ======================================================================== TEMPO
+# Frem-og-tilbake-figurene går som standard i rolig styrketempo (REP_MS i Illustration.kt, 2,2 sek per repetisjon).
+# Raske øvelser får eget tempo: da gjøres stillingene om til en sekvens på to nøkler (ut og tilbake), med samme
+# myke oppbremsing i hver ende. [ms] er én hel repetisjon.
+def tempo(name, ms):
+    d = P[name]
+    e = d["end"]
+    assert e, f"{name}: tempo() trenger en sluttstilling"
+    moving_props = bool(e["props"])
+    start = dict(head=d["head"], lines=[l[:2] for l in d["lines"]], dots=d["dots"],
+                 props=[pr[:2] for pr in d["props"]] if moving_props else [], alpha=1.0)
+    end = dict(head=e["head"], lines=e["lines"], dots=e["dots"], props=e["props"], alpha=1.0)
+    d["seq"] = [(end, ms // 2, "ut"), (start, ms - ms // 2, "tilbake")]
+    d["end"] = None
+
+
+tempo("JUMPING_JACK", 1000)     # ca. én repetisjon i sekundet, som i virkeligheten
+tempo("JUMP_ROPE", 640)         # ett hopp per tauslag
+tempo("MOUNTAIN_CLIMBER", 800)  # to beinbytter per runde
+tempo("KB_SWING", 1500)
+tempo("LEG_SWING", 1400)
 
 # ======================================================================== Kotlin
 SECTION_TITLES = {"PRESS": "PRESS", "TREKK": "TREKK", "BEIN": "BEIN", "HOFTE": "HOFTE", "KJERNE": "KJERNE",

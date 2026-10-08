@@ -2012,16 +2012,29 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
         ),
         dots = listOf(p(0.55f, 0.62f)),
         front = setOf(3),
-        // Stående: hofta skjøvet frem, vekta langs beina.
-        end = Frame(
-            head = p(0.45f, 0.09f),
-            lines = listOf(
-                p(0.45f, 0.194f) to p(0.44f, 0.55f),
-                p(0.44f, 0.55f) to p(0.44f, 0.78f),
-                p(0.44f, 0.78f) to p(0.45f, 0.97f),
-                p(0.45f, 0.194f) to p(0.75f, 0.22f),
-            ),
-            dots = listOf(p(0.78f, 0.22f)),
+        sequence = listOf(
+            // ut
+            Key(750, Frame(
+                head = p(0.45f, 0.09f),
+                lines = listOf(
+                    p(0.45f, 0.194f) to p(0.44f, 0.55f),
+                    p(0.44f, 0.55f) to p(0.44f, 0.78f),
+                    p(0.44f, 0.78f) to p(0.45f, 0.97f),
+                    p(0.45f, 0.194f) to p(0.75f, 0.22f),
+                ),
+                dots = listOf(p(0.78f, 0.22f)),
+            )),
+            // tilbake
+            Key(750, Frame(
+                head = p(0.76f, 0.26f),
+                lines = listOf(
+                    p(0.68f, 0.33f) to p(0.4f, 0.55f),
+                    p(0.4f, 0.55f) to p(0.42f, 0.78f),
+                    p(0.42f, 0.78f) to p(0.45f, 0.97f),
+                    p(0.68f, 0.33f) to p(0.55f, 0.62f),
+                ),
+                dots = listOf(p(0.55f, 0.62f)),
+            )),
         ),
     ),
     IllustrationType.GOOD_MORNING to Pose(
@@ -2140,17 +2153,31 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
             p(0.56f, 0.7f) to p(0.36f, 0.8f), // kneet dratt frem
             p(0.36f, 0.8f) to p(0.47f, 0.965f),
         ),
-        // Beina bytter plass.
-        end = Frame(
-            head = p(0.1f, 0.56f),
-            lines = listOf(
-                p(0.18f, 0.62f) to p(0.56f, 0.7f),
-                p(0.18f, 0.62f) to p(0.2f, 0.93f),
-                p(0.56f, 0.7f) to p(0.36f, 0.8f),
-                p(0.36f, 0.8f) to p(0.47f, 0.965f),
-                p(0.56f, 0.7f) to p(0.74f, 0.8f),
-                p(0.74f, 0.8f) to p(0.92f, 0.9f),
-            ),
+        sequence = listOf(
+            // ut
+            Key(400, Frame(
+                head = p(0.1f, 0.56f),
+                lines = listOf(
+                    p(0.18f, 0.62f) to p(0.56f, 0.7f),
+                    p(0.18f, 0.62f) to p(0.2f, 0.93f),
+                    p(0.56f, 0.7f) to p(0.36f, 0.8f),
+                    p(0.36f, 0.8f) to p(0.47f, 0.965f),
+                    p(0.56f, 0.7f) to p(0.74f, 0.8f),
+                    p(0.74f, 0.8f) to p(0.92f, 0.9f),
+                ),
+            )),
+            // tilbake
+            Key(400, Frame(
+                head = p(0.1f, 0.56f),
+                lines = listOf(
+                    p(0.18f, 0.62f) to p(0.56f, 0.7f),
+                    p(0.18f, 0.62f) to p(0.2f, 0.93f),
+                    p(0.56f, 0.7f) to p(0.74f, 0.8f),
+                    p(0.74f, 0.8f) to p(0.92f, 0.9f),
+                    p(0.56f, 0.7f) to p(0.36f, 0.8f),
+                    p(0.36f, 0.8f) to p(0.47f, 0.965f),
+                ),
+            )),
         ),
     ),
     IllustrationType.BIRD_DOG to Pose(
@@ -2751,21 +2778,39 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
             p(0.36f, 0.95f) to p(0.64f, 0.95f),
             p(0.64f, 0.95f) to p(0.62f, 0.52f),
         ),
-        // Landet, tauet over hodet.
-        end = Frame(
-            head = p(0.5f, 0.27f),
-            lines = listOf(
-                p(0.5f, 0.36f) to p(0.5f, 0.64f),
-                p(0.5f, 0.64f) to p(0.46f, 0.94f),
-                p(0.5f, 0.64f) to p(0.54f, 0.94f),
-                p(0.5f, 0.39f) to p(0.38f, 0.58f),
-                p(0.5f, 0.39f) to p(0.62f, 0.58f),
-            ),
-            props = listOf(
-                p(0.38f, 0.58f) to p(0.34f, 0.08f),
-                p(0.34f, 0.08f) to p(0.66f, 0.08f),
-                p(0.66f, 0.08f) to p(0.62f, 0.58f),
-            ),
+        sequence = listOf(
+            // ut
+            Key(320, Frame(
+                head = p(0.5f, 0.27f),
+                lines = listOf(
+                    p(0.5f, 0.36f) to p(0.5f, 0.64f),
+                    p(0.5f, 0.64f) to p(0.46f, 0.94f),
+                    p(0.5f, 0.64f) to p(0.54f, 0.94f),
+                    p(0.5f, 0.39f) to p(0.38f, 0.58f),
+                    p(0.5f, 0.39f) to p(0.62f, 0.58f),
+                ),
+                props = listOf(
+                    p(0.38f, 0.58f) to p(0.34f, 0.08f),
+                    p(0.34f, 0.08f) to p(0.66f, 0.08f),
+                    p(0.66f, 0.08f) to p(0.62f, 0.58f),
+                ),
+            )),
+            // tilbake
+            Key(320, Frame(
+                head = p(0.5f, 0.21f),
+                lines = listOf(
+                    p(0.5f, 0.3f) to p(0.5f, 0.58f),
+                    p(0.5f, 0.58f) to p(0.46f, 0.88f),
+                    p(0.5f, 0.58f) to p(0.54f, 0.88f),
+                    p(0.5f, 0.33f) to p(0.38f, 0.52f),
+                    p(0.5f, 0.33f) to p(0.62f, 0.52f),
+                ),
+                props = listOf(
+                    p(0.38f, 0.52f) to p(0.36f, 0.95f),
+                    p(0.36f, 0.95f) to p(0.64f, 0.95f),
+                    p(0.64f, 0.95f) to p(0.62f, 0.52f),
+                ),
+            )),
         ),
     ),
     IllustrationType.BURPEE to Pose(
@@ -2874,39 +2919,61 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
     // ------------------------------------------------------------ OPPVARMING
     IllustrationType.JUMPING_JACK to Pose(
         // Jumping jacks sett forfra: beina ut og armene over hodet, så samlet igjen med armene langs siden.
-        head = p(0.5f, 0.25f),
+        head = p(0.5f, 0.242f),
         lines = listOf(
-            p(0.33f, 0.955f) to p(0.36f, 0.767f),
-            p(0.36f, 0.767f) to p(0.45f, 0.6f),
-            p(0.45f, 0.6f) to p(0.5f, 0.6f),
-            p(0.5f, 0.6f) to p(0.5f, 0.35f),
-            p(0.5f, 0.35f) to p(0.415f, 0.35f),
-            p(0.415f, 0.35f) to p(0.335f, 0.235f),
-            p(0.335f, 0.235f) to p(0.275f, 0.131f),
-            p(0.5f, 0.6f) to p(0.55f, 0.6f),
-            p(0.55f, 0.6f) to p(0.64f, 0.767f),
-            p(0.64f, 0.767f) to p(0.67f, 0.955f),
-            p(0.5f, 0.35f) to p(0.585f, 0.35f),
-            p(0.585f, 0.35f) to p(0.665f, 0.235f),
-            p(0.665f, 0.235f) to p(0.725f, 0.131f),
+            p(0.34f, 0.955f) to p(0.384f, 0.77f),
+            p(0.384f, 0.77f) to p(0.45f, 0.592f),
+            p(0.45f, 0.592f) to p(0.5f, 0.592f),
+            p(0.5f, 0.592f) to p(0.5f, 0.342f),
+            p(0.5f, 0.342f) to p(0.415f, 0.342f),
+            p(0.415f, 0.342f) to p(0.335f, 0.227f),
+            p(0.335f, 0.227f) to p(0.275f, 0.123f),
+            p(0.5f, 0.592f) to p(0.55f, 0.592f),
+            p(0.55f, 0.592f) to p(0.616f, 0.77f),
+            p(0.616f, 0.77f) to p(0.66f, 0.955f),
+            p(0.5f, 0.342f) to p(0.585f, 0.342f),
+            p(0.585f, 0.342f) to p(0.665f, 0.227f),
+            p(0.665f, 0.227f) to p(0.725f, 0.123f),
         ),
-        end = Frame(
-            head = p(0.5f, 0.228f),
-            lines = listOf(
-                p(0.45f, 0.955f) to p(0.426f, 0.766f),
-                p(0.426f, 0.766f) to p(0.45f, 0.578f),
-                p(0.45f, 0.578f) to p(0.5f, 0.578f),
-                p(0.5f, 0.578f) to p(0.5f, 0.328f),
-                p(0.5f, 0.328f) to p(0.415f, 0.328f),
-                p(0.415f, 0.328f) to p(0.391f, 0.466f),
-                p(0.391f, 0.466f) to p(0.381f, 0.586f),
-                p(0.5f, 0.578f) to p(0.55f, 0.578f),
-                p(0.55f, 0.578f) to p(0.574f, 0.766f),
-                p(0.574f, 0.766f) to p(0.55f, 0.955f),
-                p(0.5f, 0.328f) to p(0.585f, 0.328f),
-                p(0.585f, 0.328f) to p(0.609f, 0.466f),
-                p(0.609f, 0.466f) to p(0.619f, 0.586f),
-            ),
+        sequence = listOf(
+            // ut
+            Key(500, Frame(
+                head = p(0.5f, 0.228f),
+                lines = listOf(
+                    p(0.45f, 0.955f) to p(0.426f, 0.766f),
+                    p(0.426f, 0.766f) to p(0.45f, 0.578f),
+                    p(0.45f, 0.578f) to p(0.5f, 0.578f),
+                    p(0.5f, 0.578f) to p(0.5f, 0.328f),
+                    p(0.5f, 0.328f) to p(0.415f, 0.328f),
+                    p(0.415f, 0.328f) to p(0.391f, 0.466f),
+                    p(0.391f, 0.466f) to p(0.381f, 0.586f),
+                    p(0.5f, 0.578f) to p(0.55f, 0.578f),
+                    p(0.55f, 0.578f) to p(0.574f, 0.766f),
+                    p(0.574f, 0.766f) to p(0.55f, 0.955f),
+                    p(0.5f, 0.328f) to p(0.585f, 0.328f),
+                    p(0.585f, 0.328f) to p(0.609f, 0.466f),
+                    p(0.609f, 0.466f) to p(0.619f, 0.586f),
+                ),
+            )),
+            // tilbake
+            Key(500, Frame(
+                head = p(0.5f, 0.242f),
+                lines = listOf(
+                    p(0.34f, 0.955f) to p(0.384f, 0.77f),
+                    p(0.384f, 0.77f) to p(0.45f, 0.592f),
+                    p(0.45f, 0.592f) to p(0.5f, 0.592f),
+                    p(0.5f, 0.592f) to p(0.5f, 0.342f),
+                    p(0.5f, 0.342f) to p(0.415f, 0.342f),
+                    p(0.415f, 0.342f) to p(0.335f, 0.227f),
+                    p(0.335f, 0.227f) to p(0.275f, 0.123f),
+                    p(0.5f, 0.592f) to p(0.55f, 0.592f),
+                    p(0.55f, 0.592f) to p(0.616f, 0.77f),
+                    p(0.616f, 0.77f) to p(0.66f, 0.955f),
+                    p(0.5f, 0.342f) to p(0.585f, 0.342f),
+                    p(0.585f, 0.342f) to p(0.665f, 0.227f),
+                    p(0.665f, 0.227f) to p(0.725f, 0.123f),
+                ),
+            )),
         ),
     ),
     IllustrationType.ARM_CIRCLES to Pose(
@@ -2993,17 +3060,33 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
             p(0.86f, 0.12f) to p(0.86f, 0.97f), // vegg
         ),
         front = setOf(3, 4),
-        end = Frame(
-            head = p(0.5f, 0.228f),
-            lines = listOf(
-                p(0.5f, 0.955f) to p(0.524f, 0.766f),
-                p(0.524f, 0.766f) to p(0.5f, 0.578f),
-                p(0.5f, 0.578f) to p(0.5f, 0.328f),
-                p(0.5f, 0.328f) to p(0.683f, 0.383f),
-                p(0.683f, 0.383f) to p(0.84f, 0.43f),
-                p(0.5f, 0.578f) to p(0.383f, 0.728f),
-                p(0.383f, 0.728f) to p(0.253f, 0.867f),
-            ),
+        sequence = listOf(
+            // ut
+            Key(700, Frame(
+                head = p(0.5f, 0.228f),
+                lines = listOf(
+                    p(0.5f, 0.955f) to p(0.524f, 0.766f),
+                    p(0.524f, 0.766f) to p(0.5f, 0.578f),
+                    p(0.5f, 0.578f) to p(0.5f, 0.328f),
+                    p(0.5f, 0.328f) to p(0.683f, 0.383f),
+                    p(0.683f, 0.383f) to p(0.84f, 0.43f),
+                    p(0.5f, 0.578f) to p(0.383f, 0.728f),
+                    p(0.383f, 0.728f) to p(0.253f, 0.867f),
+                ),
+            )),
+            // tilbake
+            Key(700, Frame(
+                head = p(0.5f, 0.228f),
+                lines = listOf(
+                    p(0.5f, 0.955f) to p(0.524f, 0.766f),
+                    p(0.524f, 0.766f) to p(0.5f, 0.578f),
+                    p(0.5f, 0.578f) to p(0.5f, 0.328f),
+                    p(0.5f, 0.328f) to p(0.683f, 0.383f),
+                    p(0.683f, 0.383f) to p(0.84f, 0.43f),
+                    p(0.5f, 0.578f) to p(0.609f, 0.734f),
+                    p(0.609f, 0.734f) to p(0.704f, 0.899f),
+                ),
+            )),
         ),
     ),
     IllustrationType.HINGE_WARMUP to Pose(

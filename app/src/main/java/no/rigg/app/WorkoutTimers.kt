@@ -322,8 +322,10 @@ object Beeper {
             val track = AudioTrack.Builder()
                 .setAudioAttributes(
                     AudioAttributes.Builder()
-                        // Alarm-kanalen: høres selv om telefonen står på lydløs, styres av alarmvolumet.
-                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        // Som talen i en navigasjonsapp: blandes oppå musikken uten å stoppe den (vi ber ikke om
+                        // lydfokus, så musikken verken pauses eller dempes), og følger medievolumet. Alarm-kanalen
+                        // ble brukt før, men den fikk mange telefoner til å stoppe musikken.
+                        .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
                         .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                         .build(),
                 )
