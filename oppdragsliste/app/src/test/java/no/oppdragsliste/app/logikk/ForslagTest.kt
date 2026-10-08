@@ -101,4 +101,22 @@ class ForslagTest {
         assertEquals("Mandal", nyVerdi("Mandal", "Tangvall", "Søgne"))
         assertEquals("900 00 000", nyVerdi("900 00 000", null, "38 05 55 00"))
     }
+
+    @Test
+    fun `kandidater for en samtale - nummer og navn, sist brukt forst, uten duplikater`() {
+        val liste = listOf(
+            KjentAnlegg("Søgne kommune", "Rådhuset", kontaktperson = "Kari", telefon = "900 00 001", sistBrukt = Instant.parse("2026-10-05T08:00:00Z")),
+            KjentAnlegg("Søgne kommune", "Søgne skole", kontaktperson = "Kari", telefon = "90000001", sistBrukt = Instant.parse("2026-10-07T08:00:00Z")),
+            KjentAnlegg("Bakeriet", "", kontaktperson = "kari", telefon = "411 11 111", sistBrukt = Instant.parse("2026-10-06T08:00:00Z")),
+            KjentAnlegg("Annen", "X", kontaktperson = "Per", telefon = "922 22 222", sistBrukt = Instant.parse("2026-10-08T08:00:00Z")),
+            KjentAnlegg("Søgne kommune", "Rådhuset", kontaktperson = "Kari", telefon = "90000001", sistBrukt = Instant.parse("2026-10-01T08:00:00Z")),
+        )
+        assertEquals(
+            listOf("Søgne skole", "", "Rådhuset"),
+            kandidaterForSamtale(liste, "+47 900 00 001", "Kari").map { it.anlegg },
+        )
+        // Bare nummer (ukjent navn).
+        assertEquals(listOf("Søgne skole", "Rådhuset"), kandidaterForSamtale(liste, "90000001", null).map { it.anlegg })
+        assertEquals(emptyList<KjentAnlegg>(), kandidaterForSamtale(liste, "95555555", "Ola"))
+    }
 }

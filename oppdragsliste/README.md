@@ -77,9 +77,10 @@ commits i git, så en nyere versjon er alltid høyere.
     angres i noen sekunder etterpå. Oppdragene påvirkes ikke.
 - **Utkast:** skjemaet lagres mens du skriver. Tilbaketasten lukker først ved andre trykk, og det du har
   skrevet, står der neste gang (knappen viser da «Fortsett oppdrag»). «Tøm» starter på nytt.
-- **Etter samtaler** over minstelengden (standard 20 sek): «Nytt oppdrag fra 900 00 000?».
-  Trykk åpner skjemaet med nummeret, navnet fra kontaktene som kontaktperson, og kunde/anlegg hvis
-  nummeret er brukt før.
+- **Etter samtaler** over minstelengden (standard 20 sek): varselet «Registrere oppdrag fra samtalen med
+  Kari Nordmann?», og åpner du appen innen 15 minutter, spør den det samme (én gang per samtale, ikke hvis
+  oppdraget allerede er lagt inn). Kunde og anlegg kontakten er registrert på før (på nummer eller navn)
+  vises som valg og fylles inn; navnet fra kontaktene blir kontaktperson.
 - **Påminnelser** med eksakte alarmer, planlegges på nytt etter omstart.
 - **I nærheten:** sted/adresse geokodes når du lagrer. Geofencer (standard 2 km) gir ett samlet varsel,
   f.eks. «3 oppdrag i nærheten: Søgne (2), Tangvall (1)», maks én gang per oppdrag per dag.

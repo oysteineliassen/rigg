@@ -76,6 +76,11 @@ class Innstillinger(context: Context) {
     }
 
     /** Id-en til siste samtale i anropsloggen det er varslet om, så samme samtale ikke varsles to ganger. */
+    /** Id-en til siste samtale appen har spurt om (spørsmålet når appen åpnes), så det bare spørres én gang. */
+    var sisteSpurteSamtale: Long
+        get() = prefs.getLong("sisteSpurteSamtale", -1)
+        set(v) = prefs.edit().putLong("sisteSpurteSamtale", v).apply()
+
     var sisteVarsledeSamtale: Long
         get() = prefs.getLong("sisteVarsledeSamtale", -1)
         set(v) = prefs.edit().putLong("sisteVarsledeSamtale", v).apply()

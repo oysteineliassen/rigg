@@ -97,6 +97,26 @@ fun finnPaTelefon(kjente: List<KjentAnlegg>, telefon: String): KjentAnlegg? {
     return kjente.filter { it.telefon.filter { c -> c.isDigit() }.takeLast(8) == siffer }.maxByOrNull { it.sistBrukt }
 }
 
+private fun siffer8(t: String) = t.filter { it.isDigit() }.takeLast(8)
+
+/**
+ * Kunde/anlegg en som ringte er registrert på før, sist brukt først: treff på telefonnummer, og på
+ * kontaktperson med samme navn (f.eks. når samme person ringer fra et annet nummer). Én per kunde+anlegg.
+ */
+fun kandidaterForSamtale(kjente: List<KjentAnlegg>, telefon: String, navn: String?, maks: Int = 3): List<KjentAnlegg> {
+    val nr = siffer8(telefon)
+    val n = navn?.trim()?.lowercase().orEmpty()
+    return kjente
+        .filter { k ->
+            (nr.length == 8 && siffer8(k.telefon) == nr) ||
+                (n.isNotEmpty() && k.kontaktperson.trim().lowercase() == n)
+        }
+        .filter { it.kunde.isNotBlank() || it.anlegg.isNotBlank() }
+        .sortedByDescending { it.sistBrukt }
+        .distinctBy { it.kunde.trim().lowercase() + "\u0000" + it.anlegg.trim().lowercase() }
+        .take(maks)
+}
+
 /** Felt som kan fylles inn automatisk. */
 enum class Autofelt { KONTAKTPERSON, TELEFON, STED, ADRESSE }
 

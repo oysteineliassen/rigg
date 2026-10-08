@@ -50,8 +50,9 @@ fun SamtaleInnstillinger(oppsett: Oppsett, onEndre: ((Oppsett) -> Oppsett) -> Un
 
     Gruppe("Etter telefonsamtaler") {
         Forklaring(
-            "Når en samtale er over, kan appen spørre «Nytt oppdrag fra 900 00 000?». Trykker du på varselet, " +
-                "åpnes skjemaet med nummeret (og navnet, hvis det finnes i kontaktene) ferdig utfylt.",
+            "Når en samtale er over, kommer varselet «Registrere oppdrag fra samtalen med …?». Åpner du appen " +
+                "innen 15 minutter, spør den det samme. Skjemaet åpnes med nummer og kontaktperson utfylt, og kunde " +
+                "og anlegg fra det personen er registrert på før.",
         )
         Forklaring(
             "Appen trenger da tilgang til telefonstatus (for å merke at samtalen er over), anropsloggen " +

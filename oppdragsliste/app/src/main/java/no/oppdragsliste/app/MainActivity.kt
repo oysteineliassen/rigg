@@ -24,6 +24,7 @@ import no.oppdragsliste.app.ui.MainViewModel
 import no.oppdragsliste.app.ui.NaerInnstillinger
 import no.oppdragsliste.app.ui.OppdragTema
 import no.oppdragsliste.app.ui.PaminnelseDialog
+import no.oppdragsliste.app.ui.SamtaleSporsmalDialog
 import no.oppdragsliste.app.ui.SamtaleInnstillinger
 import no.oppdragsliste.app.ui.SkjemaArk
 import no.oppdragsliste.app.ui.VarselInnstillinger
@@ -67,6 +68,7 @@ class MainActivity : ComponentActivity() {
             val harUtkast by vm.harUtkast.collectAsStateWithLifecycle()
             val fjernet by vm.fjernet.collectAsStateWithLifecycle()
             val paminnelse by vm.paminnelse.collectAsStateWithLifecycle()
+            val samtaleSporsmal by vm.samtaleSporsmal.collectAsStateWithLifecycle()
             val geokodStatus by vm.geokoder.collectAsStateWithLifecycle()
             val kopiStatus by vm.kopiStatus.collectAsStateWithLifecycle()
             var visInnstillinger by rememberSaveable { mutableStateOf(false) }
@@ -103,6 +105,7 @@ class MainActivity : ComponentActivity() {
                         onNaer = ::visNaer,
                     )
                 }
+                samtaleSporsmal?.let { sp -> SamtaleSporsmalDialog(sp) { reg, k -> vm.svarSamtale(reg, k) } }
                 paminnelse?.let { p ->
                     PaminnelseDialog(
                         skjema = p,
@@ -133,6 +136,12 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        // Like etter en samtale: spør om et nytt oppdrag skal registreres.
+        vm.sjekkSisteSamtale()
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         behandle(intent)
@@ -144,6 +153,8 @@ class MainActivity : ComponentActivity() {
         if (intent?.action == HANDLING_NYTT) {
             val varsel = intent.getIntExtra(EKSTRA_VARSEL, -1)
             if (varsel != -1) NotificationManagerCompat.from(this).cancel(varsel)
+            val samtale = intent.getLongExtra(EKSTRA_SAMTALE, -1)
+            if (samtale != -1L) vm.merkSamtaleSpurt(samtale)
             vm.nyttOppdrag(
                 telefon = intent.getStringExtra(EKSTRA_TELEFON).orEmpty(),
                 kontaktperson = intent.getStringExtra(EKSTRA_KONTAKT).orEmpty(),
@@ -157,5 +168,6 @@ class MainActivity : ComponentActivity() {
         const val EKSTRA_TELEFON = "telefon"
         const val EKSTRA_KONTAKT = "kontakt"
         const val EKSTRA_VARSEL = "varsel"
+        const val EKSTRA_SAMTALE = "samtale"
     }
 }

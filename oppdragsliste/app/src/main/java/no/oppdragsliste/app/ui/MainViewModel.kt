@@ -29,7 +29,10 @@ import no.oppdragsliste.app.logikk.AnleggForslag
 import no.oppdragsliste.app.logikk.Autofelt
 import no.oppdragsliste.app.logikk.formaterTelefon
 import no.oppdragsliste.app.logikk.Feil
-import no.oppdragsliste.app.logikk.finnPaTelefon
+import no.oppdragsliste.app.logikk.kandidaterForSamtale
+import no.oppdragsliste.app.samtale.erAktuell
+import no.oppdragsliste.app.samtale.navnForNummer
+import no.oppdragsliste.app.samtale.sisteSamtale
 import no.oppdragsliste.app.logikk.finnUtfylling
 import no.oppdragsliste.app.logikk.Seksjon
 import no.oppdragsliste.app.logikk.filtrer
@@ -63,6 +66,16 @@ data class ListeTilstand(
     val paminnelserPerOppdrag: Map<Long, List<Paminnelse>> = emptyMap(),
     /** Alle oppdrag etter id (for å vise hvilket oppdrag en påminnelse hører til). */
     val oppdragEtterId: Map<Long, Oppdrag> = emptyMap(),
+)
+
+/** «Samtale med …: vil du registrere et oppdrag?» – vises når appen åpnes like etter en samtale. */
+data class SamtaleSporsmal(
+    val samtaleId: Long,
+    val telefon: String,
+    val navn: String?,
+    val minutterSiden: Long,
+    /** Kunde/anlegg kontakten er registrert på før, sist brukt først. */
+    val kandidater: List<KjentAnlegg>,
 )
 
 /** Skjemaet for en påminnelse. [original] er null for nye. */
@@ -143,7 +156,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      * Nytt skjema, eller utkastet hvis et nytt oppdrag er påbegynt. Fra en samtale: navnet fra kontaktene
      * blir kontaktperson, og er nummeret kjent fra før, fylles kunde, anlegg, sted og adresse inn.
      */
-    fun nyttOppdrag(telefon: String = "", kontaktperson: String = "") {
+    fun nyttOppdrag(
+        telefon: String = "",
+        kontaktperson: String = "",
+        /** Kunde/anlegg valgt i samtalespørsmålet; null = finn selv ut fra nummer og navn (hvis [slaOpp]). */
+        kandidat: KjentAnlegg? = null,
+        slaOpp: Boolean = true,
+    ) {
         val lagret = utkast.hentNytt()?.tilSkjema(null)
         if (lagret != null) {
             // Påbegynt oppdrag: fortsett der, og legg bare inn nummeret/navnet hvis feltene er tomme.
@@ -156,9 +175,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
         sett(Skjema(prioritet = innstillinger.na.standardPrioritet, telefon = telefon, kontaktperson = kontaktperson))
-        if (telefon.isBlank()) return
+        if (kandidat != null) {
+            _skjema.value?.let { s -> sett(s.copy(kunde = kandidat.kunde, anlegg = kandidat.anlegg).fyllFra(kandidat)) }
+            return
+        }
+        if (!slaOpp || (telefon.isBlank() && kontaktperson.isBlank())) return
         viewModelScope.launch {
-            val treff = finnPaTelefon(repo.kjente.first(), telefon) ?: return@launch
+            val treff = kandidaterForSamtale(repo.kjente.first(), telefon, kontaktperson).firstOrNull() ?: return@launch
             val s = _skjema.value ?: return@launch
             if (s.original != null || s.kunde.isNotBlank()) return@launch
             sett(s.copy(kunde = treff.kunde, anlegg = treff.anlegg).fyllFra(treff))
@@ -177,7 +200,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             autofylt = s.autofylt - Autofelt.KONTAKTPERSON - Autofelt.TELEFON,
         )
         if (ny.kunde.isBlank()) {
-            finnPaTelefon(kjente.value, nummer)?.let { treff ->
+            kandidaterForSamtale(kjente.value, nummer, navn).firstOrNull()?.let { treff ->
                 ny = ny.copy(kunde = treff.kunde, anlegg = ny.anlegg.ifBlank { treff.anlegg }).fyllFra(treff)
             }
         }
@@ -374,6 +397,61 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         } catch (e: Exception) {
             "Kunne ikke lese filen. Er det en sikkerhetskopi fra Oppdragsliste?"
         }
+    }
+
+    // ---- Spørsmål etter samtale ----
+
+    private val _samtaleSporsmal = MutableStateFlow<SamtaleSporsmal?>(null)
+    val samtaleSporsmal: StateFlow<SamtaleSporsmal?> = _samtaleSporsmal.asStateFlow()
+
+    /**
+     * Kalles når appen kommer i forgrunnen. Er det en samtale de siste 15 minuttene som ikke er spurt om
+     * og ikke allerede registrert, spørres det om et nytt oppdrag.
+     */
+    fun sjekkSisteSamtale() = viewModelScope.launch {
+        val app = getApplication<Application>()
+        val oppsett = innstillinger.na
+        if (!oppsett.samtaleVarsel || _skjema.value != null || _samtaleSporsmal.value != null) return@launch
+        val s = withContext(Dispatchers.IO) { sisteSamtale(app) } ?: return@launch
+        val na = System.currentTimeMillis()
+        if (!erAktuell(s, oppsett.minSamtaleSekunder, innstillinger.sisteSpurteSamtale, na, vinduMin = 15)) return@launch
+        val alle = repo.alleNa()
+        val nr = s.nummer.filter { it.isDigit() }.takeLast(8)
+        // Allerede lagt inn et oppdrag med nummeret etter at samtalen startet: ikke spør.
+        if (alle.any { it.opprettet.toEpochMilli() >= s.tidspunkt && it.telefon.filter { c -> c.isDigit() }.takeLast(8) == nr }) {
+            innstillinger.sisteSpurteSamtale = s.id
+            return@launch
+        }
+        val navn = withContext(Dispatchers.IO) { navnForNummer(app, s.nummer) } ?: s.lagretNavn
+        // Registeret og oppdragene (også de som er fjernet fra forslagene).
+        val fraOppdrag = alle.map {
+            KjentAnlegg(
+                kunde = it.kunde.trim(), anlegg = it.anlegg.trim(), kontaktperson = it.kontaktperson, telefon = it.telefon,
+                sted = it.sted, adresse = it.adresse, lat = it.lat, lng = it.lng, sistBrukt = it.opprettet,
+            )
+        }
+        if (_skjema.value != null) return@launch
+        _samtaleSporsmal.value = SamtaleSporsmal(
+            samtaleId = s.id,
+            telefon = formaterTelefon(s.nummer),
+            navn = navn,
+            minutterSiden = ((na - s.slutt) / 60_000).coerceAtLeast(0),
+            kandidater = kandidaterForSamtale(repo.kjente.first() + fraOppdrag, s.nummer, navn),
+        )
+    }
+
+    /** Svar på samtalespørsmålet. [kandidat] er valgt kunde/anlegg, null = fyll inn selv. */
+    fun svarSamtale(registrer: Boolean, kandidat: KjentAnlegg?) {
+        val sp = _samtaleSporsmal.value ?: return
+        _samtaleSporsmal.value = null
+        innstillinger.sisteSpurteSamtale = sp.samtaleId
+        if (registrer) nyttOppdrag(sp.telefon, sp.navn.orEmpty(), kandidat = kandidat, slaOpp = false)
+    }
+
+    /** Samtalen er håndtert på annen måte (f.eks. via varselet): ikke spør om den. */
+    fun merkSamtaleSpurt(id: Long) {
+        innstillinger.sisteSpurteSamtale = id
+        if (_samtaleSporsmal.value?.samtaleId == id) _samtaleSporsmal.value = null
     }
 
     // ---- Påminnelser ----
