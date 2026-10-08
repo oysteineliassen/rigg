@@ -18,6 +18,9 @@ import java.time.ZoneId
 object Planlegger {
     const val HANDLING_AVTALE = "no.oppdragsliste.app.AVTALE"
     const val HANDLING_MORGEN = "no.oppdragsliste.app.MORGEN"
+    const val HANDLING_PAMINNELSE = "no.oppdragsliste.app.PAMINNELSE"
+    const val HANDLING_PAMINNELSE_FERDIG = "no.oppdragsliste.app.PAMINNELSE_FERDIG"
+    const val HANDLING_PAMINNELSE_UTSETT = "no.oppdragsliste.app.PAMINNELSE_UTSETT"
     const val EKSTRA_ID = "id"
     private const val MORGEN_FORESPORSEL = -1
 
@@ -43,6 +46,19 @@ object Planlegger {
             }
         }
         prefs.edit().putStringSet("avtaler", satt).apply()
+
+        // Påminnelser: varsel på tidspunktet (uansett innstillingen for avtaler).
+        prefs.getStringSet("paminnelser", emptySet())!!.forEach { avbryt(ctx, paminnelseIntent(ctx, it.toLong())) }
+        val satteP = mutableSetOf<String>()
+        val naP = LocalDateTime.now()
+        ctx.app.repository.apnePaminnelser().forEach { p ->
+            val t = p.tidspunkt ?: return@forEach
+            if (t.isAfter(naP)) {
+                sett(ctx, t, paminnelseIntent(ctx, p.id))
+                satteP += p.id.toString()
+            }
+        }
+        prefs.edit().putStringSet("paminnelser", satteP).apply()
 
         planleggMorgen(ctx)
     }
@@ -74,6 +90,17 @@ object Planlegger {
 
     private fun avtaleIntent(context: Context, id: Long): PendingIntent {
         val i = Intent(context, AlarmMottaker::class.java).setAction(HANDLING_AVTALE).putExtra(EKSTRA_ID, id)
+        return PendingIntent.getBroadcast(
+            context, id.toInt(), i, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+    }
+
+    private fun paminnelseIntent(context: Context, id: Long): PendingIntent =
+        handlingIntent(context, HANDLING_PAMINNELSE, id)
+
+    /** Broadcast til [AlarmMottaker] for en påminnelse (varsel, ferdig eller utsett). */
+    fun handlingIntent(context: Context, handling: String, id: Long): PendingIntent {
+        val i = Intent(context, AlarmMottaker::class.java).setAction(handling).putExtra(EKSTRA_ID, id)
         return PendingIntent.getBroadcast(
             context, id.toInt(), i, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )

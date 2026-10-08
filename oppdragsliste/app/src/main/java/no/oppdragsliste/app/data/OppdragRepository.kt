@@ -11,10 +11,37 @@ import java.time.Instant
 class OppdragRepository(
     private val dao: OppdragDao,
     private val kjenteDao: KjentAnleggDao,
+    private val paminnelseDao: PaminnelseDao,
     private val etterEndring: suspend () -> Unit = {},
 ) {
     val alle: Flow<List<Oppdrag>> = dao.observerAlle()
     val kjente: Flow<List<KjentAnlegg>> = kjenteDao.observerAlle()
+    val paminnelser: Flow<List<Paminnelse>> = paminnelseDao.observerAlle()
+
+    suspend fun allePaminnelser(): List<Paminnelse> = paminnelseDao.alle()
+    suspend fun apnePaminnelser(): List<Paminnelse> = paminnelseDao.apne()
+    suspend fun hentPaminnelse(id: Long): Paminnelse? = paminnelseDao.hent(id)
+
+    suspend fun lagrePaminnelse(p: Paminnelse): Long {
+        val id = if (p.id == 0L) paminnelseDao.settInn(p) else p.id.also { paminnelseDao.oppdater(p) }
+        etterEndring()
+        return id
+    }
+
+    suspend fun settPaminnelseFerdig(p: Paminnelse, ferdig: Boolean) {
+        paminnelseDao.oppdater(p.copy(ferdig = ferdig, ferdigDato = if (ferdig) Instant.now() else null))
+        etterEndring()
+    }
+
+    suspend fun slettPaminnelse(p: Paminnelse) {
+        paminnelseDao.slett(p)
+        etterEndring()
+    }
+
+    suspend fun settInnPaminnelser(liste: List<Paminnelse>) {
+        liste.forEach { paminnelseDao.settInn(it) }
+        etterEndring()
+    }
 
     suspend fun alleNa(): List<Oppdrag> = dao.alle()
     suspend fun apne(): List<Oppdrag> = dao.apne()

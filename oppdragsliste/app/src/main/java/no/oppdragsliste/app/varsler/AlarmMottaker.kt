@@ -11,6 +11,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import no.oppdragsliste.app.app
 import no.oppdragsliste.app.data.Oppdrag
+import no.oppdragsliste.app.data.Paminnelse
+import androidx.core.app.NotificationManagerCompat
+import no.oppdragsliste.app.logikk.utsatt
 import no.oppdragsliste.app.data.Prioritet
 import no.oppdragsliste.app.logikk.formaterTid
 import no.oppdragsliste.app.logikk.formaterTidsrom
@@ -43,6 +46,23 @@ class AlarmMottaker : BroadcastReceiver() {
             Planlegger.HANDLING_AVTALE -> asynkront {
                 val o = ctx.app.repository.hent(intent.getLongExtra(Planlegger.EKSTRA_ID, -1)) ?: return@asynkront
                 if (!o.ferdig && ctx.app.innstillinger.na.avtaleVarsel) visAvtale(ctx, o)
+            }
+            Planlegger.HANDLING_PAMINNELSE -> asynkront {
+                val p = ctx.app.repository.hentPaminnelse(intent.getLongExtra(Planlegger.EKSTRA_ID, -1)) ?: return@asynkront
+                if (!p.ferdig) visPaminnelse(ctx, p)
+            }
+            Planlegger.HANDLING_PAMINNELSE_FERDIG -> asynkront {
+                val id = intent.getLongExtra(Planlegger.EKSTRA_ID, -1)
+                NotificationManagerCompat.from(ctx).cancel(Varsler.paminnelseId(id))
+                val p = ctx.app.repository.hentPaminnelse(id) ?: return@asynkront
+                ctx.app.repository.settPaminnelseFerdig(p, true)
+            }
+            Planlegger.HANDLING_PAMINNELSE_UTSETT -> asynkront {
+                val id = intent.getLongExtra(Planlegger.EKSTRA_ID, -1)
+                NotificationManagerCompat.from(ctx).cancel(Varsler.paminnelseId(id))
+                val p = ctx.app.repository.hentPaminnelse(id) ?: return@asynkront
+                val ny = utsatt(LocalDateTime.now())
+                ctx.app.repository.lagrePaminnelse(p.copy(dato = ny.toLocalDate(), tid = ny.toLocalTime()))
             }
             Planlegger.HANDLING_MORGEN -> asynkront {
                 if (ctx.app.innstillinger.na.morgenOversikt) visMorgen(ctx)
@@ -80,10 +100,37 @@ class AlarmMottaker : BroadcastReceiver() {
         Varsler.vis(ctx, id, b)
     }
 
+    private suspend fun visPaminnelse(ctx: Context, p: Paminnelse) {
+        val oppdrag = p.oppdragId?.let { ctx.app.repository.hent(it) }
+        val linjer = p.tekst.trim().lines()
+        val tittel = linjer.firstOrNull()?.ifBlank { null } ?: "Påminnelse"
+        val tekst = listOfNotNull(
+            linjer.drop(1).joinToString("\n").ifBlank { null },
+            oppdrag?.let { "Oppdrag: ${it.tittel}" + (it.stedTekst.takeIf { s -> s.isNotBlank() }?.let { s -> " · $s" } ?: "") },
+        ).joinToString("\n").ifBlank { null }
+        val id = Varsler.paminnelseId(p.id)
+        val b = Varsler.bygg(ctx, Varsler.KANAL_PAMINNELSE, tittel, tekst)
+            .setContentIntent(Varsler.apneApp(ctx, id))
+            .setCategory(androidx.core.app.NotificationCompat.CATEGORY_REMINDER)
+            .addAction(0, "Ferdig", Planlegger.handlingIntent(ctx, Planlegger.HANDLING_PAMINNELSE_FERDIG, p.id))
+            .addAction(0, "Utsett 1 t", Planlegger.handlingIntent(ctx, Planlegger.HANDLING_PAMINNELSE_UTSETT, p.id))
+        if (oppdrag != null && oppdrag.telefon.isNotBlank()) {
+            val ring = Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + Uri.encode(oppdrag.telefon.filter { it.isDigit() || it == '+' })))
+            b.addAction(0, "Ring", PendingIntent.getActivity(ctx, id, ring, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
+        }
+        Varsler.vis(ctx, id, b)
+    }
+
     private suspend fun visMorgen(ctx: Context) {
         val idag = LocalDate.now()
         val alle = ctx.app.repository.apne()
-        val tekst = morgenTekst(alle, idag) ?: return
+        val antallP = ctx.app.repository.apnePaminnelser().count { it.dato == idag }
+        val pTekst = when (antallP) {
+            0 -> null
+            1 -> "1 påminnelse i dag"
+            else -> "$antallP påminnelser i dag"
+        }
+        val tekst = listOfNotNull(morgenTekst(alle, idag), pTekst).joinToString(", ").ifBlank { null } ?: return
         val dagens = sorter(Prioritet.AVTALE, alle.filter { it.prioritet == Prioritet.AVTALE && it.dato == idag })
         val detaljer = buildString {
             append(tekst)

@@ -58,6 +58,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import no.oppdragsliste.app.data.Oppdrag
+import no.oppdragsliste.app.data.Paminnelse
+import androidx.compose.material.icons.outlined.AlarmAdd
 
 /** Data for «I nærheten»-visningen: oppdrag sortert på avstand, med avstand i meter (null = ukjent). */
 data class NaerVisning(val oppdrag: List<Pair<Oppdrag, Float?>>, val laster: Boolean = false, val feil: String? = null)
@@ -74,6 +76,9 @@ fun ListeSkjerm(
     onSlett: (Oppdrag) -> Unit,
     onInnstillinger: () -> Unit,
     harUtkast: Boolean,
+    onNyPaminnelse: (oppdragId: Long?) -> Unit,
+    onEndrePaminnelse: (Paminnelse) -> Unit,
+    onPaminnelseFerdig: (Paminnelse, Boolean) -> Unit,
     naer: NaerVisning?,
     onNaer: ((Boolean) -> Unit)?,
 ) {
@@ -97,12 +102,22 @@ fun ListeSkjerm(
             )
         },
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = onNytt,
-                icon = { Icon(Icons.Outlined.Add, null, Modifier.size(28.dp)) },
-                text = { Text(if (harUtkast) "Fortsett oppdrag" else "Nytt oppdrag", style = MaterialTheme.typography.titleMedium) },
-                modifier = Modifier.height(64.dp),
-            )
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                ExtendedFloatingActionButton(
+                    onClick = { onNyPaminnelse(null) },
+                    icon = { Icon(Icons.Outlined.AlarmAdd, null) },
+                    text = { Text("Påminnelse") },
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.height(48.dp),
+                )
+                ExtendedFloatingActionButton(
+                    onClick = onNytt,
+                    icon = { Icon(Icons.Outlined.Add, null, Modifier.size(28.dp)) },
+                    text = { Text(if (harUtkast) "Fortsett oppdrag" else "Nytt oppdrag", style = MaterialTheme.typography.titleMedium) },
+                    modifier = Modifier.height(64.dp),
+                )
+            }
         },
         containerColor = MaterialTheme.colorScheme.background,
     ) { innPadding ->
@@ -151,6 +166,29 @@ fun ListeSkjerm(
                         )
                     }
                 }
+                // Påminnelser øverst: åpne (tidligst først), og de som er krysset av i dag (kan angres).
+                if (tilstand.paminnelser.isNotEmpty() || tilstand.ferdigePaminnelser.isNotEmpty()) {
+                    val pApen = erApen("s-paminnelser", true)
+                    item(key = "s-paminnelser") {
+                        SeksjonsTittel(
+                            "Påminnelser", tilstand.paminnelser.size, MaterialTheme.colorScheme.primary,
+                            apen = pApen, onKlikk = { veksle("s-paminnelser", true) },
+                        )
+                    }
+                    if (pApen) {
+                        items(tilstand.paminnelser + tilstand.ferdigePaminnelser, key = { "p-${it.id}" }) { p ->
+                            PaminnelseRad(
+                                p = p,
+                                oppdrag = p.oppdragId?.let { tilstand.oppdragEtterId[it] },
+                                na = tilstand.na,
+                                onFerdig = { f -> onPaminnelseFerdig(p, f) },
+                                onKlikk = { onEndrePaminnelse(p) },
+                                onOppdrag = onEndre,
+                                modifier = Modifier.animateItem(),
+                            )
+                        }
+                    }
+                }
                 tilstand.seksjoner.forEach { seksjon ->
                     val nokkel = "s-${seksjon.prioritet}"
                     val apen = erApen(nokkel, true)
@@ -176,6 +214,8 @@ fun ListeSkjerm(
                                 onEndre = { onEndre(o) },
                                 onSlett = { onSlett(o); utvidet = null },
                                 modifier = Modifier.animateItem(),
+                                paminnelser = tilstand.paminnelserPerOppdrag[o.id].orEmpty(),
+                                onPaminnelse = { onNyPaminnelse(o.id) },
                             )
                         }
                     }
@@ -193,6 +233,8 @@ fun ListeSkjerm(
                                     onEndre = { onEndre(o) },
                                     onSlett = { onSlett(o); utvidet = null },
                                     modifier = Modifier.animateItem(),
+                                    paminnelser = tilstand.paminnelserPerOppdrag[o.id].orEmpty(),
+                                    onPaminnelse = { onNyPaminnelse(o.id) },
                                 )
                             }
                         }

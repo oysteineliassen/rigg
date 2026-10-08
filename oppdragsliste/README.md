@@ -91,6 +91,10 @@ commits i git, så en nyere versjon er alltid høyere.
   hendelsen i kalenderen eller endres start/slutt, oppdateres avtalen (og påminnelsen) i appen.
   Er samme avtale endret begge steder, vinner appen. Sletter du hendelsen i kalenderen, beholdes avtalen.
   Uten klokkeslett blir det heldagshendelse.
+- **Påminnelser:** ting du må huske, uavhengig av oppdragene («Påminnelse»-knappen over «Nytt oppdrag»).
+  Valgfritt varsel (hurtigvalg som «Om 1 time», «I morgen 07:00», eller egen dato/tid; uten klokkeslett
+  kl. 08:00) med «Ferdig» og «Utsett 1 t» i varselet. Kan kobles til et oppdrag, også fra «Påminnelse» på
+  oppdragskortet; de vises da på kortet. Ligger øverst i listen, kryss av når ferdig (angres samme dag).
 - **Sikkerhetskopi:** eksport/import av alle oppdrag som JSON (Innstillinger > Sikkerhetskopi).
   Import hopper over oppdrag som allerede finnes.
 

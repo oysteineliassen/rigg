@@ -20,11 +20,13 @@ object Varsler {
     const val KANAL_AVTALE = "avtale"
     const val KANAL_MORGEN = "morgen"
     const val KANAL_NAER = "naer"
+    const val KANAL_PAMINNELSE = "paminnelse"
 
     const val ID_MORGEN = 1
     const val ID_NAER = 2
     private const val ID_SAMTALE_BASE = 10_000
     private const val ID_AVTALE_BASE = 1_000_000
+    private const val ID_PAMINNELSE_BASE = 3_000_000
 
     fun opprettKanaler(context: Context) {
         val nm = context.getSystemService(NotificationManager::class.java)
@@ -38,6 +40,9 @@ object Varsler {
                 },
                 NotificationChannel(KANAL_MORGEN, "Morgenoversikt", NotificationManager.IMPORTANCE_DEFAULT).apply {
                     description = "Oversikt over dagens oppdrag"
+                },
+                NotificationChannel(KANAL_PAMINNELSE, "Påminnelser", NotificationManager.IMPORTANCE_HIGH).apply {
+                    description = "Ting du har bedt om å bli minnet på"
                 },
                 NotificationChannel(KANAL_NAER, "I nærheten", NotificationManager.IMPORTANCE_HIGH).apply {
                     description = "Oppdrag i nærheten av der du er"
@@ -79,4 +84,5 @@ object Varsler {
 
     fun samtaleId(samtaleId: Long) = ID_SAMTALE_BASE + (samtaleId % 100_000).toInt()
     fun avtaleId(oppdragId: Long) = ID_AVTALE_BASE + (oppdragId % 1_000_000).toInt()
+    fun paminnelseId(id: Long) = ID_PAMINNELSE_BASE + (id % 1_000_000).toInt()
 }

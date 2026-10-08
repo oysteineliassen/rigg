@@ -20,6 +20,9 @@ import kotlinx.coroutines.launch
 import no.oppdragsliste.app.app
 import no.oppdragsliste.app.data.KjentAnlegg
 import no.oppdragsliste.app.data.Oppdrag
+import no.oppdragsliste.app.data.Paminnelse
+import no.oppdragsliste.app.logikk.filtrerPaminnelser
+import no.oppdragsliste.app.logikk.sorterPaminnelser
 import no.oppdragsliste.app.data.Oppsett
 import no.oppdragsliste.app.data.Prioritet
 import no.oppdragsliste.app.logikk.AnleggForslag
@@ -35,6 +38,8 @@ import no.oppdragsliste.app.logikk.sorterPaAvstand
 import no.oppdragsliste.app.sikkerhetskopi.eksporter
 import no.oppdragsliste.app.sikkerhetskopi.les
 import no.oppdragsliste.app.sikkerhetskopi.nyeOppdrag
+import no.oppdragsliste.app.sikkerhetskopi.lesPaminnelser
+import no.oppdragsliste.app.sikkerhetskopi.nyePaminnelser
 import no.oppdragsliste.app.sted.geokod
 import no.oppdragsliste.app.sted.naverendePosisjon
 import no.oppdragsliste.app.varsler.mottakerOmfang
@@ -50,7 +55,28 @@ data class ListeTilstand(
     val na: LocalDateTime = LocalDateTime.now(),
     val antallApne: Int = 0,
     val lastet: Boolean = false,
+    /** Åpne påminnelser (etter søk), tidligst først. */
+    val paminnelser: List<Paminnelse> = emptyList(),
+    /** Påminnelser krysset av i dag, så det kan angres. */
+    val ferdigePaminnelser: List<Paminnelse> = emptyList(),
+    /** Åpne påminnelser per oppdrag, til visning på kortene. */
+    val paminnelserPerOppdrag: Map<Long, List<Paminnelse>> = emptyMap(),
+    /** Alle oppdrag etter id (for å vise hvilket oppdrag en påminnelse hører til). */
+    val oppdragEtterId: Map<Long, Oppdrag> = emptyMap(),
 )
+
+/** Skjemaet for en påminnelse. [original] er null for nye. */
+data class PaminnelseSkjema(
+    val original: Paminnelse? = null,
+    val tekst: String = "",
+    val dato: LocalDate? = null,
+    val tid: LocalTime? = null,
+    val oppdragId: Long? = null,
+    val visFeil: Boolean = false,
+) {
+    /** Noe som er verdt å spørre om før det forkastes. */
+    val harInnhold: Boolean get() = tekst.isNotBlank() && tekst.trim() != original?.tekst
+}
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val repo = application.app.repository
@@ -72,14 +98,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    val liste: StateFlow<ListeTilstand> = combine(repo.alle, _sok, klokke) { alle, sok, na ->
+    val liste: StateFlow<ListeTilstand> = combine(repo.alle, repo.paminnelser, _sok, klokke) { alle, pam, sok, na ->
         val treff = filtrer(alle, sok)
+        val etterId = alle.associateBy { it.id }
+        val pTreff = filtrerPaminnelser(pam, sok) { etterId[it]?.tittel }
+        val idag = na.toLocalDate()
         ListeTilstand(
             seksjoner = grupper(treff),
             utforte = utforte(treff),
             na = na,
             antallApne = alle.count { !it.ferdig },
             lastet = true,
+            paminnelser = sorterPaminnelser(pTreff),
+            ferdigePaminnelser = pTreff.filter { p ->
+                p.ferdig && p.ferdigDato?.atZone(java.time.ZoneId.systemDefault())?.toLocalDate() == idag
+            },
+            paminnelserPerOppdrag = sorterPaminnelser(pam).filter { it.oppdragId != null }.groupBy { it.oppdragId!! },
+            oppdragEtterId = etterId,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ListeTilstand())
 
@@ -311,7 +346,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun eksporterTil(uri: Uri) = viewModelScope.launch {
         _kopiStatus.value = try {
             val alle = repo.alleNa()
-            val tekst = eksporter(alle)
+            val tekst = eksporter(alle, repo.allePaminnelser())
             withContext(Dispatchers.IO) {
                 getApplication<Application>().contentResolver.openOutputStream(uri, "wt")!!.use {
                     it.write(tekst.toByteArray(Charsets.UTF_8))
@@ -332,11 +367,52 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val nye = nyeOppdrag(repo.alleNa(), importerte)
             if (nye.isNotEmpty()) repo.settInnAlle(nye)
             val hoppet = importerte.size - nye.size
-            "Importerte ${nye.size} oppdrag." + if (hoppet > 0) " $hoppet fantes fra før og ble hoppet over." else ""
+            val nyeP = nyePaminnelser(repo.allePaminnelser(), lesPaminnelser(tekst), repo.alleNa())
+            if (nyeP.isNotEmpty()) repo.settInnPaminnelser(nyeP)
+            "Importerte ${nye.size} oppdrag" + (if (nyeP.isNotEmpty()) " og ${nyeP.size} påminnelser." else ".") +
+                if (hoppet > 0) " $hoppet oppdrag fantes fra før og ble hoppet over." else ""
         } catch (e: Exception) {
             "Kunne ikke lese filen. Er det en sikkerhetskopi fra Oppdragsliste?"
         }
     }
+
+    // ---- Påminnelser ----
+
+    private val _paminnelse = MutableStateFlow<PaminnelseSkjema?>(null)
+    val paminnelse: StateFlow<PaminnelseSkjema?> = _paminnelse.asStateFlow()
+
+    /** Ny påminnelse, eventuelt koblet til et oppdrag. */
+    fun nyPaminnelse(oppdragId: Long? = null) { _paminnelse.value = PaminnelseSkjema(oppdragId = oppdragId) }
+
+    fun endrePaminnelse(p: Paminnelse) {
+        _paminnelse.value = PaminnelseSkjema(original = p, tekst = p.tekst, dato = p.dato, tid = p.tid, oppdragId = p.oppdragId)
+    }
+
+    fun oppdaterPaminnelse(endring: (PaminnelseSkjema) -> PaminnelseSkjema) { _paminnelse.update { it?.let(endring) } }
+
+    fun lukkPaminnelse() { _paminnelse.value = null }
+
+    /** Lagrer; false (og feilmelding) hvis teksten mangler. */
+    fun lagrePaminnelse(): Boolean {
+        val s = _paminnelse.value ?: return false
+        if (s.tekst.isBlank()) {
+            _paminnelse.value = s.copy(visFeil = true)
+            return false
+        }
+        val p = (s.original ?: Paminnelse()).copy(
+            tekst = s.tekst.trim(), dato = s.dato, tid = if (s.dato == null) null else s.tid, oppdragId = s.oppdragId,
+        )
+        _paminnelse.value = null
+        viewModelScope.launch { repo.lagrePaminnelse(p) }
+        return true
+    }
+
+    fun slettPaminnelse(p: Paminnelse) {
+        _paminnelse.value = null
+        viewModelScope.launch { repo.slettPaminnelse(p) }
+    }
+
+    fun settPaminnelseFerdig(p: Paminnelse, ferdig: Boolean) = viewModelScope.launch { repo.settPaminnelseFerdig(p, ferdig) }
 
     fun settFerdig(o: Oppdrag, ferdig: Boolean) = viewModelScope.launch { repo.settFerdig(o, ferdig) }
 

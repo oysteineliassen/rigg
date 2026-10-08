@@ -8,16 +8,17 @@ import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [Oppdrag::class, KjentAnlegg::class], version = 4, exportSchema = false)
+@Database(entities = [Oppdrag::class, KjentAnlegg::class, Paminnelse::class], version = 5, exportSchema = false)
 @TypeConverters(Konverterere::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun oppdragDao(): OppdragDao
     abstract fun kjentAnleggDao(): KjentAnleggDao
+    abstract fun paminnelseDao(): PaminnelseDao
 
     companion object {
         fun bygg(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, "oppdrag.db")
-                .addMigrations(FRA_1_TIL_2, FRA_2_TIL_3, FRA_3_TIL_4)
+                .addMigrations(FRA_1_TIL_2, FRA_2_TIL_3, FRA_3_TIL_4, FRA_4_TIL_5)
                 .build()
 
         /** Versjon 2: feltet «anlegg» og registeret over kjente kunder/anlegg (fylt fra eksisterende oppdrag). */
@@ -50,6 +51,19 @@ abstract class AppDatabase : RoomDatabase() {
         val FRA_3_TIL_4 = object : Migration(3, 4) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE oppdrag ADD COLUMN sluttid INTEGER")
+            }
+        }
+
+        /** Versjon 5: påminnelser, valgfritt koblet til et oppdrag. */
+        val FRA_4_TIL_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `paminnelse` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`tekst` TEXT NOT NULL, `dato` INTEGER, `tid` INTEGER, `oppdragId` INTEGER, " +
+                        "`ferdig` INTEGER NOT NULL, `ferdigDato` INTEGER, `opprettet` INTEGER NOT NULL, " +
+                        "FOREIGN KEY(`oppdragId`) REFERENCES `oppdrag`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_paminnelse_oppdragId` ON `paminnelse` (`oppdragId`)")
             }
         }
     }

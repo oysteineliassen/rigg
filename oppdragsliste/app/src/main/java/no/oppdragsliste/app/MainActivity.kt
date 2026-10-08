@@ -23,6 +23,7 @@ import no.oppdragsliste.app.ui.ListeSkjerm
 import no.oppdragsliste.app.ui.MainViewModel
 import no.oppdragsliste.app.ui.NaerInnstillinger
 import no.oppdragsliste.app.ui.OppdragTema
+import no.oppdragsliste.app.ui.PaminnelseDialog
 import no.oppdragsliste.app.ui.SamtaleInnstillinger
 import no.oppdragsliste.app.ui.SkjemaArk
 import no.oppdragsliste.app.ui.VarselInnstillinger
@@ -65,6 +66,7 @@ class MainActivity : ComponentActivity() {
             val kjente by vm.kjente.collectAsStateWithLifecycle()
             val harUtkast by vm.harUtkast.collectAsStateWithLifecycle()
             val fjernet by vm.fjernet.collectAsStateWithLifecycle()
+            val paminnelse by vm.paminnelse.collectAsStateWithLifecycle()
             val geokodStatus by vm.geokoder.collectAsStateWithLifecycle()
             val kopiStatus by vm.kopiStatus.collectAsStateWithLifecycle()
             var visInnstillinger by rememberSaveable { mutableStateOf(false) }
@@ -94,8 +96,22 @@ class MainActivity : ComponentActivity() {
                         onSlett = { vm.slett(it) },
                         onInnstillinger = { visInnstillinger = true },
                         harUtkast = harUtkast,
+                        onNyPaminnelse = vm::nyPaminnelse,
+                        onEndrePaminnelse = vm::endrePaminnelse,
+                        onPaminnelseFerdig = { p, f -> vm.settPaminnelseFerdig(p, f) },
                         naer = naer,
                         onNaer = ::visNaer,
+                    )
+                }
+                paminnelse?.let { p ->
+                    PaminnelseDialog(
+                        skjema = p,
+                        oppdrag = liste.oppdragEtterId.values.filter { !it.ferdig }.sortedByDescending { it.opprettet },
+                        oppdragEtterId = liste.oppdragEtterId,
+                        onEndre = vm::oppdaterPaminnelse,
+                        onLagre = { vm.lagrePaminnelse() },
+                        onSlett = vm::slettPaminnelse,
+                        onLukk = vm::lukkPaminnelse,
                     )
                 }
                 SkjemaArk(

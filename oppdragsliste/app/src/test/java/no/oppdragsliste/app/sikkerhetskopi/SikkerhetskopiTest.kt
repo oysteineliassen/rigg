@@ -47,4 +47,22 @@ class SikkerhetskopiTest {
         // Samme fil to ganger i én import gir ikke dobbelt opp.
         assertEquals(2, nyeOppdrag(emptyList(), importerte + importerte).size)
     }
+
+    @Test
+    fun `paminnelser folger med og kobles til oppdragets nye id`() {
+        val pa = no.oppdragsliste.app.data.Paminnelse(
+            id = 1, tekst = "Bestille kabel", dato = LocalDate.of(2026, 10, 10), tid = LocalTime.of(7, 0),
+            oppdragId = a.id, opprettet = Instant.parse("2026-10-02T09:00:00Z"),
+        )
+        val fri = no.oppdragsliste.app.data.Paminnelse(id = 2, tekst = "Service på bilen", opprettet = Instant.parse("2026-10-03T09:00:00Z"))
+        val fil = eksporter(listOf(a, b), listOf(pa, fri))
+        val importerte = lesPaminnelser(fil)
+        // Oppdraget har fått id 42 i den nye databasen.
+        val nye = nyePaminnelser(emptyList(), importerte, listOf(a.copy(id = 42), b.copy(id = 43)))
+        assertEquals(listOf(pa.copy(id = 0, oppdragId = 42), fri.copy(id = 0)), nye)
+        // Finnes fra før: hoppes over.
+        assertEquals(listOf(fri.copy(id = 0)), nyePaminnelser(listOf(pa), importerte, listOf(a.copy(id = 42))))
+        // Eldre fil uten påminnelser.
+        assertEquals(emptyList<PaminnelseImport>(), lesPaminnelser("""{"eksportert":"2026-10-07T10:00:00Z","oppdrag":[]}"""))
+    }
 }

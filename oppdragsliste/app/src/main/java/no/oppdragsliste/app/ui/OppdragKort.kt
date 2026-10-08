@@ -17,7 +17,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AlarmAdd
 import androidx.compose.material.icons.outlined.Call
+import androidx.compose.material.icons.outlined.NotificationsNone
+import no.oppdragsliste.app.data.Paminnelse
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
@@ -75,6 +78,8 @@ fun OppdragKort(
     modifier: Modifier = Modifier,
     avstand: String? = null,
     visPrioritet: Boolean = false,
+    paminnelser: List<Paminnelse> = emptyList(),
+    onPaminnelse: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val idag = na.toLocalDate()
@@ -142,6 +147,17 @@ fun OppdragKort(
                     else -> {}
                 }
 
+                // Påminnelser koblet til oppdraget (de to første).
+                paminnelser.take(2).forEach { p ->
+                    val nar = formaterDatoTid(p.dato, p.tid, idag)
+                    Linje(
+                        Icons.Outlined.NotificationsNone,
+                        p.tekst.lines().first() + (nar?.let { " · $it" } ?: ""),
+                        farge = if (erForfalt(p, na)) forfaltFarge else MaterialTheme.colorScheme.primary,
+                    )
+                }
+                if (paminnelser.size > 2) Linje(Icons.Outlined.NotificationsNone, "+${paminnelser.size - 2} påminnelser til")
+
                 AnimatedVisibility(visible = utvidet) {
                     Column(Modifier.padding(top = 10.dp)) {
                         if (bekreftSlett) {
@@ -173,6 +189,7 @@ fun OppdragKort(
                                     }
                                     Handling(Icons.Outlined.Check, "Ferdig", fremhevet = true) { onFerdig(true) }
                                     Handling(Icons.Outlined.Edit, "Endre", onClick = onEndre)
+                                    if (onPaminnelse != null) Handling(Icons.Outlined.AlarmAdd, "Påminnelse", onClick = onPaminnelse)
                                 } else {
                                     Handling(Icons.AutoMirrored.Outlined.Undo, "Gjenåpne") { onFerdig(false) }
                                 }
