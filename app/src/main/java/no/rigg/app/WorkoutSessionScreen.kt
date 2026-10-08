@@ -71,7 +71,7 @@ fun WorkoutSessionScreen(vm: AppViewModel, day: WorkoutDay, state: GuidedWorkout
         onDispose { view.keepScreenOn = false }
     }
     val steps = remember(day) { sessionSteps(day) }
-    val warmup = remember(day, vm.profile.equipment) { vm.warmupItems(day) }
+    val warmup = remember(day, vm.profile.equipment, vm.logs.size) { vm.warmupItems(day) }
     var confirmExit by remember { mutableStateOf(false) }
     val colors = MaterialTheme.colorScheme
 

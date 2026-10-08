@@ -205,4 +205,17 @@ class TrainingTest {
         assertTrue(!ex("pushup").perSide)
         assertEquals(null, ex("pushup").perSideHint)
     }
+
+    @Test
+    fun warmupVariesBetweenSessions() {
+        val day = WorkoutDay("Test", listOf(PlannedExercise("goblet_squat", 3, "8-12", 75), PlannedExercise("pushup", 3, "8-12", 75),
+            PlannedExercise("db_row", 3, "8-12", 75), PlannedExercise("plank", 3, "30 sec", 45)))
+        val eq = setOf(Equipment.DUMBBELLS)
+        val all = (0 until 6).map { v -> warmupFor(day, eq, v) }
+        // Samme økt (samme variant) gir samme oppvarming, neste økt en annen.
+        assertEquals(all[0].map { it.figure }, warmupFor(day, eq, 0).map { it.figure })
+        assertTrue(all[0].map { it.figure } != all[1].map { it.figure })
+        assertTrue(all.flatten().map { it.figure }.toSet().size >= 10)
+        all.forEach { assertTrue(it.sumOf { w -> w.seconds } <= 300) }
+    }
 }

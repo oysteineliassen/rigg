@@ -1006,7 +1006,7 @@ private fun ExtraWorkoutDialog(
 private fun NextWorkoutCard(vm: AppViewModel, day: WorkoutDay, onStart: () -> Unit) {
     val active = vm.sessionTimer?.dayTitle == day.title
     val minutes = remember(day) { estimateMinutes(day) }
-    val warmupMin = remember(day, vm.profile.equipment) { (warmupFor(day, vm.profile.equipment).sumOf { it.seconds } + 30) / 60 }
+    val warmupMin = remember(day, vm.profile.equipment, vm.logs.size) { (vm.warmupItems(day).sumOf { it.seconds } + 30) / 60 }
     val exercises = day.exercises.mapNotNull { ExerciseLibrary.get(it.exerciseId) }
     var infoFor by remember { mutableStateOf<Exercise?>(null) }
     infoFor?.let { ExerciseInfoDialog(it, onDismiss = { infoFor = null }) }
@@ -1082,7 +1082,7 @@ private fun DayCard(vm: AppViewModel, day: WorkoutDay, requestNotificationPermis
                 if (doneThisWeek) CheckDot(24.dp)
             }
             if (expanded) {
-                val warmup = warmupFor(day, vm.profile.equipment)
+                val warmup = vm.warmupItems(day)
                 Text(
                     tr("Warm-up (~${(warmup.sumOf { it.seconds } + 30) / 60} min): ", "Oppvarming (~${(warmup.sumOf { it.seconds } + 30) / 60} min): ") +
                         warmup.joinToString(" · ") { it.name },

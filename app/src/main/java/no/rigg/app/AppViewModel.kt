@@ -191,7 +191,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun guidedDay(): WorkoutDay? = guided?.let { g -> plan?.days?.find { it.title == g.dayTitle } }
 
-    fun warmupItems(day: WorkoutDay): List<WarmupItem> = warmupFor(day, profile.equipment)
+    /** Oppvarmingen til [day]. Skifter med antall loggførte økter, så den varierer, men er lik gjennom én økt. */
+    fun warmupItems(day: WorkoutDay): List<WarmupItem> = warmupFor(day, profile.equipment, logs.size)
 
     /** Starter nedtellingen for oppvarmingsøvelsen man står på. */
     fun startWarmup() {
