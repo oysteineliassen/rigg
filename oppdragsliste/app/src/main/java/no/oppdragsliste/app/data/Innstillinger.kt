@@ -7,6 +7,17 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.time.LocalTime
 
+/** Hvordan appen spør om nytt oppdrag etter en samtale. */
+enum class SamtaleModus(val tittel: String, val forklaring: String) {
+    BEGGE("Varsel og spørsmål i appen", "Varsel rett etter samtalen, og spørsmål hvis du åpner appen uten å ha brukt varselet"),
+    KUN_APP("Bare når jeg åpner appen", "Ingen varsel; appen spør når du åpner den innen 15 minutter etter samtalen"),
+    KUN_VARSEL("Bare varsel", "Varsel rett etter samtalen, men ikke noe spørsmål når appen åpnes"),
+    ;
+
+    val varsel: Boolean get() = this != KUN_APP
+    val sporIApp: Boolean get() = this != KUN_VARSEL
+}
+
 enum class Tema(val tittel: String) { SYSTEM("Følg telefonen"), LYS("Lys"), MORK("Mørk") }
 
 data class Oppsett(
@@ -16,6 +27,7 @@ data class Oppsett(
     /** Fase 2: varsel etter telefonsamtaler. */
     val samtaleVarsel: Boolean = false,
     val minSamtaleSekunder: Int = 20,
+    val samtaleModus: SamtaleModus = SamtaleModus.BEGGE,
     /** Fase 3: påminnelse før avtaler. */
     val avtaleVarsel: Boolean = true,
     val avtaleMinutterFor: Int = 60,
@@ -44,6 +56,8 @@ class Innstillinger(context: Context) {
             .getOrDefault(Prioritet.AVTALE),
         samtaleVarsel = prefs.getBoolean("samtaleVarsel", false),
         minSamtaleSekunder = prefs.getInt("minSamtaleSekunder", 20),
+        samtaleModus = runCatching { SamtaleModus.valueOf(prefs.getString("samtaleModus", null) ?: "BEGGE") }
+            .getOrDefault(SamtaleModus.BEGGE),
         avtaleVarsel = prefs.getBoolean("avtaleVarsel", true),
         avtaleMinutterFor = prefs.getInt("avtaleMinutterFor", 60),
         morgenOversikt = prefs.getBoolean("morgenOversikt", false),
@@ -62,6 +76,7 @@ class Innstillinger(context: Context) {
             .putString("standardPrioritet", ny.standardPrioritet.name)
             .putBoolean("samtaleVarsel", ny.samtaleVarsel)
             .putInt("minSamtaleSekunder", ny.minSamtaleSekunder)
+            .putString("samtaleModus", ny.samtaleModus.name)
             .putBoolean("avtaleVarsel", ny.avtaleVarsel)
             .putInt("avtaleMinutterFor", ny.avtaleMinutterFor)
             .putBoolean("morgenOversikt", ny.morgenOversikt)

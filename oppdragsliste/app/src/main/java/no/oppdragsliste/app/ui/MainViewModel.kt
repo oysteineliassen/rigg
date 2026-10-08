@@ -45,6 +45,7 @@ import no.oppdragsliste.app.sikkerhetskopi.lesPaminnelser
 import no.oppdragsliste.app.sikkerhetskopi.nyePaminnelser
 import no.oppdragsliste.app.sted.geokod
 import no.oppdragsliste.app.sted.naverendePosisjon
+import no.oppdragsliste.app.varsler.Varsler
 import no.oppdragsliste.app.varsler.mottakerOmfang
 import no.oppdragsliste.app.logikk.utforte
 import no.oppdragsliste.app.logikk.valider
@@ -411,7 +412,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun sjekkSisteSamtale() = viewModelScope.launch {
         val app = getApplication<Application>()
         val oppsett = innstillinger.na
-        if (!oppsett.samtaleVarsel || _skjema.value != null || _samtaleSporsmal.value != null) return@launch
+        if (!oppsett.samtaleVarsel || !oppsett.samtaleModus.sporIApp) return@launch
+        if (_skjema.value != null || _samtaleSporsmal.value != null) return@launch
         val s = withContext(Dispatchers.IO) { sisteSamtale(app) } ?: return@launch
         val na = System.currentTimeMillis()
         if (!erAktuell(s, oppsett.minSamtaleSekunder, innstillinger.sisteSpurteSamtale, na, vinduMin = 15)) return@launch
@@ -445,6 +447,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val sp = _samtaleSporsmal.value ?: return
         _samtaleSporsmal.value = null
         innstillinger.sisteSpurteSamtale = sp.samtaleId
+        // Varselet om samme samtale trengs ikke lenger.
+        androidx.core.app.NotificationManagerCompat.from(getApplication()).cancel(Varsler.samtaleId(sp.samtaleId))
         if (registrer) nyttOppdrag(sp.telefon, sp.navn.orEmpty(), kandidat = kandidat, slaOpp = false)
     }
 

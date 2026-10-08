@@ -16,7 +16,7 @@ class SamtaleJobb(context: Context, params: WorkerParameters) : CoroutineWorker(
         val ctx = applicationContext
         val innstillinger = ctx.app.innstillinger
         val oppsett = innstillinger.na
-        if (!oppsett.samtaleVarsel) return Result.success()
+        if (!oppsett.samtaleVarsel || !oppsett.samtaleModus.varsel) return Result.success()
         val samtale = sisteSamtale(ctx) ?: return Result.success()
         if (!erAktuell(samtale, oppsett.minSamtaleSekunder, innstillinger.sisteVarsledeSamtale, System.currentTimeMillis())) {
             return Result.success()

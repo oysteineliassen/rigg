@@ -22,6 +22,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import no.oppdragsliste.app.R
 import no.oppdragsliste.app.data.Oppsett
+import no.oppdragsliste.app.data.SamtaleModus
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.material3.RadioButton
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import no.oppdragsliste.app.samtale.NyttOppdragFlis
 
 private val samtaleTillatelser = buildList {
@@ -63,6 +71,26 @@ fun SamtaleInnstillinger(oppsett: Oppsett, onEndre: ((Oppsett) -> Oppsett) -> Un
                 be.launch(samtaleTillatelser.toTypedArray())
             } else {
                 onEndre { it.copy(samtaleVarsel = pa && nodvendigGitt) }
+            }
+        }
+        if (oppsett.samtaleVarsel && nodvendigGitt) {
+            Text("Hvordan vil du bli spurt?", style = MaterialTheme.typography.titleSmall)
+            Column {
+                SamtaleModus.entries.forEach { m ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .selectable(selected = oppsett.samtaleModus == m, onClick = { onEndre { it.copy(samtaleModus = m) } })
+                            .padding(vertical = 4.dp),
+                    ) {
+                        RadioButton(selected = oppsett.samtaleModus == m, onClick = null)
+                        Column(Modifier.padding(start = 12.dp)) {
+                            Text(m.tittel, style = MaterialTheme.typography.bodyLarge)
+                            Text(m.forklaring, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
             }
         }
         if (oppsett.samtaleVarsel || avslatt) {
