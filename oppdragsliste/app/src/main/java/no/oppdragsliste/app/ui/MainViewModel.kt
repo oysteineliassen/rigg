@@ -416,7 +416,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (_skjema.value != null || _samtaleSporsmal.value != null) return@launch
         val s = withContext(Dispatchers.IO) { sisteSamtale(app) } ?: return@launch
         val na = System.currentTimeMillis()
-        if (!erAktuell(s, oppsett.minSamtaleSekunder, innstillinger.sisteSpurteSamtale, na, vinduMin = 15)) return@launch
+        if (!erAktuell(s, oppsett.minSamtaleSekunder, innstillinger.sisteSpurteSamtale, na, vinduMin = 15, simKort = oppsett.samtaleSim)) return@launch
         val alle = repo.alleNa()
         val nr = s.nummer.filter { it.isDigit() }.takeLast(8)
         // Allerede lagt inn et oppdrag med nummeret etter at samtalen startet: ikke spør.

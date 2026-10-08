@@ -28,6 +28,8 @@ data class Oppsett(
     val samtaleVarsel: Boolean = false,
     val minSamtaleSekunder: Int = 20,
     val samtaleModus: SamtaleModus = SamtaleModus.BEGGE,
+    /** SIM-kort (telefonkonto-id) som gir spørsmål etter samtaler. Tomt = alle. */
+    val samtaleSim: Set<String> = emptySet(),
     /** Fase 3: påminnelse før avtaler. */
     val avtaleVarsel: Boolean = true,
     val avtaleMinutterFor: Int = 60,
@@ -56,6 +58,7 @@ class Innstillinger(context: Context) {
             .getOrDefault(Prioritet.AVTALE),
         samtaleVarsel = prefs.getBoolean("samtaleVarsel", false),
         minSamtaleSekunder = prefs.getInt("minSamtaleSekunder", 20),
+        samtaleSim = prefs.getStringSet("samtaleSim", emptySet())!!.toSet(),
         samtaleModus = runCatching { SamtaleModus.valueOf(prefs.getString("samtaleModus", null) ?: "BEGGE") }
             .getOrDefault(SamtaleModus.BEGGE),
         avtaleVarsel = prefs.getBoolean("avtaleVarsel", true),
@@ -77,6 +80,7 @@ class Innstillinger(context: Context) {
             .putBoolean("samtaleVarsel", ny.samtaleVarsel)
             .putInt("minSamtaleSekunder", ny.minSamtaleSekunder)
             .putString("samtaleModus", ny.samtaleModus.name)
+            .putStringSet("samtaleSim", ny.samtaleSim)
             .putBoolean("avtaleVarsel", ny.avtaleVarsel)
             .putInt("avtaleMinutterFor", ny.avtaleMinutterFor)
             .putBoolean("morgenOversikt", ny.morgenOversikt)

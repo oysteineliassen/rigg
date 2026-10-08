@@ -82,6 +82,7 @@ commits i git, så en nyere versjon er alltid høyere.
   oppdraget allerede er lagt inn). Kunde og anlegg kontakten er registrert på før (på nummer eller navn)
   vises som valg og fylles inn; navnet fra kontaktene blir kontaktperson.
   Under Innstillinger velger du varsel og spørsmål i appen, bare når appen åpnes, eller bare varsel.
+  Med to SIM-kort kan du velge hvilke(t) SIM-kort som skal gi varsel/spørsmål.
 - **Påminnelser** med eksakte alarmer, planlegges på nytt etter omstart.
 - **I nærheten:** sted/adresse geokodes når du lagrer. Geofencer (standard 2 km) gir ett samlet varsel,
   f.eks. «3 oppdrag i nærheten: Søgne (2), Tangvall (1)», maks én gang per oppdrag per dag.

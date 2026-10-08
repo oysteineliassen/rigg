@@ -22,4 +22,12 @@ class SamtaleTest {
         assertTrue(erAktuell(s(slutt = na - 14 * 60_000), 20, -1, na, vinduMin = 15))
         assertFalse(erAktuell(s(slutt = na - 16 * 60_000), 20, -1, na, vinduMin = 15))
     }
+    @Test fun `bare valgte SIM-kort`() {
+        val jobb = s().copy(simId = "1")
+        val privat = s().copy(simId = "2")
+        assertTrue(erAktuell(jobb, 20, -1, na, simKort = setOf("1")))
+        assertFalse(erAktuell(privat, 20, -1, na, simKort = setOf("1")))
+        assertTrue(erAktuell(privat, 20, -1, na)) // ingen valgt = alle
+        assertTrue(erAktuell(s().copy(simId = null), 20, -1, na, simKort = setOf("1"))) // ukjent SIM regnes med
+    }
 }

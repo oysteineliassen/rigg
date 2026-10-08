@@ -31,6 +31,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import no.oppdragsliste.app.samtale.NyttOppdragFlis
+import no.oppdragsliste.app.samtale.simkort
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material3.Checkbox
 
 private val samtaleTillatelser = buildList {
     add(Manifest.permission.READ_PHONE_STATE)
@@ -72,6 +75,38 @@ fun SamtaleInnstillinger(oppsett: Oppsett, onEndre: ((Oppsett) -> Oppsett) -> Un
             } else {
                 onEndre { it.copy(samtaleVarsel = pa && nodvendigGitt) }
             }
+        }
+        // Dobbel-SIM: velg hvilke SIM-kort som gir spørsmål (vises bare med mer enn ett).
+        val sim = remember(teller, nodvendigGitt) { if (nodvendigGitt) simkort(context) else emptyList() }
+        if (oppsett.samtaleVarsel && nodvendigGitt && sim.size > 1) {
+            Text("Hvilke SIM-kort?", style = MaterialTheme.typography.titleSmall)
+            Column {
+                sim.forEach { kort ->
+                    // Tomt valg betyr alle; da vises alle som avkrysset.
+                    val pa = oppsett.samtaleSim.isEmpty() || kort.id in oppsett.samtaleSim
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .toggleable(value = pa, onValueChange = { ny ->
+                                onEndre { o ->
+                                    val alle = sim.map { it.id }.toSet()
+                                    val valgt = (if (o.samtaleSim.isEmpty()) alle else o.samtaleSim).let { if (ny) it + kort.id else it - kort.id }
+                                    // Alle valgt = tomt (så nye SIM-kort også tas med). Minst ett må være valgt.
+                                    o.copy(samtaleSim = if (valgt.isEmpty() || valgt.containsAll(alle)) emptySet() else valgt)
+                                }
+                            })
+                            .padding(vertical = 2.dp),
+                    ) {
+                        Checkbox(checked = pa, onCheckedChange = null)
+                        Column(Modifier.padding(start = 12.dp)) {
+                            Text(kort.navn, style = MaterialTheme.typography.bodyLarge)
+                            kort.nummer?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                        }
+                    }
+                }
+            }
+            Forklaring("Samtaler via SIM-kort som ikke er krysset av, gir verken varsel eller spørsmål.")
         }
         if (oppsett.samtaleVarsel && nodvendigGitt) {
             Text("Hvordan vil du bli spurt?", style = MaterialTheme.typography.titleSmall)
