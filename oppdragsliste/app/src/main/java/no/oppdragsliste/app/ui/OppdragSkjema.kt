@@ -344,7 +344,7 @@ private fun SkjemaInnhold(
                 value = skjema.sted,
                 onValueChange = { v -> onEndre { it.copy(sted = v) } },
                 label = { Text("Sted") },
-                placeholder = { Text("F.eks. Søgne") },
+                placeholder = { Text("F.eks. Kristiansand") },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                 modifier = Modifier.fillMaxWidth(),
