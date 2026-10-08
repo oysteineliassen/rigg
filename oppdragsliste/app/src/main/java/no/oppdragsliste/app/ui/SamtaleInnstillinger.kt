@@ -76,37 +76,53 @@ fun SamtaleInnstillinger(oppsett: Oppsett, onEndre: ((Oppsett) -> Oppsett) -> Un
                 onEndre { it.copy(samtaleVarsel = pa && nodvendigGitt) }
             }
         }
-        // Dobbel-SIM: velg hvilke SIM-kort som gir spørsmål (vises bare med mer enn ett).
+        // Dobbel-SIM: velg hvilke SIM-kort som gir spørsmål.
         val sim = remember(teller, nodvendigGitt) { if (nodvendigGitt) simkort(context) else emptyList() }
-        if (oppsett.samtaleVarsel && nodvendigGitt && sim.size > 1) {
-            Text("Hvilke SIM-kort?", style = MaterialTheme.typography.titleSmall)
-            Column {
-                sim.forEach { kort ->
-                    // Tomt valg betyr alle; da vises alle som avkrysset.
-                    val pa = oppsett.samtaleSim.isEmpty() || kort.id in oppsett.samtaleSim
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .toggleable(value = pa, onValueChange = { ny ->
-                                onEndre { o ->
-                                    val alle = sim.map { it.id }.toSet()
-                                    val valgt = (if (o.samtaleSim.isEmpty()) alle else o.samtaleSim).let { if (ny) it + kort.id else it - kort.id }
-                                    // Alle valgt = tomt (så nye SIM-kort også tas med). Minst ett må være valgt.
-                                    o.copy(samtaleSim = if (valgt.isEmpty() || valgt.containsAll(alle)) emptySet() else valgt)
+        if (oppsett.samtaleVarsel && nodvendigGitt) {
+            Text("SIM-kort", style = MaterialTheme.typography.titleSmall)
+            when {
+                sim.isEmpty() -> Forklaring("Fant ingen SIM-kort å velge mellom. Alle samtaler gir spørsmål.")
+                sim.size == 1 -> Forklaring(
+                    "Fant bare ett SIM-kort (${sim.first().navn}), så alle samtaler gir spørsmål. Har du to, ring én " +
+                        "gang fra hvert nummer og kom tilbake hit, så dukker begge opp.",
+                )
+                else -> {
+                    Forklaring("Kryss av for SIM-kortene som skal gi spørsmål:")
+                    Column {
+                        sim.forEach { kort ->
+                            // Tomt valg betyr alle; da vises alle som avkrysset.
+                            val pa = oppsett.samtaleSim.isEmpty() || kort.ider.any { it in oppsett.samtaleSim }
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .toggleable(value = pa, onValueChange = { ny ->
+                                        onEndre { o ->
+                                            val alle = sim.flatMap { it.ider }.toSet()
+                                            val forrige = if (o.samtaleSim.isEmpty()) alle else o.samtaleSim
+                                            val valgt = if (ny) forrige + kort.ider else forrige - kort.ider
+                                            // Ingen eller alle valgt = tomt (alle, også nye SIM-kort).
+                                            val ingen = sim.none { k -> k.ider.any { it in valgt } }
+                                            val samtlige = sim.all { k -> k.ider.any { it in valgt } }
+                                            o.copy(samtaleSim = if (ingen || samtlige) emptySet() else valgt)
+                                        }
+                                    })
+                                    .padding(vertical = 2.dp),
+                            ) {
+                                Checkbox(checked = pa, onCheckedChange = null)
+                                Column(Modifier.padding(start = 12.dp)) {
+                                    Text(kort.navn, style = MaterialTheme.typography.bodyLarge)
+                                    val under = listOfNotNull(kort.nummer, if (kort.fraLogg) "funnet i anropsloggen" else null)
+                                    if (under.isNotEmpty()) {
+                                        Text(under.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
                                 }
-                            })
-                            .padding(vertical = 2.dp),
-                    ) {
-                        Checkbox(checked = pa, onCheckedChange = null)
-                        Column(Modifier.padding(start = 12.dp)) {
-                            Text(kort.navn, style = MaterialTheme.typography.bodyLarge)
-                            kort.nummer?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                            }
                         }
                     }
+                    Forklaring("Samtaler via SIM-kort uten hake gir verken varsel eller spørsmål.")
                 }
             }
-            Forklaring("Samtaler via SIM-kort som ikke er krysset av, gir verken varsel eller spørsmål.")
         }
         if (oppsett.samtaleVarsel && nodvendigGitt) {
             Text("Hvordan vil du bli spurt?", style = MaterialTheme.typography.titleSmall)
