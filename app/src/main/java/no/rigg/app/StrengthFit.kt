@@ -142,7 +142,7 @@ object StrengthFit {
         val all = log.results.flatMap { r ->
             val ex = ExerciseLibrary.get(r.exerciseId)
             val fit = ex?.let { FitExercises.forExercise(it) } ?: FitExercises.forId(r.exerciseId) ?: FitExercise(29, 0)
-            r.sets.map { s -> Triple(fit, ex?.timed == true, s) }
+            r.sets.map { s -> Triple(fit, log.hiit || ex?.timed == true, s) }
         }
         val elapsed = elapsedSecFor(log)
         val slot = (elapsed / all.size.coerceAtLeast(1)).coerceAtLeast(2)

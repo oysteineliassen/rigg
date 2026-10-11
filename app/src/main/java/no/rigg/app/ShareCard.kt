@@ -87,7 +87,7 @@ fun setsSummary(sets: List<SetResult>, timed: Boolean): String {
 
 /** Totalt løftet (reps × kg) i økta. Tidsøvelser og sett uten vekt teller ikke. */
 fun sessionVolumeKg(log: SessionLog): Double = log.results.sumOf { r ->
-    if (ExerciseLibrary.get(r.exerciseId)?.timed == true) 0.0
+    if (log.hiit || ExerciseLibrary.get(r.exerciseId)?.timed == true) 0.0
     else r.sets.sumOf { s -> (s.weightKg ?: 0.0) * s.reps }
 }
 
@@ -185,7 +185,7 @@ object WorkoutShareImage {
             val textX = PAD + TILE + 36f
             val textW = W - PAD - textX
             c.drawText(fit(ex?.name ?: r.exerciseId, namePaint, textW), textX, y + 54f, namePaint)
-            c.drawText(fit(setsSummary(r.sets, ex?.timed == true), setsPaint, textW), textX, y + 100f, setsPaint)
+            c.drawText(fit(setsSummary(r.sets, log.hiit || ex?.timed == true), setsPaint, textW), textX, y + 100f, setsPaint)
             y += ROW
         }
 

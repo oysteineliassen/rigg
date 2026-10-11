@@ -276,7 +276,7 @@ private fun SessionDetail(vm: AppViewModel, log: SessionLog, onBack: () -> Unit,
                     if (ex != null) ExerciseTile(ex, size = 48.dp)
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(ex?.name ?: r.exerciseId, style = MaterialTheme.typography.titleSmall)
-                        Text(setsSummary(r.sets, ex?.timed == true), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+                        Text(setsSummary(r.sets, log.hiit || ex?.timed == true), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
                         ex?.muscles?.filter { it != Muscle.FULL_BODY }?.takeIf { it.isNotEmpty() }?.let { ms ->
                             Text(ms.joinToString(" · ") { it.label }, style = MaterialTheme.typography.labelSmall, color = colors.tertiary)
                         }

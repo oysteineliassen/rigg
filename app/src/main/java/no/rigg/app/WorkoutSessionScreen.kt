@@ -102,7 +102,10 @@ fun WorkoutSessionScreen(vm: AppViewModel, day: WorkoutDay, state: GuidedWorkout
                 !state.warmupDone && warmup.isNotEmpty() ->
                     WarmupView(vm, warmup, state)
                 resting != null && state.step in 1 until steps.size ->
-                    RestView(vm, resting, steps, state)
+                    RestView(vm, resting, steps, state, day.hiit)
+                state.step < steps.size && day.hiit != null -> key(state.step) {
+                    HiitSetView(vm, day.hiit, steps, state)
+                }
                 state.step < steps.size -> key(state.step) {
                     SetView(vm, day, steps, state)
                 }
@@ -544,10 +547,116 @@ private fun SetView(vm: AppViewModel, day: WorkoutDay, steps: List<WorkStep>, st
     }
 }
 
+// ---------------------------------------------------------------- HIIT
+
+/**
+ * Én HIIT-øvelse: stor figur og nedtelling. Første øvelse startes med knappen; etter det går økta av seg selv
+ * (arbeid, pause, neste øvelse) til den er ferdig. Pause-knappen øverst stopper alt.
+ */
+@Composable
+private fun HiitSetView(vm: AppViewModel, hiit: HiitSpec, steps: List<WorkStep>, state: GuidedWorkout) {
+    val step = steps[state.step]
+    val ex = ExerciseLibrary.get(step.pe.exerciseId)
+    if (ex == null) {
+        LaunchedEffect(Unit) { vm.updateGuided(state.copy(step = state.step + 1)) }
+        return
+    }
+    val colors = MaterialTheme.colorScheme
+    val timer = vm.workTimer?.takeIf { it.kind == WorkKind.SET && it.index == state.step && !it.finished }
+    @Suppress("UNUSED_VARIABLE")
+    val tick = rememberTick(active = timer != null, periodMs = 200L)
+    val running = timer != null
+    val left = timer?.secondsLeft() ?: hiit.workSec
+    var showInfo by remember { mutableStateOf(false) }
+    if (showInfo) ExerciseInfoDialog(ex, onDismiss = { showInfo = false })
+
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            SectionLabel(
+                tr(
+                    "Round ${step.setIndex + 1} of ${hiit.rounds} · exercise ${step.exerciseNo} of ${step.exerciseCount}",
+                    "Runde ${step.setIndex + 1} av ${hiit.rounds} · øvelse ${step.exerciseNo} av ${step.exerciseCount}",
+                ),
+                Modifier.weight(1f),
+            )
+            Text(
+                "HIIT",
+                style = MaterialTheme.typography.labelMedium,
+                color = colors.tertiary,
+                modifier = Modifier.border(1.dp, colors.tertiary.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                    .padding(horizontal = 8.dp, vertical = 3.dp),
+            )
+        }
+        Box(
+            Modifier.fillMaxWidth().height(230.dp).clip(RoundedCornerShape(24.dp)).background(colors.surfaceVariant),
+            contentAlignment = Alignment.Center,
+        ) {
+            ExerciseIllustration(ex, modifier = Modifier.size(200.dp).clickable { showInfo = true }, animate = true)
+        }
+        Text(ex.name, style = MaterialTheme.typography.headlineMedium)
+
+        // Nedtellingen, med en stolpe som tømmes.
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+            Text(
+                formatDuration(left),
+                style = MaterialTheme.typography.displayLarge.copy(fontSize = 84.sp),
+                color = if (running) colors.onSurface else colors.onSurfaceVariant,
+            )
+            val fraction = if (timer == null) 1f else (timer.remainingMs().coerceAtLeast(0) / (hiit.workSec * 1000f)).coerceIn(0f, 1f)
+            Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(colors.surfaceContainerHighest)) {
+                Box(Modifier.fillMaxWidth(fraction).height(8.dp).clip(RoundedCornerShape(4.dp)).background(colors.secondary))
+            }
+        }
+
+        if (!running) {
+            BigButton(
+                if (state.done.isEmpty()) tr("Start", "Start") else tr("Continue", "Fortsett"),
+                onClick = { vm.startHiitWork(state.step) },
+                icon = RiggIcons.Play,
+            )
+        } else {
+            Button(
+                onClick = { vm.stopTimedSetEarly() },
+                modifier = Modifier.fillMaxWidth().height(58.dp),
+                shape = RoundedCornerShape(18.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = colors.inverseSurface, contentColor = colors.inverseOnSurface),
+            ) { Text(tr("Done, take the break", "Ferdig, ta pausen"), style = MaterialTheme.typography.labelLarge) }
+        }
+
+        steps.getOrNull(state.step + 1)?.let { next ->
+            val nextEx = ExerciseLibrary.get(next.pe.exerciseId)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (nextEx != null) ExerciseTile(nextEx, size = 36.dp)
+                Text(
+                    tr("Next: ", "Neste: ") + (nextEx?.name ?: next.pe.exerciseId) + " · " +
+                        if (step.restAfter == hiit.roundRestSec && next.setIndex > step.setIndex) {
+                            tr("after ${step.restAfter} s round break", "etter ${step.restAfter} sek rundepause")
+                        } else {
+                            tr("after ${step.restAfter} s rest", "etter ${step.restAfter} sek pause")
+                        },
+                    style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant,
+                )
+            }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            TextButton(
+                onClick = { vm.stopWork(); vm.updateGuided(state.copy(step = state.step - 1)) },
+                enabled = state.step > 0,
+            ) { Text(tr("Back", "Tilbake")) }
+            TextButton(onClick = { vm.stopWork(); vm.updateGuided(state.copy(step = state.step + 1)) }) {
+                Text(tr("Skip exercise", "Hopp over øvelsen"))
+            }
+        }
+    }
+}
+
 // ---------------------------------------------------------------- HVILE
 
 @Composable
-private fun RestView(vm: AppViewModel, timer: RestTimer, steps: List<WorkStep>, state: GuidedWorkout) {
+private fun RestView(vm: AppViewModel, timer: RestTimer, steps: List<WorkStep>, state: GuidedWorkout, hiit: HiitSpec?) {
     @Suppress("UNUSED_VARIABLE")
     val tick = rememberTick(active = true, periodMs = 100L)
     val msLeft = timer.remainingMs().coerceAtLeast(0)
@@ -565,7 +674,7 @@ private fun RestView(vm: AppViewModel, timer: RestTimer, steps: List<WorkStep>, 
     Column(Modifier.fillMaxSize().padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         // Siste sett, med mulighet til å rette det.
         if (lastEx != null && lastDone != null) {
-            val unit = if (lastEx.timed) tr(" s", " sek") else ""
+            val unit = if (hiit != null || lastEx.timed) tr(" s", " sek") else ""
             Row(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(colors.surfaceContainer)
                     .padding(start = 14.dp, end = 4.dp),
@@ -581,10 +690,15 @@ private fun RestView(vm: AppViewModel, timer: RestTimer, steps: List<WorkStep>, 
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                TextButton(onClick = {
-                    vm.stopRestTimer()
-                    vm.updateGuided(state.copy(step = state.step - 1))
-                }) { Text(tr("Edit", "Endre")) }
+                // I HIIT starter neste øvelse når pausen er over, så der rettes ingenting underveis.
+                if (hiit == null) {
+                    TextButton(onClick = {
+                        vm.stopRestTimer()
+                        vm.updateGuided(state.copy(step = state.step - 1))
+                    }) { Text(tr("Edit", "Endre")) }
+                } else {
+                    Spacer(Modifier.height(48.dp))
+                }
             }
         }
 
@@ -593,7 +707,14 @@ private fun RestView(vm: AppViewModel, timer: RestTimer, steps: List<WorkStep>, 
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(if (upcoming.size > 1) 14.dp else 24.dp, Alignment.CenterVertically),
         ) {
-            SectionLabel(tr("Rest", "Hvile"), color = colors.onSurfaceVariant)
+            val roundRest = hiit != null && steps[state.step - 1].restAfter == hiit.roundRestSec && steps[state.step].setIndex > steps[state.step - 1].setIndex
+            SectionLabel(
+                when {
+                    roundRest -> tr("Round ${steps[state.step - 1].setIndex + 1} done · rest", "Runde ${steps[state.step - 1].setIndex + 1} ferdig · hvile")
+                    else -> tr("Rest", "Hvile")
+                },
+                color = colors.onSurfaceVariant,
+            )
             Box(Modifier.size(ringSize), contentAlignment = Alignment.Center) {
                 val track = colors.surfaceContainerHighest
                 val ring = colors.secondary
@@ -625,14 +746,14 @@ private fun RestView(vm: AppViewModel, timer: RestTimer, steps: List<WorkStep>, 
 
         // Alt som kommer før neste pause (i et supersett flere øvelser rett etter hverandre), så alt kan planlegges nå.
         upcoming.forEachIndexed { i, st ->
-            NextStepCard(vm, st, state, if (i == 0) tr("Next", "Neste") else tr("Straight after", "Rett etterpå"), compact = upcoming.size > 1)
+            NextStepCard(vm, st, state, if (i == 0) tr("Next", "Neste") else tr("Straight after", "Rett etterpå"), compact = upcoming.size > 1, hiit = hiit)
         }
     }
 }
 
 /** Kort med et kommende sett: figur, navn, sett nummer og målet (reps/tid og vekt). Trykk for detaljer. */
 @Composable
-private fun NextStepCard(vm: AppViewModel, next: WorkStep, state: GuidedWorkout, label: String, compact: Boolean) {
+private fun NextStepCard(vm: AppViewModel, next: WorkStep, state: GuidedWorkout, label: String, compact: Boolean, hiit: HiitSpec? = null) {
     val nextEx = ExerciseLibrary.get(next.pe.exerciseId) ?: return
     val colors = MaterialTheme.colorScheme
     val weights = remember(nextEx, vm.profile) { weightOptions(nextEx, vm.profile) }
@@ -657,14 +778,18 @@ private fun NextStepCard(vm: AppViewModel, next: WorkStep, state: GuidedWorkout,
                 }
             }
             Text(
-                "${nextEx.name} · ${tr("set", "sett")} ${next.setIndex + 1}",
+                if (hiit != null) nextEx.name else "${nextEx.name} · ${tr("set", "sett")} ${next.setIndex + 1}",
                 style = MaterialTheme.typography.titleMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                tr("Target ", "Mål ") + "${target.reps}$unit" + nextEx.perSideSuffix +
-                    (if (nextEx.isWeighted() && w != null) " × ${formatWeight(w)} kg" else ""),
+                if (hiit != null) {
+                    tr("${hiit.workSec} s · round ${next.setIndex + 1} of ${hiit.rounds}", "${hiit.workSec} sek · runde ${next.setIndex + 1} av ${hiit.rounds}")
+                } else {
+                    tr("Target ", "Mål ") + "${target.reps}$unit" + nextEx.perSideSuffix +
+                        (if (nextEx.isWeighted() && w != null) " × ${formatWeight(w)} kg" else "")
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.onSurfaceVariant,
             )
@@ -770,7 +895,7 @@ private fun SummaryView(vm: AppViewModel, day: WorkoutDay, state: GuidedWorkout)
         day.exercises.forEachIndexed { slot, pe ->
             val ex = ExerciseLibrary.get(pe.exerciseId)
             val sets = state.done.filter { it.slot == slot }.sortedBy { it.setIndex }
-            val unit = if (ex?.timed == true) tr(" s", " sek") else ""
+            val unit = if (day.hiit != null || ex?.timed == true) tr(" s", " sek") else ""
             val text = if (sets.isEmpty()) tr("skipped", "hoppet over") else sets.joinToString("  ·  ") { s ->
                 "${s.reps}$unit" + (s.weightKg?.let { " × ${formatWeight(it)}" } ?: "")
             } + if (sets.any { it.weightKg != null }) " kg" else ""

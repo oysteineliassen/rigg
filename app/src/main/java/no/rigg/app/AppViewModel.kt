@@ -55,6 +55,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             snapshotFlow { WorkoutTimers.work?.finished }.collect { if (it == true) onWorkFinished() }
         }
+        // HIIT: når pausen er over (eller hoppes over), starter neste øvelse av seg selv.
+        viewModelScope.launch {
+            var resting = false
+            snapshotFlow { WorkoutTimers.rest != null }.collect { now ->
+                if (resting && !now) onRestEnded()
+                resting = now
+            }
+        }
         dropOrphanSession()
         // Øktmodus uten øktklokke er en gammel, glemt økt (klokka forkastes etter 12 timer).
         if (guided != null && WorkoutTimers.session == null) saveGuided(null)
@@ -122,7 +130,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun clearPlan() { plan = null; warnings = emptyList(); store.savePlan(null); dropOrphanSession(); refreshWidget() }
 
-    fun logSession(dayTitle: String, results: List<ExerciseResult> = emptyList()) {
+    fun logSession(dayTitle: String, results: List<ExerciseResult> = emptyList(), hiit: Boolean = false) {
         // Bruker øktklokka hvis den kjører for denne dagen, ellers 0 (ukjent varighet).
         val running = sessionTimer?.takeIf { it.dayTitle == dayTitle }
         val durationMin = running?.let { (it.elapsedSec() + 30) / 60 } ?: 0
@@ -130,6 +138,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             LocalDate.now().toString(), dayTitle, results, durationMin,
             startedAtMs = running?.startedAtMs ?: 0,
             endedAtMs = if (running != null) System.currentTimeMillis() else 0,
+            hiit = hiit,
         )
         val updated = logs + log
         logs = updated
@@ -145,14 +154,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (running != null) stopSession()
         if (guided?.dayTitle == dayTitle) saveGuided(null)
         refreshWidget()
-        if (running != null && durationMin > 0 && profile.healthConnect) writeToHealthConnect(dayTitle, running.startedAtMs)
+        if (running != null && durationMin > 0 && profile.healthConnect) writeToHealthConnect(dayTitle, running.startedAtMs, hiit)
     }
 
-    private fun writeToHealthConnect(title: String, startedAtMs: Long) {
+    private fun writeToHealthConnect(title: String, startedAtMs: Long, hiit: Boolean) {
         val start = java.time.Instant.ofEpochMilli(startedAtMs)
         val end = java.time.Instant.now()
         viewModelScope.launch {
-            HealthConnectSync.writeWorkout(getApplication(), title, start, end).onFailure {
+            HealthConnectSync.writeWorkout(getApplication(), title, start, end, hiit).onFailure {
                 error = tr("Couldn't save the workout to Health Connect: ${it.message}", "Kunne ikke lagre økta i Health Connect: ${it.message}")
             }
         }
@@ -170,11 +179,54 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         // En annen dag var i gang: lagre settene som ble gjort der før den nye starter.
         val old = guided
         if (old != null && old.dayTitle != day.title && old.done.isNotEmpty()) {
-            plan?.days?.find { it.title == old.dayTitle }?.let { finishGuided(it) }
+            dayFor(old)?.let { finishGuided(it) }
         }
         if (sessionTimer?.dayTitle != day.title) startSession(day.title)
-        if (guided?.dayTitle != day.title) saveGuided(GuidedWorkout(day.title))
+        // Økter som ikke står i programmet (HIIT) lagres med, så de kan fortsette etter at appen er lukket.
+        val inPlan = plan?.days?.any { it.title == day.title } == true
+        if (guided?.dayTitle != day.title || (!inPlan && guided?.day != day)) {
+            saveGuided(GuidedWorkout(day.title, day = if (inPlan) null else day))
+        }
         guidedVisible = true
+    }
+
+    /** Økta en påbegynt øktmodus hører til: dagen i programmet, eller den lagrede (HIIT). */
+    fun dayFor(g: GuidedWorkout): WorkoutDay? = g.day ?: plan?.days?.find { it.title == g.dayTitle }
+
+    /** Starter en HIIT-økt med disse øvelsene. Avbryter ikke en annen påbegynt økt uten å lagre den. */
+    fun startHiit(format: HiitFormat, exercises: List<Exercise>) {
+        if (exercises.isEmpty()) return
+        // En HIIT-økt som allerede er i gang, erstattes: settene som er gjort lagres først, ellers forkastes den.
+        val old = guided
+        if (old != null && old.dayTitle == Hiit.TITLE) {
+            val oldDay = dayFor(old)
+            if (old.done.isNotEmpty() && oldDay != null) {
+                finishGuided(oldDay)
+            } else {
+                saveGuided(null)
+                stopRestTimer()
+                stopWork()
+            }
+        }
+        openGuided(Hiit.day(format, exercises))
+    }
+
+    /** Starter nedtellingen for HIIT-øvelsen på [step]. */
+    fun startHiitWork(step: Int) {
+        val g = guided ?: return
+        val day = dayFor(g) ?: return
+        val h = day.hiit ?: return
+        val st = sessionSteps(day).getOrNull(step) ?: return
+        val name = ExerciseLibrary.get(st.pe.exerciseId)?.name ?: st.pe.exerciseId
+        stopRestTimer()
+        WorkoutTimers.startWork(getApplication(), WorkKind.SET, name, step, h.workSec)
+    }
+
+    private fun onRestEnded() {
+        val g = guided ?: return
+        val day = dayFor(g) ?: return
+        if (day.hiit == null || !g.warmupDone || workTimer != null) return
+        if (g.step < sessionSteps(day).size) startHiitWork(g.step)
     }
 
     fun updateGuided(g: GuidedWorkout) {
@@ -189,7 +241,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     val workTimer: WorkTimer? get() = WorkoutTimers.work
 
-    private fun guidedDay(): WorkoutDay? = guided?.let { g -> plan?.days?.find { it.title == g.dayTitle } }
+    private fun guidedDay(): WorkoutDay? = guided?.let { dayFor(it) }
 
     /** Oppvarmingen til [day]. Skifter med antall loggførte økter, så den varierer, men er lik gjennom én økt. */
     fun warmupItems(day: WorkoutDay): List<WarmupItem> = warmupFor(day, profile.equipment, logs.size)
@@ -289,7 +341,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Viser øktmodus igjen etter [hideGuided], f.eks. fra hvilebaren. Gjør ingenting uten en påbegynt økt. */
     fun showGuided() {
         val g = guided ?: return
-        if (plan?.days?.any { it.title == g.dayTitle } == true) guidedVisible = true
+        if (dayFor(g) != null) guidedVisible = true
     }
 
     /** Lagrer settene som er gjort som en vanlig logg, og avslutter økta. */
@@ -301,7 +353,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
         stopRestTimer()
         stopWork()
-        logSession(day.title, results)
+        logSession(day.title, results, hiit = day.hiit != null)
     }
 
     /** Avbryter økta uten å logge noe. */

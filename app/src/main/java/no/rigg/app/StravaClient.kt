@@ -167,7 +167,7 @@ object StravaClient {
     fun describe(log: SessionLog): String = buildString {
         log.results.filter { it.sets.isNotEmpty() }.forEach { r ->
             val ex = ExerciseLibrary.get(r.exerciseId)
-            append(ex?.name ?: r.exerciseId).append(": ").append(setsSummary(r.sets, ex?.timed == true)).append('\n')
+            append(ex?.name ?: r.exerciseId).append(": ").append(setsSummary(r.sets, log.hiit || ex?.timed == true)).append('\n')
         }
         append(tr("Logged with Rigg", "Logget med Rigg"))
     }

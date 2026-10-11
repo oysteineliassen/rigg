@@ -157,7 +157,7 @@ private fun App(
 
     // Øktmodus tar hele skjermen (uten fanene) mens den er åpen.
     val guided = vm.guided
-    val guidedDay = guided?.let { g -> vm.plan?.days?.find { it.title == g.dayTitle } }
+    val guidedDay = guided?.let { vm.dayFor(it) }
     if (guided != null && guidedDay != null && vm.guidedVisible) {
         Scaffold(snackbarHost = { SnackbarHost(snackbar) }) { pad ->
             Box(Modifier.padding(pad).fillMaxSize()) {
@@ -230,7 +230,7 @@ private fun App(
                     onAddSeconds = { vm.addRestSeconds(it) },
                     onStop = { vm.stopRestTimer() },
                     // Trykk på baren: tilbake til økta (bare når det finnes en påbegynt økt i øktmodus).
-                    onOpen = vm.guided?.takeIf { g -> vm.plan?.days?.any { it.title == g.dayTitle } == true }?.let { { vm.showGuided() } },
+                    onOpen = vm.guided?.takeIf { g -> vm.dayFor(g) != null }?.let { { vm.showGuided() } },
                     modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(12.dp),
                 )
             }
@@ -790,6 +790,8 @@ private fun PlanScreen(vm: AppViewModel, goToSetup: () -> Unit, requestNotificat
                 )
             }
         }
+
+        HiitCard(vm, onStart = requestNotificationPermission)
 
         nudgeFor(next ?: plan.days.first(), vm.logs, vm.profile)?.let { NudgeCard(it) }
 

@@ -108,7 +108,7 @@ object HealthConnectSync {
         HealthConnectClient.getOrCreate(context).permissionController.getGrantedPermissions().containsAll(permissions)
     }.getOrDefault(false)
 
-    suspend fun writeWorkout(context: Context, title: String, start: Instant, end: Instant): Result<Unit> = runCatching {
+    suspend fun writeWorkout(context: Context, title: String, start: Instant, end: Instant, hiit: Boolean = false): Result<Unit> = runCatching {
         check(isAvailable(context)) { tr("Health Connect isn't available", "Health Connect er ikke tilgjengelig") }
         check(hasPermission(context)) { tr("Permission is missing. Turn it on again under More.", "Mangler tillatelse. Slå det på igjen under Mer.") }
         val rules = ZoneId.systemDefault().rules
@@ -117,7 +117,11 @@ object HealthConnectSync {
             startZoneOffset = rules.getOffset(start),
             endTime = end,
             endZoneOffset = rules.getOffset(end),
-            exerciseType = ExerciseSessionRecord.EXERCISE_TYPE_STRENGTH_TRAINING,
+            exerciseType = if (hiit) {
+                ExerciseSessionRecord.EXERCISE_TYPE_HIGH_INTENSITY_INTERVAL_TRAINING
+            } else {
+                ExerciseSessionRecord.EXERCISE_TYPE_STRENGTH_TRAINING
+            },
             title = title,
             metadata = Metadata.activelyRecorded(device = Device(type = Device.TYPE_PHONE)),
         )

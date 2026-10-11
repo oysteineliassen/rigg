@@ -21,7 +21,7 @@ fun muscleLoad(log: SessionLog): Map<Muscle, Float> {
     val sum = mutableMapOf<Muscle, Float>()
     log.results.forEach { r ->
         val ex = ExerciseLibrary.get(r.exerciseId) ?: return@forEach
-        val work = r.sets.sumOf { setWork(it, ex.timed, r.sets).toDouble() }.toFloat()
+        val work = r.sets.sumOf { setWork(it, log.hiit || ex.timed, r.sets).toDouble() }.toFloat()
         MuscleWeights.forExercise(ex).forEach { (m, w) -> sum[m] = (sum[m] ?: 0f) + work * w }
     }
     val max = sum.values.maxOrNull()?.takeIf { it > 0f } ?: return emptyMap()

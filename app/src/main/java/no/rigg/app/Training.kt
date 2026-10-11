@@ -224,6 +224,17 @@ data class WorkStep(
 fun sessionSteps(day: WorkoutDay): List<WorkStep> {
     val exercises = day.exercises
     val steps = mutableListOf<WorkStep>()
+    // HIIT: hele lista som én runde, kort pause mellom øvelsene og lengre pause mellom rundene.
+    day.hiit?.let { h ->
+        for (r in 0 until h.rounds) {
+            exercises.forEachIndexed { idx, pe ->
+                val rest = if (idx == exercises.lastIndex) h.roundRestSec else h.restSec
+                steps += WorkStep(pe, r, rest, idx + 1, exercises.size)
+            }
+        }
+        if (steps.isNotEmpty()) steps[steps.lastIndex] = steps.last().copy(restAfter = 0)
+        return steps
+    }
     var i = 0
     while (i < exercises.size) {
         val group = exercises[i].group

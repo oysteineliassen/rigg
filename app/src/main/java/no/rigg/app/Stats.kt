@@ -44,7 +44,11 @@ fun extraDay(plan: Plan, logs: List<SessionLog>): WorkoutDay? = plan.days.minByO
 fun estimateMinutes(day: WorkoutDay): Int {
     val seconds = sessionSteps(day).sumOf { step ->
         val ex = ExerciseLibrary.get(step.pe.exerciseId)
-        val work = if (ex?.timed == true) (parseRepRange(step.pe.reps)?.last ?: 40) else 40
+        val work = when {
+            day.hiit != null -> day.hiit.workSec
+            ex?.timed == true -> parseRepRange(step.pe.reps)?.last ?: 40
+            else -> 40
+        }
         work + step.restAfter
     }
     return ((seconds + 59) / 60).coerceAtLeast(1)
