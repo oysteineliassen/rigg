@@ -67,7 +67,7 @@ class SikkerhetskopiTest {
     }
 
     @Test
-    fun () {
+    fun `notater for kunde og anlegg folger med`() {
         val kjente = listOf(
             no.oppdragsliste.app.data.KjentAnlegg("Søgne kommune", "Rådhuset", notat = "Kode 1234"),
             no.oppdragsliste.app.data.KjentAnlegg("Ola", "", notat = ""),

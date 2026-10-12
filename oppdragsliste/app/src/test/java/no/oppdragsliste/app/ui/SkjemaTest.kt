@@ -50,7 +50,7 @@ class SkjemaTest {
     }
 
     @Test
-    fun () {
+    fun `notat fylles inn og regnes ikke som endring nar det er uendret`() {
         val k = KjentAnlegg("Søgne kommune", "Rådhuset", notat = "Kode 1234")
         assertEquals("Kode 1234", Skjema().fyllFra(k).notat)
         // Eget notat overskrives ikke.

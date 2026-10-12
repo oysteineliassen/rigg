@@ -121,7 +121,7 @@ class ForslagTest {
     }
 
     @Test
-    fun () {
+    fun `notat folger anlegget`() {
         val liste = listOf(
             KjentAnlegg("Søgne kommune", "Rådhuset", notat = "Kode 1234 til porten"),
             KjentAnlegg("Søgne kommune", "Søgne skole", notat = "Nøkkel i resepsjonen"),
