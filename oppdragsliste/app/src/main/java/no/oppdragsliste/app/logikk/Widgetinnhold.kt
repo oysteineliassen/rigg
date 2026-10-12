@@ -14,7 +14,14 @@ data class WidgetRad(
     val nar: String,
     val type: Radtype,
     val forfalt: Boolean = false,
+    /** Linje under tittelen: anlegg (og kunde når tittelen er beskrivelsen). */
+    val under: String? = null,
 )
+
+/** «Rådhuset · Søgne kommune»: anlegg først, kunde bare når den ikke allerede er tittelen. */
+fun anleggLinje(o: Oppdrag): String? =
+    listOf(o.anlegg, o.kunde.takeIf { o.beskrivelse.isNotBlank() }.orEmpty())
+        .map { it.trim() }.filter { it.isNotEmpty() }.joinToString(" · ").ifBlank { null }
 
 data class Widgetinnhold(val oppsummering: String, val rader: List<WidgetRad>)
 
@@ -30,23 +37,27 @@ fun widgetinnhold(oppdrag: List<Oppdrag>, paminnelser: List<Paminnelse>, na: Loc
     val apneP = paminnelser.filter { !it.ferdig }
     val avtaler = sorter(Prioritet.AVTALE, apne.filter { it.prioritet == Prioritet.AVTALE })
 
-    fun avtaleRad(o: Oppdrag, nar: String) = WidgetRad(o.tittel, nar, Radtype.AVTALE, erForfalt(o, na))
+    val etterId = oppdrag.associateBy { it.id }
+    fun avtaleRad(o: Oppdrag, nar: String) = WidgetRad(o.tittel, nar, Radtype.AVTALE, erForfalt(o, na), anleggLinje(o))
+    // Påminnelser viser anlegget til oppdraget de er koblet til.
+    fun pUnder(p: Paminnelse) = p.oppdragId?.let { etterId[it] }?.let { anleggLinje(it) ?: it.tittel }
     fun paminnelseRad(p: Paminnelse) = WidgetRad(
         p.tekst.lines().first(),
         p.tid?.let { formaterTid(it) } ?: "i dag",
         Radtype.PAMINNELSE,
         erForfalt(p, na),
+        pUnder(p),
     )
 
     val rader = buildList {
         // Forfalt (dato før i dag).
         avtaler.filter { it.dato?.isBefore(idag) == true }.forEach { o -> add(avtaleRad(o, formaterDato(o.dato!!, idag))) }
         apneP.filter { it.dato?.isBefore(idag) == true }.sortedBy { it.tidspunkt }.forEach { p ->
-            add(WidgetRad(p.tekst.lines().first(), formaterDato(p.dato!!, idag), Radtype.PAMINNELSE, forfalt = true))
+            add(WidgetRad(p.tekst.lines().first(), formaterDato(p.dato!!, idag), Radtype.PAMINNELSE, forfalt = true, under = pUnder(p)))
         }
         // Akutt.
         sorter(Prioritet.AKUTT, apne.filter { it.prioritet == Prioritet.AKUTT })
-            .forEach { add(WidgetRad(it.tittel, "Akutt", Radtype.AKUTT)) }
+            .forEach { add(WidgetRad(it.tittel, "Akutt", Radtype.AKUTT, under = anleggLinje(it))) }
         // I dag: avtaler og påminnelser flettet etter klokkeslett (uten klokkeslett sist).
         val idagAvtaler = avtaler.filter { it.dato == idag }.map { o ->
             (o.tid ?: java.time.LocalTime.MAX) to avtaleRad(o, o.tid?.let { formaterTidsrom(it, o.sluttid) } ?: "i dag")
@@ -58,7 +69,7 @@ fun widgetinnhold(oppdrag: List<Oppdrag>, paminnelser: List<Paminnelse>, na: Loc
             .forEach { o -> add(avtaleRad(o, "i morgen" + (o.tid?.let { " " + formaterTid(it) } ?: ""))) }
         // Haster.
         sorter(Prioritet.HASTER, apne.filter { it.prioritet == Prioritet.HASTER })
-            .forEach { add(WidgetRad(it.tittel, "Haster", Radtype.HASTER)) }
+            .forEach { add(WidgetRad(it.tittel, "Haster", Radtype.HASTER, under = anleggLinje(it))) }
     }
 
     val akutte = apne.count { it.prioritet == Prioritet.AKUTT }

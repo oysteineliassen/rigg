@@ -44,4 +44,16 @@ class WidgetinnholdTest {
         assertEquals("Ingen åpne oppdrag", widgetinnhold(emptyList(), emptyList(), na).oppsummering)
         assertEquals("1 i området", widgetinnhold(listOf(o("x", Prioritet.OMRADE)), emptyList(), na).oppsummering)
     }
+
+    @Test
+    fun `anlegg pa hver rad`() {
+        val akutt = Oppdrag(id = 1, beskrivelse = "Strømbrudd", kunde = "Søgne kommune", anlegg = "Rådhuset", prioritet = Prioritet.AKUTT)
+        val utenBeskrivelse = Oppdrag(id = 2, kunde = "Ola Hansen", anlegg = "Hytta", prioritet = Prioritet.HASTER)
+        val p = Paminnelse(tekst = "Bestille kabel", dato = idag, tid = LocalTime.of(12, 0), oppdragId = 1)
+        val w = widgetinnhold(listOf(akutt, utenBeskrivelse), listOf(p), na)
+        assertEquals("Rådhuset · Søgne kommune", w.rader.first { it.tittel == "Strømbrudd" }.under)
+        // Kunden er tittelen, så bare anlegget under.
+        assertEquals("Hytta", w.rader.first { it.tittel == "Ola Hansen" }.under)
+        assertEquals("Rådhuset · Søgne kommune", w.rader.first { it.tittel == "Bestille kabel" }.under)
+    }
 }

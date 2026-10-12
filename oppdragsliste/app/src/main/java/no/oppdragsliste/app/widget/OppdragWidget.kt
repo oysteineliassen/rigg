@@ -171,14 +171,24 @@ private fun Rad(context: Context, rad: WidgetRad) {
                 .background(GlanceTheme.colors.surfaceVariant)
                 .clickable(apne(context)),
         ) {
-            // Fargekant som i appen.
-            Box(modifier = GlanceModifier.width(5.dp).height(36.dp).background(farge(rad.type, false))) {}
-            Text(
-                (if (rad.type == Radtype.PAMINNELSE) "🔔 " else "") + rad.tittel,
-                style = TextStyle(color = GlanceTheme.colors.onSurface, fontSize = 14.sp, fontWeight = FontWeight.Medium),
-                maxLines = 1,
-                modifier = GlanceModifier.defaultWeight().padding(start = 8.dp),
-            )
+            // Fargekant som i appen (høyere når anlegget står under).
+            Box(
+                modifier = GlanceModifier.width(5.dp).height(if (rad.under != null) 48.dp else 36.dp).background(farge(rad.type, false)),
+            ) {}
+            Column(modifier = GlanceModifier.defaultWeight().padding(start = 8.dp)) {
+                Text(
+                    (if (rad.type == Radtype.PAMINNELSE) "🔔 " else "") + rad.tittel,
+                    style = TextStyle(color = GlanceTheme.colors.onSurface, fontSize = 14.sp, fontWeight = FontWeight.Medium),
+                    maxLines = 1,
+                )
+                rad.under?.let {
+                    Text(
+                        it,
+                        style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 12.sp),
+                        maxLines = 1,
+                    )
+                }
+            }
             Text(
                 rad.nar,
                 style = TextStyle(

@@ -68,6 +68,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import kotlinx.coroutines.delay
 import no.oppdragsliste.app.data.Oppdrag
 import no.oppdragsliste.app.data.Paminnelse
 import no.oppdragsliste.app.logikk.erForfalt
@@ -176,10 +177,17 @@ fun PaminnelseDialog(
     var velgOppdrag by remember { mutableStateOf(false) }
     var bekreftSlett by remember { mutableStateOf(false) }
     val tekstFokus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { if (skjema.original == null) tekstFokus.requestFocus() }
     val idag = LocalDate.now()
 
     Dialog(onDismissRequest = forsokLukke, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        // Markøren i tekstfeltet for nye påminnelser. Må skje inne i dialogen, etter at feltet er tegnet;
+        // ellers krasjer appen («FocusRequester is not initialized»).
+        LaunchedEffect(Unit) {
+            if (skjema.original == null) {
+                delay(100)
+                runCatching { tekstFokus.requestFocus() }
+            }
+        }
         Surface(
             shape = RoundedCornerShape(24.dp),
             color = MaterialTheme.colorScheme.surface,
