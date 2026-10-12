@@ -67,6 +67,8 @@ class AlarmMottaker : BroadcastReceiver() {
             Planlegger.HANDLING_MORGEN -> asynkront {
                 if (ctx.app.innstillinger.na.morgenOversikt) visMorgen(ctx)
                 Planlegger.planleggMorgen(ctx)
+                // Ny dag: «i dag» i widgeten skal gjelde den nye dagen.
+                no.oppdragsliste.app.widget.OppdragWidget.oppdater(ctx)
             }
         }
     }

@@ -6,6 +6,7 @@ import no.oppdragsliste.app.data.AppDatabase
 import no.oppdragsliste.app.data.Innstillinger
 import no.oppdragsliste.app.data.OppdragRepository
 import no.oppdragsliste.app.kalender.Kalender
+import no.oppdragsliste.app.widget.OppdragWidget
 import no.oppdragsliste.app.sted.Geofencer
 import no.oppdragsliste.app.varsler.Planlegger
 import no.oppdragsliste.app.varsler.Varsler
@@ -26,6 +27,7 @@ class OppdragApp : Application() {
         Planlegger.planleggAlle(this)
         Geofencer.synk(this, tvingGeofencer)
         Kalender.synk(this)
+        OppdragWidget.oppdater(this)
     }
 
     /** Som [planleggAlt], men fra kode som ikke kjører i en korutine. */

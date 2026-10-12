@@ -102,6 +102,9 @@ commits i git, så en nyere versjon er alltid høyere.
   Valgfritt varsel (hurtigvalg som «Om 1 time», «I morgen 07:00», eller egen dato/tid; uten klokkeslett
   kl. 08:00) med «Ferdig» og «Utsett 1 t» i varselet. Kan kobles til et oppdrag, også fra «Påminnelse» på
   oppdragskortet; de vises da på kortet. Ligger øverst i listen, kryss av når ferdig (angres samme dag).
+- **Widget** (hold på hjemskjermen > Moduler/Widgets > Oppdragsliste): oppsummering («2 akutte · 3 i dag ·
+  8 i området»), knapper for nytt oppdrag og ny påminnelse, og listen over forfalte, akutte, dagens avtaler og
+  påminnelser, morgendagens avtaler og det som haster. Gjort liten (2×1) viser den bare oppsummering og «+».
 - **Sikkerhetskopi:** eksport/import av alle oppdrag som JSON (Innstillinger > Sikkerhetskopi).
   Import hopper over oppdrag som allerede finnes.
 

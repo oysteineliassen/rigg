@@ -150,6 +150,7 @@ class MainActivity : ComponentActivity() {
     /** Åpner skjemaet når appen startes fra snarvei, Quick Settings-flis eller samtalevarsel. */
     private fun behandle(intent: Intent?) {
         if (intent?.action == HANDLING_NAER) visNaer(true)
+        if (intent?.action == HANDLING_NY_PAMINNELSE) vm.nyPaminnelse()
         if (intent?.action == HANDLING_NYTT) {
             val varsel = intent.getIntExtra(EKSTRA_VARSEL, -1)
             if (varsel != -1) NotificationManagerCompat.from(this).cancel(varsel)
@@ -165,6 +166,7 @@ class MainActivity : ComponentActivity() {
     companion object {
         const val HANDLING_NYTT = "no.oppdragsliste.app.NYTT_OPPDRAG"
         const val HANDLING_NAER = "no.oppdragsliste.app.I_NAERHETEN"
+        const val HANDLING_NY_PAMINNELSE = "no.oppdragsliste.app.NY_PAMINNELSE"
         const val EKSTRA_TELEFON = "telefon"
         const val EKSTRA_KONTAKT = "kontakt"
         const val EKSTRA_VARSEL = "varsel"
