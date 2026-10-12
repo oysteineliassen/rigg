@@ -21,7 +21,9 @@ data class WidgetRad(
 /** «Rådhuset · Søgne kommune»: anlegg først, kunde bare når den ikke allerede er tittelen. */
 fun anleggLinje(o: Oppdrag): String? =
     listOf(o.anlegg, o.kunde.takeIf { o.beskrivelse.isNotBlank() }.orEmpty())
-        .map { it.trim() }.filter { it.isNotEmpty() }.joinToString(" · ").ifBlank { null }
+        .map { it.trim() }.filter { it.isNotEmpty() }
+        .distinctBy { it.lowercase() } // «Sameiet Mølla · Sameiet Mølla» → én gang
+        .joinToString(" · ").ifBlank { null }
 
 data class Widgetinnhold(val oppsummering: String, val rader: List<WidgetRad>)
 

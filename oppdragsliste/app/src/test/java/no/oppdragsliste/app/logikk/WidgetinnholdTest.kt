@@ -55,5 +55,7 @@ class WidgetinnholdTest {
         // Kunden er tittelen, så bare anlegget under.
         assertEquals("Hytta", w.rader.first { it.tittel == "Ola Hansen" }.under)
         assertEquals("Rådhuset · Søgne kommune", w.rader.first { it.tittel == "Bestille kabel" }.under)
+        // Samme navn på kunde og anlegg: bare én gang.
+        assertEquals("Sameiet Mølla", anleggLinje(Oppdrag(beskrivelse = "Feilsøke", kunde = "Sameiet Mølla", anlegg = "Sameiet Mølla")))
     }
 }

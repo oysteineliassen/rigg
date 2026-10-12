@@ -103,11 +103,12 @@ private fun Innhold(context: Context, innhold: Widgetinnhold) {
             .fillMaxSize()
             .background(GlanceTheme.colors.widgetBackground)
             .cornerRadius(20.dp)
-            .padding(horizontal = 12.dp, vertical = 10.dp)
-            .clickable(apne(context)),
+            .padding(horizontal = 12.dp, vertical = 10.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = GlanceModifier.fillMaxWidth()) {
-            Column(modifier = GlanceModifier.defaultWeight()) {
+            // Bare overskriften åpner appen. Er hele widgeten trykkbar, tar det på noen telefoner over
+            // berøringen i listen, så den ikke kan scrolles.
+            Column(modifier = GlanceModifier.defaultWeight().clickable(apne(context))) {
                 Text(
                     "Oppdrag",
                     style = TextStyle(color = GlanceTheme.colors.onSurface, fontSize = 16.sp, fontWeight = FontWeight.Bold),
