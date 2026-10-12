@@ -119,4 +119,19 @@ class ForslagTest {
         assertEquals(listOf("Søgne skole", "Rådhuset"), kandidaterForSamtale(liste, "90000001", null).map { it.anlegg })
         assertEquals(emptyList<KjentAnlegg>(), kandidaterForSamtale(liste, "95555555", "Ola"))
     }
+
+    @Test
+    fun () {
+        val liste = listOf(
+            KjentAnlegg("Søgne kommune", "Rådhuset", notat = "Kode 1234 til porten"),
+            KjentAnlegg("Søgne kommune", "Søgne skole", notat = "Nøkkel i resepsjonen"),
+        )
+        assertEquals("Kode 1234 til porten", finnUtfylling(liste, "søgne kommune", "RÅDHUSET")?.notat)
+        // Ny kunde på kjent anlegg: notatet fra anlegget.
+        assertEquals("Kode 1234 til porten", finnUtfylling(liste, "Ny kunde", "Rådhuset")?.notat)
+        // Nytt anlegg for kjent kunde: ikke notatet fra et annet anlegg.
+        assertEquals("", finnUtfylling(liste, "Søgne kommune", "Ukjent")?.notat)
+        assertEquals("Nøkkel i resepsjonen", notatFor(liste, " Søgne kommune ", "søgne skole"))
+        assertEquals("", notatFor(liste, "", ""))
+    }
 }

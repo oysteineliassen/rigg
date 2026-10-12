@@ -47,10 +47,13 @@ class OppdragRepository(
     suspend fun apne(): List<Oppdrag> = dao.apne()
     suspend fun hent(id: Long): Oppdrag? = dao.hent(id)
 
-    /** Lagrer nytt eller endret oppdrag og returnerer id-en. */
-    suspend fun lagre(oppdrag: Oppdrag): Long {
+    /**
+     * Lagrer nytt eller endret oppdrag og returnerer id-en. [notat] er notatet for kunden/anlegget fra
+     * skjemaet; null = behold det som står i registeret.
+     */
+    suspend fun lagre(oppdrag: Oppdrag, notat: String? = null): Long {
         val id = if (oppdrag.id == 0L) dao.settInn(oppdrag) else oppdrag.id.also { dao.oppdater(oppdrag) }
-        husk(oppdrag, Instant.now())
+        husk(oppdrag, Instant.now(), notat)
         etterEndring()
         return id
     }
@@ -86,15 +89,32 @@ class OppdragRepository(
 
     suspend fun gjenopprett(rader: List<KjentAnlegg>) = rader.forEach { kjenteDao.settInn(it) }
 
-    private suspend fun husk(o: Oppdrag, tidspunkt: Instant) {
+    private suspend fun husk(o: Oppdrag, tidspunkt: Instant, notat: String? = null) {
         val kunde = o.kunde.trim()
         val anlegg = o.anlegg.trim()
         if (kunde.isEmpty() && anlegg.isEmpty()) return
+        // Notatet beholdes når det ikke kommer fra skjemaet (f.eks. ved import eller oppdatert posisjon).
+        val beholdt = notat ?: kjenteDao.hent(kunde, anlegg).firstOrNull()?.notat.orEmpty()
         kjenteDao.husk(
             KjentAnlegg(
                 kunde = kunde, anlegg = anlegg, kontaktperson = o.kontaktperson.trim(), telefon = o.telefon.trim(), sted = o.sted.trim(),
-                adresse = o.adresse.trim(), lat = o.lat, lng = o.lng, sistBrukt = tidspunkt,
+                adresse = o.adresse.trim(), lat = o.lat, lng = o.lng, sistBrukt = tidspunkt, notat = beholdt.trim(),
             ),
         )
     }
+
+    /** Legger inn notater fra en sikkerhetskopi (lager oppføringen hvis den mangler, beholder ellers alt annet). */
+    suspend fun importerNotater(notater: List<Triple<String, String, String>>) {
+        notater.forEach { (kunde, anlegg, notat) ->
+            if (notat.isBlank()) return@forEach
+            val eksisterende = kjenteDao.hent(kunde, anlegg).firstOrNull()
+            if (eksisterende == null) {
+                kjenteDao.husk(KjentAnlegg(kunde = kunde, anlegg = anlegg, notat = notat))
+            } else if (eksisterende.notat.isBlank()) {
+                kjenteDao.husk(eksisterende.copy(notat = notat))
+            }
+        }
+    }
+
+    suspend fun alleKjente(): List<KjentAnlegg> = kjenteDao.alle()
 }

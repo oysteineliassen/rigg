@@ -30,6 +30,7 @@ import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Phone
 import androidx.compose.material.icons.outlined.Place
 import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.automirrored.outlined.StickyNote2
 import androidx.compose.material.icons.automirrored.outlined.Undo
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -80,6 +81,7 @@ fun OppdragKort(
     visPrioritet: Boolean = false,
     paminnelser: List<Paminnelse> = emptyList(),
     onPaminnelse: (() -> Unit)? = null,
+    notat: String? = null,
 ) {
     val context = LocalContext.current
     val idag = na.toLocalDate()
@@ -147,6 +149,23 @@ fun OppdragKort(
                     else -> {}
                 }
 
+                // Notat for kunden/anlegget (f.eks. adgangskode), hele når kortet er utvidet.
+                if (!notat.isNullOrBlank()) {
+                    Row(verticalAlignment = Alignment.Top) {
+                        Icon(
+                            Icons.AutoMirrored.Outlined.StickyNote2, null, Modifier.size(16.dp).padding(top = 2.dp),
+                            tint = MaterialTheme.colorScheme.tertiary,
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            notat,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.tertiary,
+                            maxLines = if (utvidet) Int.MAX_VALUE else 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
                 // Påminnelser koblet til oppdraget (de to første).
                 paminnelser.take(2).forEach { p ->
                     val nar = formaterDatoTid(p.dato, p.tid, idag)

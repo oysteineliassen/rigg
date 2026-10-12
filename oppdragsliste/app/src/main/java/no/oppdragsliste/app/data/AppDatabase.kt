@@ -8,7 +8,7 @@ import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [Oppdrag::class, KjentAnlegg::class, Paminnelse::class], version = 5, exportSchema = false)
+@Database(entities = [Oppdrag::class, KjentAnlegg::class, Paminnelse::class], version = 6, exportSchema = false)
 @TypeConverters(Konverterere::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun oppdragDao(): OppdragDao
@@ -18,7 +18,7 @@ abstract class AppDatabase : RoomDatabase() {
     companion object {
         fun bygg(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, "oppdrag.db")
-                .addMigrations(FRA_1_TIL_2, FRA_2_TIL_3, FRA_3_TIL_4, FRA_4_TIL_5)
+                .addMigrations(FRA_1_TIL_2, FRA_2_TIL_3, FRA_3_TIL_4, FRA_4_TIL_5, FRA_5_TIL_6)
                 .build()
 
         /** Versjon 2: feltet «anlegg» og registeret over kjente kunder/anlegg (fylt fra eksisterende oppdrag). */
@@ -64,6 +64,13 @@ abstract class AppDatabase : RoomDatabase() {
                         "FOREIGN KEY(`oppdragId`) REFERENCES `oppdrag`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
                 )
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_paminnelse_oppdragId` ON `paminnelse` (`oppdragId`)")
+            }
+        }
+
+        /** Versjon 6: notat per kunde/anlegg i registeret. */
+        val FRA_5_TIL_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE kjent_anlegg ADD COLUMN notat TEXT NOT NULL DEFAULT ''")
             }
         }
     }

@@ -216,6 +216,7 @@ fun ListeSkjerm(
                                 modifier = Modifier.animateItem(),
                                 paminnelser = tilstand.paminnelserPerOppdrag[o.id].orEmpty(),
                                 onPaminnelse = { onNyPaminnelse(o.id) },
+                                notat = tilstand.notat(o),
                             )
                         }
                     }
@@ -235,6 +236,7 @@ fun ListeSkjerm(
                                     modifier = Modifier.animateItem(),
                                     paminnelser = tilstand.paminnelserPerOppdrag[o.id].orEmpty(),
                                     onPaminnelse = { onNyPaminnelse(o.id) },
+                                notat = tilstand.notat(o),
                                 )
                             }
                         }
@@ -301,6 +303,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.naerInnhold(
                     onSlett = { onSlett(o) },
                     avstand = meter?.let { formaterAvstand(it) } ?: "ukjent",
                     visPrioritet = true,
+                    notat = tilstand.notat(o),
                 )
             }
         }

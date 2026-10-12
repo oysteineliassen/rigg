@@ -86,6 +86,8 @@ fun finnUtfylling(kjente: List<KjentAnlegg>, kunde: String, anlegg: String): Kje
         kontaktperson = kontaktKilde?.kontaktperson.orEmpty(), telefon = kontaktKilde?.telefon.orEmpty(),
         sted = stedKilde?.sted.orEmpty(), adresse = stedKilde?.adresse.orEmpty(),
         lat = stedKilde?.lat, lng = stedKilde?.lng,
+        // Notatet hører til stedet (adgangskoder o.l.), som sted og adresse.
+        notat = stedKilde?.notat.orEmpty(),
         sistBrukt = listOfNotNull(kundeSist?.sistBrukt, anleggSist?.sistBrukt).max(),
     )
 }
@@ -117,8 +119,18 @@ fun kandidaterForSamtale(kjente: List<KjentAnlegg>, telefon: String, navn: Strin
         .take(maks)
 }
 
+/** Nøkkel for kunde + anlegg, uansett store/små bokstaver og mellomrom rundt. */
+fun anleggNokkel(kunde: String, anlegg: String): String = kunde.trim().lowercase() + "\u0000" + anlegg.trim().lowercase()
+
+/** Notatet for akkurat denne kunden og dette anlegget (tom tekst hvis ingen). */
+fun notatFor(kjente: List<KjentAnlegg>, kunde: String, anlegg: String): String {
+    if (kunde.isBlank() && anlegg.isBlank()) return ""
+    val n = anleggNokkel(kunde, anlegg)
+    return kjente.firstOrNull { anleggNokkel(it.kunde, it.anlegg) == n }?.notat.orEmpty()
+}
+
 /** Felt som kan fylles inn automatisk. */
-enum class Autofelt { KONTAKTPERSON, TELEFON, STED, ADRESSE }
+enum class Autofelt { KONTAKTPERSON, TELEFON, STED, ADRESSE, NOTAT }
 
 /**
  * Ny verdi for et felt: overskriv bare hvis feltet er tomt eller fortsatt har verdien vi selv fylte inn

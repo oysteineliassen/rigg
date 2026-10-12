@@ -25,6 +25,8 @@ data class KjentAnlegg(
     val lat: Double? = null,
     val lng: Double? = null,
     val sistBrukt: Instant = Instant.now(),
+    /** Notat som følger kunden/anlegget til neste oppdrag (f.eks. adgangskode, hvor sikringsskapet er). */
+    val notat: String = "",
 ) {
     val stedTekst: String get() = listOf(adresse, sted).filter { it.isNotBlank() }.joinToString(", ")
 }
@@ -33,6 +35,9 @@ data class KjentAnlegg(
 interface KjentAnleggDao {
     @Query("SELECT * FROM kjent_anlegg ORDER BY sistBrukt DESC")
     fun observerAlle(): Flow<List<KjentAnlegg>>
+
+    @Query("SELECT * FROM kjent_anlegg ORDER BY sistBrukt DESC")
+    suspend fun alle(): List<KjentAnlegg>
 
     @Query("SELECT * FROM kjent_anlegg WHERE kunde = :kunde COLLATE NOCASE AND anlegg = :anlegg COLLATE NOCASE")
     suspend fun hent(kunde: String, anlegg: String): List<KjentAnlegg>

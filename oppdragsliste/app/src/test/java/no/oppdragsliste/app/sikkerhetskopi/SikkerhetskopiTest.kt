@@ -65,4 +65,14 @@ class SikkerhetskopiTest {
         // Eldre fil uten påminnelser.
         assertEquals(emptyList<PaminnelseImport>(), lesPaminnelser("""{"eksportert":"2026-10-07T10:00:00Z","oppdrag":[]}"""))
     }
+
+    @Test
+    fun () {
+        val kjente = listOf(
+            no.oppdragsliste.app.data.KjentAnlegg("Søgne kommune", "Rådhuset", notat = "Kode 1234"),
+            no.oppdragsliste.app.data.KjentAnlegg("Ola", "", notat = ""),
+        )
+        assertEquals(listOf(Triple("Søgne kommune", "Rådhuset", "Kode 1234")), lesNotater(eksporter(listOf(a), kjente = kjente)))
+        assertEquals(emptyList<Triple<String, String, String>>(), lesNotater("""{"eksportert":"2026-10-07T10:00:00Z","oppdrag":[]}"""))
+    }
 }

@@ -3,6 +3,7 @@ package no.oppdragsliste.app.sikkerhetskopi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import no.oppdragsliste.app.data.KjentAnlegg
 import no.oppdragsliste.app.data.Oppdrag
 import no.oppdragsliste.app.data.Paminnelse
 import no.oppdragsliste.app.data.Prioritet
@@ -43,6 +44,10 @@ data class PaminnelseJson(
     val opprettet: String,
 )
 
+/** Notat for en kunde/anlegg. */
+@Serializable
+data class NotatJson(val kunde: String = "", val anlegg: String = "", val notat: String = "")
+
 @Serializable
 data class SikkerhetskopiFil(
     val app: String = "Oppdragsliste",
@@ -50,6 +55,7 @@ data class SikkerhetskopiFil(
     val eksportert: String,
     val oppdrag: List<OppdragJson>,
     val paminnelser: List<PaminnelseJson> = emptyList(),
+    val notater: List<NotatJson> = emptyList(),
 )
 
 /** En påminnelse fra en sikkerhetskopi, før den er koblet til oppdragets nye id. */
@@ -79,7 +85,12 @@ fun OppdragJson.tilOppdrag() = Oppdrag(
     ferdigDato = ferdigDato?.let(Instant::parse),
 )
 
-fun eksporter(oppdrag: List<Oppdrag>, paminnelser: List<Paminnelse> = emptyList(), na: Instant = Instant.now()): String {
+fun eksporter(
+    oppdrag: List<Oppdrag>,
+    paminnelser: List<Paminnelse> = emptyList(),
+    kjente: List<KjentAnlegg> = emptyList(),
+    na: Instant = Instant.now(),
+): String {
     val opprettet = oppdrag.associate { it.id to it.opprettet.toString() }
     return json.encodeToString(
         SikkerhetskopiFil(
@@ -92,9 +103,14 @@ fun eksporter(oppdrag: List<Oppdrag>, paminnelser: List<Paminnelse> = emptyList(
                     ferdigDato = p.ferdigDato?.toString(), opprettet = p.opprettet.toString(),
                 )
             },
+            notater = kjente.filter { it.notat.isNotBlank() }.map { NotatJson(it.kunde, it.anlegg, it.notat) },
         ),
     )
 }
+
+/** Notatene (kunde, anlegg, notat) i en sikkerhetskopi. */
+fun lesNotater(tekst: String): List<Triple<String, String, String>> =
+    json.decodeFromString<SikkerhetskopiFil>(tekst).notater.map { Triple(it.kunde, it.anlegg, it.notat) }
 
 /** Påminnelsene i en sikkerhetskopi (tom liste for eldre filer uten påminnelser). */
 fun lesPaminnelser(tekst: String): List<PaminnelseImport> =

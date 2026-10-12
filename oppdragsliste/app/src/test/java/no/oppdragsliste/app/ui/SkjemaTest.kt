@@ -48,4 +48,15 @@ class SkjemaTest {
         assertEquals("Mandal", s.sted)
         assertEquals("", s.adresse)
     }
+
+    @Test
+    fun () {
+        val k = KjentAnlegg("Søgne kommune", "Rådhuset", notat = "Kode 1234")
+        assertEquals("Kode 1234", Skjema().fyllFra(k).notat)
+        // Eget notat overskrives ikke.
+        assertEquals("Mitt notat", Skjema(notat = "Mitt notat").fyllFra(k).notat)
+        val o = no.oppdragsliste.app.data.Oppdrag(id = 3, kunde = "Søgne kommune", anlegg = "Rådhuset")
+        assertEquals(false, Skjema.fra(o, "Kode 1234").harInnhold)
+        assertEquals(true, Skjema.fra(o, "Kode 1234").copy(notat = "Kode 9999").harInnhold)
+    }
 }

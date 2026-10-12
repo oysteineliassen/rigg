@@ -75,6 +75,10 @@ commits i git, så en nyere versjon er alltid høyere.
     overskrives ikke.
   - Hold fingeren på et forslag for å fjerne det fra minnet (f.eks. skrivefeil). Det må bekreftes, og kan
     angres i noen sekunder etterpå. Oppdragene påvirkes ikke.
+- **Notat for kunde/anlegg** (under Anlegg): f.eks. adgangskoder eller hvor sikringsskapet er. Lagres på
+  kunden/anlegget, fylles inn neste gang du lager oppdrag der, og vises på kortene. Endrer du et gammelt
+  oppdrag uten å røre notatet, overskrives ikke et nyere notat. Notatet sendes ikke til Google Kalender,
+  men er med i sikkerhetskopien (som er ukryptert – oppbevar den trygt).
 - **Utkast:** skjemaet lagres mens du skriver. Tilbaketasten lukker først ved andre trykk, og det du har
   skrevet, står der neste gang (knappen viser da «Fortsett oppdrag»). «Tøm» starter på nytt.
 - **Etter samtaler** over minstelengden (standard 20 sek): varselet «Registrere oppdrag fra samtalen med

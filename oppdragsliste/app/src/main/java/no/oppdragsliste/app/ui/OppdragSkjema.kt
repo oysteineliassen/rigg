@@ -7,6 +7,7 @@ import android.provider.ContactsContract
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.outlined.Contacts
+import androidx.compose.material.icons.automirrored.outlined.StickyNote2
 import no.oppdragsliste.app.samtale.lesValgtKontakt
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -90,6 +91,7 @@ import no.oppdragsliste.app.data.Prioritet
 import no.oppdragsliste.app.logikk.Feil
 import no.oppdragsliste.app.logikk.anleggForslag
 import no.oppdragsliste.app.logikk.kundeForslag
+import no.oppdragsliste.app.logikk.notatFor
 import no.oppdragsliste.app.logikk.formaterDato
 import no.oppdragsliste.app.logikk.formaterTid
 import java.time.Instant
@@ -267,8 +269,10 @@ private fun SkjemaInnhold(
                     tekst = { it },
                     bekreftTekst = { navn ->
                         val n = kjente.count { it.kunde.trim().equals(navn, ignoreCase = true) && it.anlegg.isNotBlank() }
-                        if (n == 0) "Fjerne «$navn» fra forslagene?"
-                        else "Fjerne «$navn» og ${if (n == 1) "1 anlegg" else "$n anlegg"} fra forslagene?"
+                        val harNotat = kjente.any { it.kunde.trim().equals(navn, ignoreCase = true) && it.notat.isNotBlank() }
+                        (if (n == 0) "Fjerne «$navn» fra forslagene?"
+                        else "Fjerne «$navn» og ${if (n == 1) "1 anlegg" else "$n anlegg"} fra forslagene?") +
+                            if (harNotat) " Notatene fjernes også (kan angres)." else ""
                     },
                     onVelg = { navn ->
                         onVelgKunde(navn)
@@ -297,7 +301,9 @@ private fun SkjemaInnhold(
                     tekst = { it.tekst },
                     bekreftTekst = { f ->
                         val kunde = f.kunde ?: skjema.kunde
-                        "Fjerne «${f.anlegg}»" + (if (kunde.isNotBlank()) " ($kunde)" else "") + " fra forslagene?"
+                        val harNotat = notatFor(kjente, kunde, f.anlegg).isNotBlank()
+                        "Fjerne «${f.anlegg}»" + (if (kunde.isNotBlank()) " ($kunde)" else "") + " fra forslagene?" +
+                            if (harNotat) " Notatet fjernes også (kan angres)." else ""
                     },
                     onVelg = { f ->
                         onVelgAnlegg(f)
@@ -306,6 +312,22 @@ private fun SkjemaInnhold(
                     onGlem = { f -> onGlem(f.kunde ?: skjema.kunde, f.anlegg) },
                 )
             }
+            OutlinedTextField(
+                value = skjema.notat,
+                onValueChange = { v -> onEndre { it.copy(notat = v) } },
+                label = { Text("Notat for kunde/anlegg") },
+                placeholder = { Text("F.eks. adgangskode, hvor sikringsskapet er") },
+                leadingIcon = { Icon(Icons.AutoMirrored.Outlined.StickyNote2, null) },
+                minLines = 2,
+                supportingText = {
+                    Text(
+                        if (skjema.kunde.isBlank() && skjema.anlegg.isBlank()) "Fyll inn kunde eller anlegg for å ta vare på notatet"
+                        else "Huskes og kommer opp igjen neste gang du lager oppdrag her",
+                    )
+                },
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                modifier = Modifier.fillMaxWidth(),
+            )
             OutlinedTextField(
                 value = skjema.kontaktperson,
                 onValueChange = { v -> onEndre { it.copy(kontaktperson = v) } },

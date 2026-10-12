@@ -30,6 +30,8 @@ import no.oppdragsliste.app.logikk.Autofelt
 import no.oppdragsliste.app.logikk.formaterTelefon
 import no.oppdragsliste.app.logikk.Feil
 import no.oppdragsliste.app.logikk.kandidaterForSamtale
+import no.oppdragsliste.app.logikk.notatFor
+import no.oppdragsliste.app.logikk.anleggNokkel
 import no.oppdragsliste.app.samtale.erAktuell
 import no.oppdragsliste.app.samtale.navnForNummer
 import no.oppdragsliste.app.samtale.sisteSamtale
@@ -42,6 +44,7 @@ import no.oppdragsliste.app.sikkerhetskopi.eksporter
 import no.oppdragsliste.app.sikkerhetskopi.les
 import no.oppdragsliste.app.sikkerhetskopi.nyeOppdrag
 import no.oppdragsliste.app.sikkerhetskopi.lesPaminnelser
+import no.oppdragsliste.app.sikkerhetskopi.lesNotater
 import no.oppdragsliste.app.sikkerhetskopi.nyePaminnelser
 import no.oppdragsliste.app.sted.geokod
 import no.oppdragsliste.app.sted.naverendePosisjon
@@ -67,7 +70,11 @@ data class ListeTilstand(
     val paminnelserPerOppdrag: Map<Long, List<Paminnelse>> = emptyMap(),
     /** Alle oppdrag etter id (for å vise hvilket oppdrag en påminnelse hører til). */
     val oppdragEtterId: Map<Long, Oppdrag> = emptyMap(),
-)
+    /** Notater per kunde/anlegg ([anleggNokkel]), vist på kortene. */
+    val notater: Map<String, String> = emptyMap(),
+) {
+    fun notat(o: Oppdrag): String? = notater[anleggNokkel(o.kunde, o.anlegg)]
+}
 
 /** «Samtale med …: vil du registrere et oppdrag?» – vises når appen åpnes like etter en samtale. */
 data class SamtaleSporsmal(
@@ -112,7 +119,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    val liste: StateFlow<ListeTilstand> = combine(repo.alle, repo.paminnelser, _sok, klokke) { alle, pam, sok, na ->
+    val liste: StateFlow<ListeTilstand> = combine(repo.alle, repo.paminnelser, repo.kjente, _sok, klokke) { alle, pam, kjente, sok, na ->
         val treff = filtrer(alle, sok)
         val etterId = alle.associateBy { it.id }
         val pTreff = filtrerPaminnelser(pam, sok) { etterId[it]?.tittel }
@@ -129,6 +136,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             },
             paminnelserPerOppdrag = sorterPaminnelser(pam).filter { it.oppdragId != null }.groupBy { it.oppdragId!! },
             oppdragEtterId = etterId,
+            notater = kjente.filter { it.notat.isNotBlank() }.associate { anleggNokkel(it.kunde, it.anlegg) to it.notat },
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ListeTilstand())
 
@@ -252,7 +260,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** Endre et oppdrag; fortsetter på et ulagret utkast for samme oppdrag hvis det finnes. */
-    fun endre(o: Oppdrag) { sett(utkast.hentEndring(o.id)?.tilSkjema(o) ?: Skjema.fra(o)) }
+    fun endre(o: Oppdrag) {
+        val notat = notatFor(kjente.value, o.kunde, o.anlegg)
+        sett(utkast.hentEndring(o.id)?.tilSkjema(o)?.copy(originalNotat = notat) ?: Skjema.fra(o, notat))
+    }
 
     /** Lukker skjemaet. Det som er skrevet, ligger igjen som utkast. */
     fun lukkSkjema() { _skjema.value = null }
@@ -261,7 +272,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun tomSkjema() {
         val s = _skjema.value ?: return
         utkast.slett(s)
-        _skjema.value = s.original?.let { Skjema.fra(it) } ?: Skjema(prioritet = s.prioritet)
+        _skjema.value = s.original?.let { Skjema.fra(it, s.originalNotat) } ?: Skjema(prioritet = s.prioritet)
     }
 
     fun oppdaterSkjema(endring: (Skjema) -> Skjema) {
@@ -303,7 +314,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 stedEndret -> nytt.copy(lat = null, lng = null)
                 else -> nytt
             }
-            val id = repo.lagre(lagret)
+            // Notatet lagres på kunden/anlegget bare når det er endret i skjemaet, så et nyere notat
+            // ikke overskrives når et gammelt oppdrag endres.
+            val notat = s.notat.trim().takeIf { it != s.originalNotat.trim() }
+            val id = repo.lagre(lagret, notat)
             if (!lagret.harKoordinater && lagret.stedTekst.isNotBlank()) {
                 val koordinater = geokod(getApplication(), lagret) ?: return@launch
                 val na = repo.hent(id) ?: return@launch
@@ -370,7 +384,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun eksporterTil(uri: Uri) = viewModelScope.launch {
         _kopiStatus.value = try {
             val alle = repo.alleNa()
-            val tekst = eksporter(alle, repo.allePaminnelser())
+            val tekst = eksporter(alle, repo.allePaminnelser(), repo.alleKjente())
             withContext(Dispatchers.IO) {
                 getApplication<Application>().contentResolver.openOutputStream(uri, "wt")!!.use {
                     it.write(tekst.toByteArray(Charsets.UTF_8))
@@ -393,6 +407,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val hoppet = importerte.size - nye.size
             val nyeP = nyePaminnelser(repo.allePaminnelser(), lesPaminnelser(tekst), repo.alleNa())
             if (nyeP.isNotEmpty()) repo.settInnPaminnelser(nyeP)
+            // Notater for kunder/anlegg (eksisterende notater beholdes).
+            repo.importerNotater(lesNotater(tekst))
             "Importerte ${nye.size} oppdrag" + (if (nyeP.isNotEmpty()) " og ${nyeP.size} påminnelser." else ".") +
                 if (hoppet > 0) " $hoppet oppdrag fantes fra før og ble hoppet over." else ""
         } catch (e: Exception) {

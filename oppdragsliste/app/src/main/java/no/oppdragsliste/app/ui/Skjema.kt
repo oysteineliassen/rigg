@@ -30,6 +30,10 @@ data class Skjema(
     val dato: LocalDate? = null,
     val tid: LocalTime? = null,
     val sluttid: LocalTime? = null,
+    /** Notat for kunden/anlegget (lagres i registeret og følger med til neste oppdrag der). */
+    val notat: String = "",
+    /** Notatet slik det var da skjemaet ble åpnet, så vi vet om det er endret. */
+    val originalNotat: String = "",
     val feil: Set<Feil> = emptySet(),
     val visFeil: Boolean = false,
     /** Verdiene vi selv fylte inn sist, så de kan byttes ut hvis kunde eller anlegg endres. */
@@ -52,6 +56,7 @@ data class Skjema(
             telefon = felt(Autofelt.TELEFON, telefon, k.telefon),
             sted = felt(Autofelt.STED, sted, k.sted),
             adresse = felt(Autofelt.ADRESSE, adresse, k.adresse),
+            notat = felt(Autofelt.NOTAT, notat, k.notat),
             autofylt = auto,
             kilde = k,
         )
@@ -59,20 +64,21 @@ data class Skjema(
 
     /** Ingenting skrevet inn (prioritet teller ikke). */
     val erTomt: Boolean
-        get() = listOf(beskrivelse, kunde, anlegg, kontaktperson, telefon, sted, adresse).all { it.isBlank() } &&
+        get() = listOf(beskrivelse, kunde, anlegg, kontaktperson, telefon, sted, adresse, notat).all { it.isBlank() } &&
             dato == null && tid == null && sluttid == null
 
     /** Har det skjedd noe som er verdt å ta vare på? For endringer: noe er forskjellig fra originalen. */
     val harInnhold: Boolean
-        get() = original?.let { innhold != fra(it).innhold } ?: !erTomt
+        get() = original?.let { innhold != fra(it, originalNotat).innhold } ?: !erTomt
 
-    private val innhold get() = listOf(prioritet, beskrivelse, kunde, anlegg, kontaktperson, telefon, sted, adresse, dato, tid, sluttid)
+    private val innhold get() = listOf(prioritet, beskrivelse, kunde, anlegg, kontaktperson, telefon, sted, adresse, dato, tid, sluttid, notat)
 
     companion object {
-        fun fra(o: Oppdrag) = Skjema(
+        fun fra(o: Oppdrag, notat: String = "") = Skjema(
             original = o, prioritet = o.prioritet, beskrivelse = o.beskrivelse, kunde = o.kunde, anlegg = o.anlegg,
             kontaktperson = o.kontaktperson, telefon = o.telefon, sted = o.sted, adresse = o.adresse,
             dato = o.dato, tid = o.tid, sluttid = o.sluttid,
+            notat = notat, originalNotat = notat,
         )
     }
 }
@@ -92,6 +98,7 @@ data class Utkast(
     val dato: String? = null,
     val tid: String? = null,
     val sluttid: String? = null,
+    val notat: String = "",
     val autofylt: Map<String, String> = emptyMap(),
 ) {
     fun tilSkjema(original: Oppdrag?) = Skjema(
@@ -102,6 +109,7 @@ data class Utkast(
         dato = dato?.let { runCatching { LocalDate.parse(it) }.getOrNull() },
         tid = tid?.let { runCatching { LocalTime.parse(it) }.getOrNull() },
         sluttid = sluttid?.let { runCatching { LocalTime.parse(it) }.getOrNull() },
+        notat = notat,
         autofylt = autofylt.mapNotNull { (k, v) -> runCatching { Autofelt.valueOf(k) }.getOrNull()?.let { it to v } }.toMap(),
         fraUtkast = true,
     )
@@ -110,7 +118,7 @@ data class Utkast(
         fun fra(s: Skjema) = Utkast(
             originalId = s.original?.id, prioritet = s.prioritet.name, beskrivelse = s.beskrivelse, kunde = s.kunde,
             anlegg = s.anlegg, kontaktperson = s.kontaktperson, telefon = s.telefon, sted = s.sted,
-            adresse = s.adresse, dato = s.dato?.toString(), tid = s.tid?.toString(), sluttid = s.sluttid?.toString(),
+            adresse = s.adresse, dato = s.dato?.toString(), tid = s.tid?.toString(), sluttid = s.sluttid?.toString(), notat = s.notat,
             autofylt = s.autofylt.mapKeys { it.key.name },
         )
     }
