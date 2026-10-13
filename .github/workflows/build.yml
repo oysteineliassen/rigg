@@ -48,6 +48,7 @@ jobs:
         with:
           name: rigg-apk
           path: rigg-${{ github.run_number }}.apk
+          retention-days: 3
 
       - name: Testrapport ved feil
         if: failure()
@@ -55,6 +56,7 @@ jobs:
         with:
           name: testrapport
           path: app/build/reports/tests/
+          retention-days: 7
 
       - name: Legg ut som release
         if: github.event_name == 'push'
