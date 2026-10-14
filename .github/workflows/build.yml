@@ -5,11 +5,15 @@ name: Bygg
 on:
   push:
     branches: [main, master]
-  pull_request:
   workflow_dispatch:
 
 permissions:
   contents: write
+
+# Et nytt bygg på samme gren avbryter det forrige, så bare det siste bruker minutter.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
