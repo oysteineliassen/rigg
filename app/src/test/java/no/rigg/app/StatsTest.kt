@@ -57,4 +57,59 @@ class StatsTest {
         assertEquals("+5", progressDelta(listOf(ProgressPoint(d, 13.0, "reps"), ProgressPoint(d, 18.0, "reps"))))
         assertEquals("", progressDelta(listOf(ProgressPoint(d, 13.0, "reps"))))
     }
+
+    @Test
+    fun extraDayIsTheOneLongestAgo() {
+        val plan = Plan(name = "P", days = listOf(WorkoutDay("A", emptyList()), WorkoutDay("B", emptyList()), WorkoutDay("C", emptyList())))
+        // Aldri trent: først i programmet.
+        assertEquals("A", extraDay(plan, emptyList())?.title)
+        // C aldri trent: den.
+        assertEquals("C", extraDay(plan, listOf(log("2026-09-28", "A"), log("2026-09-29", "B")))?.title)
+        // Alle trent: den som er lengst siden (B).
+        assertEquals("B", extraDay(plan, listOf(log("2026-09-27", "B"), log("2026-09-28", "C"), log("2026-09-29", "A")))?.title)
+    }
+
+    @Test
+    fun muscleLoadUsesExerciseWeights() {
+        val l = SessionLog(
+            "2026-10-02", "A",
+            listOf(
+                ExerciseResult("goblet_squat", List(3) { SetResult(10, 12.0) }), // lår 1, sete 0,6, mage 0,3, rygg 0,2
+                ExerciseResult("pushup", listOf(SetResult(10))), // bryst 1, triceps 0,5, skuldre 0,4, mage 0,25
+            ),
+        )
+        val load = muscleLoad(l)
+        assertEquals(1f, load.getValue(Muscle.QUADS), 1e-5f)
+        assertEquals(0.6f, load.getValue(Muscle.GLUTES_HAMS), 1e-5f)
+        assertEquals(1f / 3f, load.getValue(Muscle.CHEST), 1e-5f)
+        assertEquals(0.4f / 3f, load.getValue(Muscle.SHOULDERS), 1e-5f)
+        assertEquals(listOf(Muscle.QUADS, Muscle.GLUTES_HAMS, Muscle.ABS), topMuscles(load))
+        assertEquals(emptyMap<Muscle, Float>(), muscleLoad(SessionLog("2026-10-02", "A")))
+    }
+
+    @Test
+    fun setWorkCountsTimeRepsAndRelativeWeight() {
+        assertEquals(1f, setWork(SetResult(45), timed = true, all = emptyList()), 1e-5f)
+        assertEquals(2f / 3f, setWork(SetResult(30), timed = true, all = emptyList()), 1e-5f)
+        assertEquals(1f, setWork(SetResult(10), timed = false, all = emptyList()), 1e-5f)
+        assertEquals(1.3f, setWork(SetResult(40), timed = false, all = emptyList()), 1e-5f)
+        val sets = listOf(SetResult(10, 10.0), SetResult(10, 20.0))
+        assertEquals(0.5f, setWork(sets[0], timed = false, all = sets), 1e-5f)
+        assertEquals(1f, setWork(sets[1], timed = false, all = sets), 1e-5f)
+        assertEquals(0f, setWork(SetResult(0), timed = false, all = emptyList()), 1e-5f)
+    }
+
+    @Test
+    fun everyExerciseHasMuscleWeights() {
+        assertEquals(emptyList<String>(), ExerciseLibrary.all.map { it.id }.filter { it !in MuscleWeights.ids })
+        assertEquals(emptyList<String>(), MuscleWeights.ids.filter { ExerciseLibrary.get(it) == null })
+    }
+
+    @Test
+    fun muscleLevelsAreThreeSteps() {
+        assertEquals(null, muscleLevel(0f))
+        assertEquals(MuscleLevel.LOW, muscleLevel(0.3f))
+        assertEquals(MuscleLevel.MEDIUM, muscleLevel(0.5f))
+        assertEquals(MuscleLevel.HIGH, muscleLevel(1f))
+    }
 }

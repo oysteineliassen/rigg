@@ -180,4 +180,42 @@ class TrainingTest {
         assertEquals(listOf(10.0, 12.0, 14.0, 16.0, 18.0), weightWindow(w, 30.0))
         assertEquals(listOf(4.0, 6.0), weightWindow(listOf(6.0, 4.0), null))
     }
+
+    @Test
+    fun restShowsEverythingUntilTheNextRest() {
+        val day = WorkoutDay(
+            "Test",
+            listOf(
+                PlannedExercise("pushup", 2, "8-12", 60, group = "A"),
+                PlannedExercise("db_row", 2, "8-12", 60, group = "A"),
+                PlannedExercise("plank", 1, "30 sec", 30),
+            ),
+        )
+        val steps = sessionSteps(day)
+        // Etter første sett med pushup er det db_row rett etter, så pause: begge vises.
+        assertEquals(listOf("pushup", "db_row"), stepsUntilRest(steps, 2).map { it.pe.exerciseId })
+        assertEquals(listOf("plank"), stepsUntilRest(steps, 4).map { it.pe.exerciseId })
+    }
+
+    @Test
+    fun oneSidedExercisesArePerSide() {
+        assertTrue(ex("side_plank").perSide && ex("side_plank").timed)
+        assertTrue(ex("db_row_bent").perSide)
+        assertTrue(ex("bulgarian").perSide)
+        assertTrue(!ex("pushup").perSide)
+        assertEquals(null, ex("pushup").perSideHint)
+    }
+
+    @Test
+    fun warmupVariesBetweenSessions() {
+        val day = WorkoutDay("Test", listOf(PlannedExercise("goblet_squat", 3, "8-12", 75), PlannedExercise("pushup", 3, "8-12", 75),
+            PlannedExercise("db_row", 3, "8-12", 75), PlannedExercise("plank", 3, "30 sec", 45)))
+        val eq = setOf(Equipment.DUMBBELLS)
+        val all = (0 until 6).map { v -> warmupFor(day, eq, v) }
+        // Samme økt (samme variant) gir samme oppvarming, neste økt en annen.
+        assertEquals(all[0].map { it.figure }, warmupFor(day, eq, 0).map { it.figure })
+        assertTrue(all[0].map { it.figure } != all[1].map { it.figure })
+        assertTrue(all.flatten().map { it.figure }.toSet().size >= 10)
+        all.forEach { assertTrue(it.sumOf { w -> w.seconds } <= 300) }
+    }
 }

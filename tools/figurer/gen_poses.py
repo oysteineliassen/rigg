@@ -1153,9 +1153,91 @@ put("BURPEE", "KONDISJON", [bu_plank, bu_plank, bu_squat, bu_reach, bu_air, bu_s
           (400, "ned med hendene i gulvet"), (280, "hopper bakover til planke")], front=[3, 4])
 
 
+# ======================================================================== OPPVARMING
+# Figurer som bare brukes i oppvarmingen (se warmupFor() i Training.kt), ikke av noen øvelse i biblioteket.
+S_ = "OPPVARMING"
+
+# Jumping jacks sett forfra: beina sammen og armene ned, så beina ut og armene over hodet.
+jj_closed = front((0.5, 0.578), [("p", (0.45, FLOOR_Y), 180), ("p", (0.55, FLOOR_Y), 0)], [("a", 100, 95), ("a", 80, 85)])
+jj_open = front((0.5, 0.592), [("p", (0.34, FLOOR_Y), 180), ("p", (0.66, FLOOR_Y), 0)], [("a", -125, -120), ("a", -55, -60)])
+put("JUMPING_JACK", S_, [jj_open, jj_closed],
+    "Jumping jacks sett forfra: beina ut og armene over hodet, så samlet igjen med armene langs siden.")
+
+# Armsirkler: strak arm som går rundt fra skulderen, fremover og ned, bak og opp igjen.
+# Hodet ligger litt nærmere skulderen enn vanlig, så animasjonen fester det til skulderen og ikke til albuen
+# (albuen passerer like langt fra hodet når armen går over).
+circle = lambda a: stand(("a", a, a), neck=0.0) | {"head": (0.46, 0.24)}
+put("ARM_CIRCLES", S_, [circle(-45), circle(45), circle(135), circle(-135), circle(-45)],
+    "Armsirkler: strak arm som sirkler rundt skulderen.",
+    keys=[(450, "frem og ned"), (450, "bak"), (450, "opp"), (450, "frem igjen")], front=[3, 4])
+
+# Beinsving: står på ett bein, det andre svinger frem og tilbake. Hånden mot en vegg for balanse.
+LS_HIP = (0.5, 0.578)
+LS_STANCE = ("p", (0.5, FLOOR_Y), 0)
+ls_wall = [((0.86, 0.12), (0.86, 0.97), "vegg")]
+ls = lambda leg: side(LS_HIP, -90, [LS_STANCE, ("a", leg, leg + 5)], [("p", (0.84, 0.43), 90)])
+put("LEG_SWING", S_, [ls(55), ls(128)],
+    "Beinsving: står på ett bein med hånden mot veggen, det andre beinet svinger frem og tilbake.",
+    props=ls_wall, front=[3, 4])
+
+# Hoftebøy med hendene på hofta: rumpa skyves bakover med flat rygg, knærne litt bøyd.
+def hinge_wu(hip, torso):
+    fr = side(hip, torso, [("p", (0.5, FLOOR_Y), 0), ("p", (0.44, FLOOR_Y), 0)],
+              [("p", (hip[0] + 0.03, hip[1] - 0.03), 180)])
+    return fr
+
+
+put("HINGE_WARMUP", S_, [hinge_wu((0.39, 0.62), -28), hinge_wu((0.47, 0.585), -90)],
+    "Hoftebøy: hendene på hofta, rumpa skyves bakover med flat rygg, så opp igjen.", front=[3, 4])
+
+# Skulderbladene klemmes sammen: armene strakt frem, så albuene trekkes bakover.
+sq_fwd = stand(("a", 0, 0))
+sq_back = stand(("a", 135, -5))
+put("SCAP_SQUEEZE", S_, [sq_back, sq_fwd],
+    "Skulderbladene sammen: albuene trukket bak, så armene strakt frem igjen.", front=[3, 4])
+
+# Katt og ku på alle fire (hodet til venstre): ryggen runder seg opp, så svaier den ned med blikket frem.
+# Linjene går fra foten og fremover, så føtter, knær og hofte står helt i ro. Midt på ryggen roteres jevnt rundt
+# hofta, og skulderen flytter seg en anelse mellom stillingene (så den ikke låses), mens hånden står fast.
+CC_H, CC_HIP, CC_K, CC_F = (0.3, FLOOR_Y), (0.64, 0.62), (0.66, FLOOR_Y), (0.88, FLOOR_Y)
+
+
+def cat_cow(mid_y, sh_y, head):
+    mid, sh = (0.47, mid_y), (0.3, sh_y)
+    lines = [(CC_F, CC_K), (CC_K, CC_HIP), (CC_HIP, mid), (mid, sh), (sh, CC_H)]
+    return dict(head=head, lines=lines, dots=[], props=[], alpha=1.0, pts={})
+
+
+cat, cow = cat_cow(0.54, 0.62, (0.21, 0.72)), cat_cow(0.7, 0.621, (0.2, 0.52))
+put("CAT_COW", S_, [cat, cat, cow, cow, cat],
+    "Katt og ku: på alle fire runder du ryggen opp med haka mot brystet, så svaier den ned med blikket frem.",
+    keys=[(250, "holder"), (1300, "svaier ned"), (250, "holder"), (1300, "runder opp")])
+
+# ======================================================================== TEMPO
+# Frem-og-tilbake-figurene går som standard i rolig styrketempo (REP_MS i Illustration.kt, 2,2 sek per repetisjon).
+# Raske øvelser får eget tempo: da gjøres stillingene om til en sekvens på to nøkler (ut og tilbake), med samme
+# myke oppbremsing i hver ende. [ms] er én hel repetisjon.
+def tempo(name, ms):
+    d = P[name]
+    e = d["end"]
+    assert e, f"{name}: tempo() trenger en sluttstilling"
+    moving_props = bool(e["props"])
+    start = dict(head=d["head"], lines=[l[:2] for l in d["lines"]], dots=d["dots"],
+                 props=[pr[:2] for pr in d["props"]] if moving_props else [], alpha=1.0)
+    end = dict(head=e["head"], lines=e["lines"], dots=e["dots"], props=e["props"], alpha=1.0)
+    d["seq"] = [(end, ms // 2, "ut"), (start, ms - ms // 2, "tilbake")]
+    d["end"] = None
+
+
+tempo("JUMPING_JACK", 1000)     # ca. én repetisjon i sekundet, som i virkeligheten
+tempo("JUMP_ROPE", 640)         # ett hopp per tauslag
+tempo("MOUNTAIN_CLIMBER", 800)  # to beinbytter per runde
+tempo("KB_SWING", 1500)
+tempo("LEG_SWING", 1400)
+
 # ======================================================================== Kotlin
 SECTION_TITLES = {"PRESS": "PRESS", "TREKK": "TREKK", "BEIN": "BEIN", "HOFTE": "HOFTE", "KJERNE": "KJERNE",
-                  "KONDISJON": "KONDISJON / ANNET"}
+                  "KONDISJON": "KONDISJON / ANNET", "OPPVARMING": "OPPVARMING"}
 
 
 def f(x):
@@ -1178,7 +1260,7 @@ def seg_lines(segs, indent):
 
 out = ["private val POSES: Map<IllustrationType, Pose> = mapOf("]
 last = None
-ORDER = ["PRESS", "TREKK", "BEIN", "HOFTE", "KJERNE", "KONDISJON"]
+ORDER = ["PRESS", "TREKK", "BEIN", "HOFTE", "KJERNE", "KONDISJON", "OPPVARMING"]
 for name, d in sorted(P.items(), key=lambda kv: ORDER.index(kv[1]["section"])):
     if d["section"] != last:
         if last is not None:
@@ -1323,7 +1405,7 @@ MAP = {
     ("high_knees",): "CARDIO_RUN",
 }
 FALLBACK = {"PUSH": "PUSHUP", "PULL": "ROW", "SQUAT": "SQUAT", "LUNGE": "LUNGE", "HINGE": "HIP_HINGE", "CORE": "PLANK", "CARDIO": "CARDIO_RUN"}
-used = set(MAP.values()) | set(FALLBACK.values())
+used = set(MAP.values()) | set(FALLBACK.values()) | {n for n, d in P.items() if d["section"] == "OPPVARMING"}
 missing = [t for t in used if t not in P]
 unused = [t for t in P if t not in used]
 assert not missing, f"koblet til pose som ikke finnes: {missing}"

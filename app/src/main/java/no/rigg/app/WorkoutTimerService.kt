@@ -36,9 +36,13 @@ class WorkoutTimerService : Service() {
     private var loopJob: Job? = null
     private var wakeLock: PowerManager.WakeLock? = null
 
-    // Hvilken hvile vi har pipet for, og hvilket sekund vi pipet sist (så hvert pip bare kommer én gang).
-    private var cueForEndsAt = Long.MIN_VALUE
-    private var lastCueSecond = Int.MAX_VALUE
+    /** Hvilken nedtelling vi har pipet for, og hvilket sekund vi pipet sist (så hvert pip bare kommer én gang). */
+    private class Cue {
+        var forEndsAt = Long.MIN_VALUE
+        var lastSecond = Int.MAX_VALUE
+    }
+    private val restCue = Cue()
+    private val workCue = Cue()
 
     private var lastNotificationKey: String? = null
 
@@ -83,11 +87,17 @@ class WorkoutTimerService : Service() {
         loopJob = scope.launch {
             while (true) {
                 val rest = WorkoutTimers.rest
-                if (rest == null && WorkoutTimers.session == null) break
-                val waitMs = if (rest != null) handleRest(rest) else {
-                    releaseWakeLock()
-                    1000L
-                }
+                val work = WorkoutTimers.work
+                if (rest == null && work == null && WorkoutTimers.session == null) break
+                // Hvile og arbeid (oppvarming, planke ...) telles hver for seg. Uten noe som teller trengs ingen wake lock.
+                val restWait = if (rest != null && !rest.paused) {
+                    countdown(restCue, rest.endsAtElapsed, rest.remainingMs(), rest.secondsLeft(), goVibrateMs = 500) { WorkoutTimers.finishRest() }
+                } else null
+                val workWait = if (work != null && !work.paused && !work.finished) {
+                    countdown(workCue, work.endsAtElapsed, work.remainingMs(), work.secondsLeft(), goVibrateMs = 400) { WorkoutTimers.finishWork() }
+                } else null
+                if (restWait == null && workWait == null) releaseWakeLock()
+                val waitMs = minOf(restWait ?: 1000L, workWait ?: 1000L)
                 updateNotificationIfChanged()
                 delay(waitMs) // kaster ved cancel, så oppryddingen under kjører bare når alt er ferdig
             }
@@ -102,28 +112,29 @@ class WorkoutTimerService : Service() {
         }
     }
 
-    /** Spiller pip ved 3, 2 og 1 sekund igjen og en høyere tone ved 0. Returnerer ventetid til neste sekundskifte. */
-    private fun handleRest(rest: RestTimer): Long {
-        if (rest.endsAtElapsed != cueForEndsAt) {
-            cueForEndsAt = rest.endsAtElapsed
-            lastCueSecond = Int.MAX_VALUE
+    /**
+     * Spiller pip ved 3, 2 og 1 sekund igjen og en høyere tone ved 0, og kaller [onDone] ved 0.
+     * Returnerer ventetid til neste sekundskifte.
+     */
+    private fun countdown(cue: Cue, endsAt: Long, remaining: Long, secondsLeft: Int, goVibrateMs: Long, onDone: () -> Unit): Long {
+        if (endsAt != cue.forEndsAt) {
+            cue.forEndsAt = endsAt
+            cue.lastSecond = Int.MAX_VALUE
         }
-        val remaining = rest.remainingMs()
         acquireWakeLock(remaining.coerceAtLeast(0) + 15_000)
 
         if (remaining <= 0) {
             Beeper.go()
-            Haptics.vibrate(this, 500)
-            WorkoutTimers.finishRest()
+            Haptics.vibrate(this, goVibrateMs)
+            onDone()
             // Wake lock slippes av løkka: med en gang hvis økta fortsetter, ellers etter at tonen er ferdig.
             return 0L
         }
 
-        val secondsLeft = rest.secondsLeft()
-        if (secondsLeft <= 3 && secondsLeft < lastCueSecond) {
+        if (secondsLeft <= 3 && secondsLeft < cue.lastSecond) {
             Beeper.countdown()
             Haptics.vibrate(this, 60)
-            lastCueSecond = secondsLeft
+            cue.lastSecond = secondsLeft
         }
 
         // Våkn rett etter neste hele sekund (regnet fra slutten), så pipene treffer sekundskiftene.
@@ -142,8 +153,13 @@ class WorkoutTimerService : Service() {
         wakeLock?.let { if (it.isHeld) it.release() }
     }
 
-    private fun notificationKey(): String =
-        "${WorkoutTimers.rest?.endsAtElapsed}|${WorkoutTimers.session?.startedAtMs}"
+    private fun notificationKey(): String {
+        val r = WorkoutTimers.rest
+        val s = WorkoutTimers.session
+        val w = WorkoutTimers.work
+        return "${r?.endsAtElapsed}|${r?.pausedLeftMs}|${s?.startedAtMs}|${s?.pausedAtMs}|${s?.pausedTotalMs}|" +
+            "${w?.endsAtElapsed}|${w?.pausedLeftMs}|${w?.finished}|${w?.label}"
+    }
 
     private fun updateNotificationIfChanged() {
         val key = notificationKey()
@@ -157,6 +173,7 @@ class WorkoutTimerService : Service() {
     private fun buildNotification(): Notification {
         val rest = WorkoutTimers.rest
         val session = WorkoutTimers.session
+        val work = WorkoutTimers.work?.takeIf { !it.finished }
         val openApp = PendingIntent.getActivity(
             this, 1,
             Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
@@ -170,6 +187,18 @@ class WorkoutTimerService : Service() {
             .setCategory(NotificationCompat.CATEGORY_STOPWATCH)
             .setContentIntent(openApp)
         when {
+            rest != null && rest.paused -> builder
+                .setContentTitle(tr("Rest paused", "Hvilen er på pause"))
+                .setContentText(tr("${formatDuration(rest.secondsLeft())} left", "${formatDuration(rest.secondsLeft())} igjen"))
+                .setShowWhen(false)
+            work != null && work.paused -> builder
+                .setContentTitle(workTitle(work) + tr(" (paused)", " (pause)"))
+                .setContentText(tr("${formatDuration(work.secondsLeft())} left", "${formatDuration(work.secondsLeft())} igjen"))
+                .setShowWhen(false)
+            session != null && session.paused -> builder
+                .setContentTitle(tr("Workout paused", "Økta er på pause"))
+                .setContentText("${session.dayTitle} · ${formatDuration(session.elapsedSec())}")
+                .setShowWhen(false)
             rest != null -> builder
                 .setContentTitle(tr("Rest", "Hvile"))
                 .setContentText(session?.let { tr("Workout: ${it.dayTitle}", "Økt: ${it.dayTitle}") } ?: tr("Rest in progress", "Pausen er i gang"))
@@ -177,15 +206,28 @@ class WorkoutTimerService : Service() {
                 .setUsesChronometer(true)
                 .setChronometerCountDown(true)
                 .setWhen(System.currentTimeMillis() + rest.remainingMs().coerceAtLeast(0))
+            work != null -> builder
+                .setContentTitle(workTitle(work))
+                .setContentText(session?.let { tr("Workout: ${it.dayTitle}", "Økt: ${it.dayTitle}") } ?: "Rigg")
+                .setShowWhen(true)
+                .setUsesChronometer(true)
+                .setChronometerCountDown(true)
+                .setWhen(System.currentTimeMillis() + work.remainingMs().coerceAtLeast(0))
             session != null -> builder
                 .setContentTitle(tr("Workout in progress", "Økt pågår"))
                 .setContentText(session.dayTitle)
                 .setShowWhen(true)
                 .setUsesChronometer(true)
-                .setWhen(session.startedAtMs)
+                // Klokka i varselet teller fra et tenkt starttidspunkt, så pausene ikke telles med.
+                .setWhen(System.currentTimeMillis() - session.elapsedMs())
             else -> builder.setContentTitle("Rigg")
         }
         return builder.build()
+    }
+
+    private fun workTitle(w: WorkTimer) = when (w.kind) {
+        WorkKind.WARMUP -> tr("Warm-up: ", "Oppvarming: ") + w.label
+        WorkKind.SET -> w.label
     }
 
     companion object {

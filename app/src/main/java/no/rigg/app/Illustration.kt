@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -51,7 +52,8 @@ enum class IllustrationType {
     WALKING_LUNGE, LATERAL_LUNGE, HIP_HINGE, GLUTE_BRIDGE, CALF_RAISE, SUPERMAN, CALF_RAISE_DB, GLUTE_BRIDGE_1LEG,
     HIP_THRUST, KB_SWING, GOOD_MORNING, PULL_THROUGH, SINGLE_LEG_RDL, PLANK, SIDE_PLANK, MOUNTAIN_CLIMBER,
     BIRD_DOG, DEAD_BUG, HOLLOW_HOLD, LEG_RAISE, HANGING_RAISE, SEATED_TWIST, HANGING_LEG_RAISE, BODY_SAW,
-    CARDIO_RUN, JUMP, CARRY, JUMP_ROPE, BURPEE,
+    CARDIO_RUN, JUMP, CARRY, JUMP_ROPE, BURPEE, JUMPING_JACK, ARM_CIRCLES, LEG_SWING, HINGE_WARMUP,
+    SCAP_SQUEEZE, CAT_COW,
 }
 
 private data class Pose(
@@ -2010,16 +2012,29 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
         ),
         dots = listOf(p(0.55f, 0.62f)),
         front = setOf(3),
-        // Stående: hofta skjøvet frem, vekta langs beina.
-        end = Frame(
-            head = p(0.45f, 0.09f),
-            lines = listOf(
-                p(0.45f, 0.194f) to p(0.44f, 0.55f),
-                p(0.44f, 0.55f) to p(0.44f, 0.78f),
-                p(0.44f, 0.78f) to p(0.45f, 0.97f),
-                p(0.45f, 0.194f) to p(0.75f, 0.22f),
-            ),
-            dots = listOf(p(0.78f, 0.22f)),
+        sequence = listOf(
+            // ut
+            Key(750, Frame(
+                head = p(0.45f, 0.09f),
+                lines = listOf(
+                    p(0.45f, 0.194f) to p(0.44f, 0.55f),
+                    p(0.44f, 0.55f) to p(0.44f, 0.78f),
+                    p(0.44f, 0.78f) to p(0.45f, 0.97f),
+                    p(0.45f, 0.194f) to p(0.75f, 0.22f),
+                ),
+                dots = listOf(p(0.78f, 0.22f)),
+            )),
+            // tilbake
+            Key(750, Frame(
+                head = p(0.76f, 0.26f),
+                lines = listOf(
+                    p(0.68f, 0.33f) to p(0.4f, 0.55f),
+                    p(0.4f, 0.55f) to p(0.42f, 0.78f),
+                    p(0.42f, 0.78f) to p(0.45f, 0.97f),
+                    p(0.68f, 0.33f) to p(0.55f, 0.62f),
+                ),
+                dots = listOf(p(0.55f, 0.62f)),
+            )),
         ),
     ),
     IllustrationType.GOOD_MORNING to Pose(
@@ -2138,17 +2153,31 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
             p(0.56f, 0.7f) to p(0.36f, 0.8f), // kneet dratt frem
             p(0.36f, 0.8f) to p(0.47f, 0.965f),
         ),
-        // Beina bytter plass.
-        end = Frame(
-            head = p(0.1f, 0.56f),
-            lines = listOf(
-                p(0.18f, 0.62f) to p(0.56f, 0.7f),
-                p(0.18f, 0.62f) to p(0.2f, 0.93f),
-                p(0.56f, 0.7f) to p(0.36f, 0.8f),
-                p(0.36f, 0.8f) to p(0.47f, 0.965f),
-                p(0.56f, 0.7f) to p(0.74f, 0.8f),
-                p(0.74f, 0.8f) to p(0.92f, 0.9f),
-            ),
+        sequence = listOf(
+            // ut
+            Key(400, Frame(
+                head = p(0.1f, 0.56f),
+                lines = listOf(
+                    p(0.18f, 0.62f) to p(0.56f, 0.7f),
+                    p(0.18f, 0.62f) to p(0.2f, 0.93f),
+                    p(0.56f, 0.7f) to p(0.36f, 0.8f),
+                    p(0.36f, 0.8f) to p(0.47f, 0.965f),
+                    p(0.56f, 0.7f) to p(0.74f, 0.8f),
+                    p(0.74f, 0.8f) to p(0.92f, 0.9f),
+                ),
+            )),
+            // tilbake
+            Key(400, Frame(
+                head = p(0.1f, 0.56f),
+                lines = listOf(
+                    p(0.18f, 0.62f) to p(0.56f, 0.7f),
+                    p(0.18f, 0.62f) to p(0.2f, 0.93f),
+                    p(0.56f, 0.7f) to p(0.74f, 0.8f),
+                    p(0.74f, 0.8f) to p(0.92f, 0.9f),
+                    p(0.56f, 0.7f) to p(0.36f, 0.8f),
+                    p(0.36f, 0.8f) to p(0.47f, 0.965f),
+                ),
+            )),
         ),
     ),
     IllustrationType.BIRD_DOG to Pose(
@@ -2749,21 +2778,39 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
             p(0.36f, 0.95f) to p(0.64f, 0.95f),
             p(0.64f, 0.95f) to p(0.62f, 0.52f),
         ),
-        // Landet, tauet over hodet.
-        end = Frame(
-            head = p(0.5f, 0.27f),
-            lines = listOf(
-                p(0.5f, 0.36f) to p(0.5f, 0.64f),
-                p(0.5f, 0.64f) to p(0.46f, 0.94f),
-                p(0.5f, 0.64f) to p(0.54f, 0.94f),
-                p(0.5f, 0.39f) to p(0.38f, 0.58f),
-                p(0.5f, 0.39f) to p(0.62f, 0.58f),
-            ),
-            props = listOf(
-                p(0.38f, 0.58f) to p(0.34f, 0.08f),
-                p(0.34f, 0.08f) to p(0.66f, 0.08f),
-                p(0.66f, 0.08f) to p(0.62f, 0.58f),
-            ),
+        sequence = listOf(
+            // ut
+            Key(320, Frame(
+                head = p(0.5f, 0.27f),
+                lines = listOf(
+                    p(0.5f, 0.36f) to p(0.5f, 0.64f),
+                    p(0.5f, 0.64f) to p(0.46f, 0.94f),
+                    p(0.5f, 0.64f) to p(0.54f, 0.94f),
+                    p(0.5f, 0.39f) to p(0.38f, 0.58f),
+                    p(0.5f, 0.39f) to p(0.62f, 0.58f),
+                ),
+                props = listOf(
+                    p(0.38f, 0.58f) to p(0.34f, 0.08f),
+                    p(0.34f, 0.08f) to p(0.66f, 0.08f),
+                    p(0.66f, 0.08f) to p(0.62f, 0.58f),
+                ),
+            )),
+            // tilbake
+            Key(320, Frame(
+                head = p(0.5f, 0.21f),
+                lines = listOf(
+                    p(0.5f, 0.3f) to p(0.5f, 0.58f),
+                    p(0.5f, 0.58f) to p(0.46f, 0.88f),
+                    p(0.5f, 0.58f) to p(0.54f, 0.88f),
+                    p(0.5f, 0.33f) to p(0.38f, 0.52f),
+                    p(0.5f, 0.33f) to p(0.62f, 0.52f),
+                ),
+                props = listOf(
+                    p(0.38f, 0.52f) to p(0.36f, 0.95f),
+                    p(0.36f, 0.95f) to p(0.64f, 0.95f),
+                    p(0.64f, 0.95f) to p(0.62f, 0.52f),
+                ),
+            )),
         ),
     ),
     IllustrationType.BURPEE to Pose(
@@ -2864,6 +2911,289 @@ private val POSES: Map<IllustrationType, Pose> = mapOf(
                     p(0.512f, 0.798f) to p(0.74f, 0.695f),
                     p(0.74f, 0.695f) to p(0.74f, 0.835f),
                     p(0.74f, 0.835f) to p(0.74f, 0.955f),
+                ),
+            )),
+        ),
+    ),
+
+    // ------------------------------------------------------------ OPPVARMING
+    IllustrationType.JUMPING_JACK to Pose(
+        // Jumping jacks sett forfra: beina ut og armene over hodet, så samlet igjen med armene langs siden.
+        head = p(0.5f, 0.242f),
+        lines = listOf(
+            p(0.34f, 0.955f) to p(0.384f, 0.77f),
+            p(0.384f, 0.77f) to p(0.45f, 0.592f),
+            p(0.45f, 0.592f) to p(0.5f, 0.592f),
+            p(0.5f, 0.592f) to p(0.5f, 0.342f),
+            p(0.5f, 0.342f) to p(0.415f, 0.342f),
+            p(0.415f, 0.342f) to p(0.335f, 0.227f),
+            p(0.335f, 0.227f) to p(0.275f, 0.123f),
+            p(0.5f, 0.592f) to p(0.55f, 0.592f),
+            p(0.55f, 0.592f) to p(0.616f, 0.77f),
+            p(0.616f, 0.77f) to p(0.66f, 0.955f),
+            p(0.5f, 0.342f) to p(0.585f, 0.342f),
+            p(0.585f, 0.342f) to p(0.665f, 0.227f),
+            p(0.665f, 0.227f) to p(0.725f, 0.123f),
+        ),
+        sequence = listOf(
+            // ut
+            Key(500, Frame(
+                head = p(0.5f, 0.228f),
+                lines = listOf(
+                    p(0.45f, 0.955f) to p(0.426f, 0.766f),
+                    p(0.426f, 0.766f) to p(0.45f, 0.578f),
+                    p(0.45f, 0.578f) to p(0.5f, 0.578f),
+                    p(0.5f, 0.578f) to p(0.5f, 0.328f),
+                    p(0.5f, 0.328f) to p(0.415f, 0.328f),
+                    p(0.415f, 0.328f) to p(0.391f, 0.466f),
+                    p(0.391f, 0.466f) to p(0.381f, 0.586f),
+                    p(0.5f, 0.578f) to p(0.55f, 0.578f),
+                    p(0.55f, 0.578f) to p(0.574f, 0.766f),
+                    p(0.574f, 0.766f) to p(0.55f, 0.955f),
+                    p(0.5f, 0.328f) to p(0.585f, 0.328f),
+                    p(0.585f, 0.328f) to p(0.609f, 0.466f),
+                    p(0.609f, 0.466f) to p(0.619f, 0.586f),
+                ),
+            )),
+            // tilbake
+            Key(500, Frame(
+                head = p(0.5f, 0.242f),
+                lines = listOf(
+                    p(0.34f, 0.955f) to p(0.384f, 0.77f),
+                    p(0.384f, 0.77f) to p(0.45f, 0.592f),
+                    p(0.45f, 0.592f) to p(0.5f, 0.592f),
+                    p(0.5f, 0.592f) to p(0.5f, 0.342f),
+                    p(0.5f, 0.342f) to p(0.415f, 0.342f),
+                    p(0.415f, 0.342f) to p(0.335f, 0.227f),
+                    p(0.335f, 0.227f) to p(0.275f, 0.123f),
+                    p(0.5f, 0.592f) to p(0.55f, 0.592f),
+                    p(0.55f, 0.592f) to p(0.616f, 0.77f),
+                    p(0.616f, 0.77f) to p(0.66f, 0.955f),
+                    p(0.5f, 0.342f) to p(0.585f, 0.342f),
+                    p(0.585f, 0.342f) to p(0.665f, 0.227f),
+                    p(0.665f, 0.227f) to p(0.725f, 0.123f),
+                ),
+            )),
+        ),
+    ),
+    IllustrationType.ARM_CIRCLES to Pose(
+        // Armsirkler: strak arm som sirkler rundt skulderen.
+        head = p(0.46f, 0.24f),
+        lines = listOf(
+            p(0.495f, 0.955f) to p(0.478f, 0.765f),
+            p(0.478f, 0.765f) to p(0.46f, 0.575f),
+            p(0.46f, 0.575f) to p(0.46f, 0.325f),
+            p(0.46f, 0.325f) to p(0.559f, 0.226f),
+            p(0.559f, 0.226f) to p(0.644f, 0.141f),
+            p(0.46f, 0.575f) to p(0.443f, 0.765f),
+            p(0.443f, 0.765f) to p(0.425f, 0.955f),
+        ),
+        front = setOf(3, 4),
+        sequence = listOf(
+            // frem og ned
+            Key(450, Frame(
+                head = p(0.46f, 0.24f),
+                lines = listOf(
+                    p(0.495f, 0.955f) to p(0.478f, 0.765f),
+                    p(0.478f, 0.765f) to p(0.46f, 0.575f),
+                    p(0.46f, 0.575f) to p(0.46f, 0.325f),
+                    p(0.46f, 0.325f) to p(0.559f, 0.424f),
+                    p(0.559f, 0.424f) to p(0.644f, 0.509f),
+                    p(0.46f, 0.575f) to p(0.443f, 0.765f),
+                    p(0.443f, 0.765f) to p(0.425f, 0.955f),
+                ),
+            )),
+            // bak
+            Key(450, Frame(
+                head = p(0.46f, 0.24f),
+                lines = listOf(
+                    p(0.495f, 0.955f) to p(0.478f, 0.765f),
+                    p(0.478f, 0.765f) to p(0.46f, 0.575f),
+                    p(0.46f, 0.575f) to p(0.46f, 0.325f),
+                    p(0.46f, 0.325f) to p(0.361f, 0.424f),
+                    p(0.361f, 0.424f) to p(0.276f, 0.509f),
+                    p(0.46f, 0.575f) to p(0.443f, 0.765f),
+                    p(0.443f, 0.765f) to p(0.425f, 0.955f),
+                ),
+            )),
+            // opp
+            Key(450, Frame(
+                head = p(0.46f, 0.24f),
+                lines = listOf(
+                    p(0.495f, 0.955f) to p(0.478f, 0.765f),
+                    p(0.478f, 0.765f) to p(0.46f, 0.575f),
+                    p(0.46f, 0.575f) to p(0.46f, 0.325f),
+                    p(0.46f, 0.325f) to p(0.361f, 0.226f),
+                    p(0.361f, 0.226f) to p(0.276f, 0.141f),
+                    p(0.46f, 0.575f) to p(0.443f, 0.765f),
+                    p(0.443f, 0.765f) to p(0.425f, 0.955f),
+                ),
+            )),
+            // frem igjen
+            Key(450, Frame(
+                head = p(0.46f, 0.24f),
+                lines = listOf(
+                    p(0.495f, 0.955f) to p(0.478f, 0.765f),
+                    p(0.478f, 0.765f) to p(0.46f, 0.575f),
+                    p(0.46f, 0.575f) to p(0.46f, 0.325f),
+                    p(0.46f, 0.325f) to p(0.559f, 0.226f),
+                    p(0.559f, 0.226f) to p(0.644f, 0.141f),
+                    p(0.46f, 0.575f) to p(0.443f, 0.765f),
+                    p(0.443f, 0.765f) to p(0.425f, 0.955f),
+                ),
+            )),
+        ),
+    ),
+    IllustrationType.LEG_SWING to Pose(
+        // Beinsving: står på ett bein med hånden mot veggen, det andre beinet svinger frem og tilbake.
+        head = p(0.5f, 0.228f),
+        lines = listOf(
+            p(0.5f, 0.955f) to p(0.524f, 0.766f),
+            p(0.524f, 0.766f) to p(0.5f, 0.578f),
+            p(0.5f, 0.578f) to p(0.5f, 0.328f),
+            p(0.5f, 0.328f) to p(0.683f, 0.383f),
+            p(0.683f, 0.383f) to p(0.84f, 0.43f),
+            p(0.5f, 0.578f) to p(0.609f, 0.734f),
+            p(0.609f, 0.734f) to p(0.704f, 0.899f),
+        ),
+        props = listOf(
+            p(0.86f, 0.12f) to p(0.86f, 0.97f), // vegg
+        ),
+        front = setOf(3, 4),
+        sequence = listOf(
+            // ut
+            Key(700, Frame(
+                head = p(0.5f, 0.228f),
+                lines = listOf(
+                    p(0.5f, 0.955f) to p(0.524f, 0.766f),
+                    p(0.524f, 0.766f) to p(0.5f, 0.578f),
+                    p(0.5f, 0.578f) to p(0.5f, 0.328f),
+                    p(0.5f, 0.328f) to p(0.683f, 0.383f),
+                    p(0.683f, 0.383f) to p(0.84f, 0.43f),
+                    p(0.5f, 0.578f) to p(0.383f, 0.728f),
+                    p(0.383f, 0.728f) to p(0.253f, 0.867f),
+                ),
+            )),
+            // tilbake
+            Key(700, Frame(
+                head = p(0.5f, 0.228f),
+                lines = listOf(
+                    p(0.5f, 0.955f) to p(0.524f, 0.766f),
+                    p(0.524f, 0.766f) to p(0.5f, 0.578f),
+                    p(0.5f, 0.578f) to p(0.5f, 0.328f),
+                    p(0.5f, 0.328f) to p(0.683f, 0.383f),
+                    p(0.683f, 0.383f) to p(0.84f, 0.43f),
+                    p(0.5f, 0.578f) to p(0.609f, 0.734f),
+                    p(0.609f, 0.734f) to p(0.704f, 0.899f),
+                ),
+            )),
+        ),
+    ),
+    IllustrationType.HINGE_WARMUP to Pose(
+        // Hoftebøy: hendene på hofta, rumpa skyves bakover med flat rygg, så opp igjen.
+        head = p(0.699f, 0.456f),
+        lines = listOf(
+            p(0.5f, 0.955f) to p(0.512f, 0.765f),
+            p(0.512f, 0.765f) to p(0.39f, 0.62f),
+            p(0.39f, 0.62f) to p(0.611f, 0.503f),
+            p(0.611f, 0.503f) to p(0.473f, 0.482f),
+            p(0.473f, 0.482f) to p(0.42f, 0.59f),
+            p(0.39f, 0.62f) to p(0.5f, 0.775f),
+            p(0.5f, 0.775f) to p(0.44f, 0.955f),
+        ),
+        front = setOf(3, 4),
+        end = Frame(
+            head = p(0.47f, 0.235f),
+            lines = listOf(
+                p(0.5f, 0.955f) to p(0.525f, 0.767f),
+                p(0.525f, 0.767f) to p(0.47f, 0.585f),
+                p(0.47f, 0.585f) to p(0.47f, 0.335f),
+                p(0.47f, 0.335f) to p(0.42f, 0.466f),
+                p(0.42f, 0.466f) to p(0.5f, 0.555f),
+                p(0.47f, 0.585f) to p(0.495f, 0.773f),
+                p(0.495f, 0.773f) to p(0.44f, 0.955f),
+            ),
+        ),
+    ),
+    IllustrationType.SCAP_SQUEEZE to Pose(
+        // Skulderbladene sammen: albuene trukket bak, så armene strakt frem igjen.
+        head = p(0.46f, 0.225f),
+        lines = listOf(
+            p(0.495f, 0.955f) to p(0.478f, 0.765f),
+            p(0.478f, 0.765f) to p(0.46f, 0.575f),
+            p(0.46f, 0.575f) to p(0.46f, 0.325f),
+            p(0.46f, 0.325f) to p(0.361f, 0.424f),
+            p(0.361f, 0.424f) to p(0.481f, 0.414f),
+            p(0.46f, 0.575f) to p(0.443f, 0.765f),
+            p(0.443f, 0.765f) to p(0.425f, 0.955f),
+        ),
+        front = setOf(3, 4),
+        end = Frame(
+            head = p(0.46f, 0.225f),
+            lines = listOf(
+                p(0.495f, 0.955f) to p(0.478f, 0.765f),
+                p(0.478f, 0.765f) to p(0.46f, 0.575f),
+                p(0.46f, 0.575f) to p(0.46f, 0.325f),
+                p(0.46f, 0.325f) to p(0.6f, 0.325f),
+                p(0.6f, 0.325f) to p(0.72f, 0.325f),
+                p(0.46f, 0.575f) to p(0.443f, 0.765f),
+                p(0.443f, 0.765f) to p(0.425f, 0.955f),
+            ),
+        ),
+    ),
+    IllustrationType.CAT_COW to Pose(
+        // Katt og ku: på alle fire runder du ryggen opp med haka mot brystet, så svaier den ned med blikket frem.
+        head = p(0.21f, 0.72f),
+        lines = listOf(
+            p(0.88f, 0.955f) to p(0.66f, 0.955f),
+            p(0.66f, 0.955f) to p(0.64f, 0.62f),
+            p(0.64f, 0.62f) to p(0.47f, 0.54f),
+            p(0.47f, 0.54f) to p(0.3f, 0.62f),
+            p(0.3f, 0.62f) to p(0.3f, 0.955f),
+        ),
+        sequence = listOf(
+            // holder
+            Key(250, Frame(
+                head = p(0.21f, 0.72f),
+                lines = listOf(
+                    p(0.88f, 0.955f) to p(0.66f, 0.955f),
+                    p(0.66f, 0.955f) to p(0.64f, 0.62f),
+                    p(0.64f, 0.62f) to p(0.47f, 0.54f),
+                    p(0.47f, 0.54f) to p(0.3f, 0.62f),
+                    p(0.3f, 0.62f) to p(0.3f, 0.955f),
+                ),
+            )),
+            // svaier ned
+            Key(1300, Frame(
+                head = p(0.2f, 0.52f),
+                lines = listOf(
+                    p(0.88f, 0.955f) to p(0.66f, 0.955f),
+                    p(0.66f, 0.955f) to p(0.64f, 0.62f),
+                    p(0.64f, 0.62f) to p(0.47f, 0.7f),
+                    p(0.47f, 0.7f) to p(0.3f, 0.621f),
+                    p(0.3f, 0.621f) to p(0.3f, 0.955f),
+                ),
+            )),
+            // holder
+            Key(250, Frame(
+                head = p(0.2f, 0.52f),
+                lines = listOf(
+                    p(0.88f, 0.955f) to p(0.66f, 0.955f),
+                    p(0.66f, 0.955f) to p(0.64f, 0.62f),
+                    p(0.64f, 0.62f) to p(0.47f, 0.7f),
+                    p(0.47f, 0.7f) to p(0.3f, 0.621f),
+                    p(0.3f, 0.621f) to p(0.3f, 0.955f),
+                ),
+            )),
+            // runder opp
+            Key(1300, Frame(
+                head = p(0.21f, 0.72f),
+                lines = listOf(
+                    p(0.88f, 0.955f) to p(0.66f, 0.955f),
+                    p(0.66f, 0.955f) to p(0.64f, 0.62f),
+                    p(0.64f, 0.62f) to p(0.47f, 0.54f),
+                    p(0.47f, 0.54f) to p(0.3f, 0.62f),
+                    p(0.3f, 0.62f) to p(0.3f, 0.955f),
                 ),
             )),
         ),
@@ -3165,8 +3495,18 @@ fun ExerciseIllustration(
     strokeColor: Color = MaterialTheme.colorScheme.onSurface,
     accentColor: Color = MaterialTheme.colorScheme.primary,
     animate: Boolean = false,
+) = ExerciseIllustration(illustrationFor(exercise), modifier, strokeColor, accentColor, animate)
+
+/** Samme som over, men for en figur direkte (f.eks. oppvarmingsøvelser som ikke er i øvelsesbiblioteket). */
+@Composable
+fun ExerciseIllustration(
+    type: IllustrationType,
+    modifier: Modifier = Modifier,
+    strokeColor: Color = MaterialTheme.colorScheme.onSurface,
+    accentColor: Color = MaterialTheme.colorScheme.primary,
+    animate: Boolean = false,
 ) {
-    val pose = poseFor(illustrationFor(exercise))
+    val pose = poseFor(type)
     // Sperre: passer ikke sluttposisjonen til posen (feil antall linjer), står figuren heller stille.
     val end = pose.end?.takeIf { it.lines.size == pose.lines.size && pose.lines.isNotEmpty() }
     val sequence = pose.sequence.takeIf { keys ->
@@ -3193,71 +3533,86 @@ fun ExerciseIllustration(
         else -> Solved(pose.head, pose.lines, pose.dots, pose.props)
     }
     val figureAlpha = if (sequence != null && phase > 0f) sequenceAlpha(sequence, phase * cycleMs) else 1f
+
+    Canvas(modifier = modifier.graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }) {
+        drawSolved(pose, solved, figureAlpha, strokeColor, accentColor)
+    }
+}
+
+/**
+ * Tegner stillbildet av en figur i hele [DrawScope]-flaten, f.eks. inn i et bilde som skal deles.
+ * Figuren tegnes i et eget lag, så luftkanten rundt armene ikke klipper hull i bakgrunnen under.
+ */
+fun DrawScope.drawFigure(type: IllustrationType, strokeColor: Color, accentColor: Color) {
+    val pose = poseFor(type)
+    drawContext.canvas.saveLayer(Rect(Offset.Zero, size), Paint())
+    drawSolved(pose, Solved(pose.head, pose.lines, pose.dots, pose.props), 1f, strokeColor, accentColor)
+    drawContext.canvas.restore()
+}
+
+private fun DrawScope.drawSolved(pose: Pose, solved: Solved, figureAlpha: Float, strokeColor: Color, accentColor: Color) {
     val head = solved.head
     val lines = solved.lines
     val dots = solved.dots
     val props = solved.props
+    val w = size.width
+    val h = size.height
+    val stroke = size.minDimension * 0.07f
+    fun toPx(o: Offset) = Offset(o.x * w, o.y * h)
 
-    Canvas(modifier = modifier.graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }) {
-        val w = size.width
-        val h = size.height
-        val stroke = size.minDimension * 0.07f
-        fun toPx(o: Offset) = Offset(o.x * w, o.y * h)
-
-        if (pose.ground) {
-            drawLine(
-                color = strokeColor.copy(alpha = 0.25f),
-                start = toPx(p(0.04f, 0.97f)),
-                end = toPx(p(0.96f, 0.97f)),
-                strokeWidth = stroke * 0.5f,
-                cap = StrokeCap.Round,
-            )
-        }
-        if (figureAlpha <= 0f) return@Canvas
-        // Toning: figuren (og utstyret som følger den) tegnes i et eget lag med gjennomsiktighet. Gulvet står fast.
-        val faded = figureAlpha < 1f
-        if (faded) drawContext.canvas.saveLayer(Rect(Offset.Zero, size), Paint().apply { alpha = figureAlpha })
-        fun drawProps() = props.forEach { (a, b) ->
-            drawLine(
-                color = strokeColor.copy(alpha = 0.45f),
-                start = toPx(a),
-                end = toPx(b),
-                strokeWidth = stroke * 0.75f,
-                cap = StrokeCap.Round,
-            )
-        }
-        // Utstyret tegnes etter luftkanten når figuren har armer foran, så strikk og stang ikke klippes bort.
-        if (pose.front.isEmpty()) drawProps()
-        lines.forEachIndexed { i, (a, b) ->
-            if (i !in pose.front) {
-                drawLine(color = strokeColor, start = toPx(a), end = toPx(b), strokeWidth = stroke, cap = StrokeCap.Round)
-            }
-        }
-        // Luftkant: klipp et smalt hull rundt armene i det som allerede er tegnet (kroppen bak), og tegn så
-        // armene oppå. Starter 30 % ned på armen så skulderleddet henger sammen med kroppen.
-        pose.front.forEach { i ->
-            val (a, b) = lines[i]
-            drawLine(
-                color = Color.Black,
-                start = toPx(lerp(a, b, 0.3f)),
-                end = toPx(b),
-                strokeWidth = stroke * 1.9f,
-                cap = StrokeCap.Round,
-                blendMode = BlendMode.Clear,
-            )
-        }
-        // Hodet etter luftkanten (så det ikke klippes) men før armene foran, så en arm som går foran ansiktet synes.
-        drawCircle(color = strokeColor, radius = pose.headRadius * size.minDimension, center = toPx(head))
-        if (pose.front.isNotEmpty()) drawProps()
-        pose.front.forEach { i ->
-            val (a, b) = lines[i]
+    if (pose.ground) {
+        drawLine(
+            color = strokeColor.copy(alpha = 0.25f),
+            start = toPx(p(0.04f, 0.97f)),
+            end = toPx(p(0.96f, 0.97f)),
+            strokeWidth = stroke * 0.5f,
+            cap = StrokeCap.Round,
+        )
+    }
+    if (figureAlpha <= 0f) return
+    // Toning: figuren (og utstyret som følger den) tegnes i et eget lag med gjennomsiktighet. Gulvet står fast.
+    val faded = figureAlpha < 1f
+    if (faded) drawContext.canvas.saveLayer(Rect(Offset.Zero, size), Paint().apply { alpha = figureAlpha })
+    fun drawProps() = props.forEach { (a, b) ->
+        drawLine(
+            color = strokeColor.copy(alpha = 0.45f),
+            start = toPx(a),
+            end = toPx(b),
+            strokeWidth = stroke * 0.75f,
+            cap = StrokeCap.Round,
+        )
+    }
+    // Utstyret tegnes etter luftkanten når figuren har armer foran, så strikk og stang ikke klippes bort.
+    if (pose.front.isEmpty()) drawProps()
+    lines.forEachIndexed { i, (a, b) ->
+        if (i !in pose.front) {
             drawLine(color = strokeColor, start = toPx(a), end = toPx(b), strokeWidth = stroke, cap = StrokeCap.Round)
         }
-        dots.forEach { d ->
-            drawCircle(color = accentColor, radius = stroke * 1.1f, center = toPx(d))
-        }
-        if (faded) drawContext.canvas.restore()
     }
+    // Luftkant: klipp et smalt hull rundt armene i det som allerede er tegnet (kroppen bak), og tegn så
+    // armene oppå. Starter 30 % ned på armen så skulderleddet henger sammen med kroppen.
+    pose.front.forEach { i ->
+        val (a, b) = lines[i]
+        drawLine(
+            color = Color.Black,
+            start = toPx(lerp(a, b, 0.3f)),
+            end = toPx(b),
+            strokeWidth = stroke * 1.9f,
+            cap = StrokeCap.Round,
+            blendMode = BlendMode.Clear,
+        )
+    }
+    // Hodet etter luftkanten (så det ikke klippes) men før armene foran, så en arm som går foran ansiktet synes.
+    drawCircle(color = strokeColor, radius = pose.headRadius * size.minDimension, center = toPx(head))
+    if (pose.front.isNotEmpty()) drawProps()
+    pose.front.forEach { i ->
+        val (a, b) = lines[i]
+        drawLine(color = strokeColor, start = toPx(a), end = toPx(b), strokeWidth = stroke, cap = StrokeCap.Round)
+    }
+    dots.forEach { d ->
+        drawCircle(color = accentColor, radius = stroke * 1.1f, center = toPx(d))
+    }
+    if (faded) drawContext.canvas.restore()
 }
 
 /** Liten sirkulær thumbnail med illustrasjonen, til bruk i lister. */

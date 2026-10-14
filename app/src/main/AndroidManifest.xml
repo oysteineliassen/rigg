@@ -11,6 +11,10 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- Health Connect: skrive fullførte økter (valgfritt, slås på under Mer) -->
     <uses-permission android:name="android.permission.health.WRITE_EXERCISE" />
+    <!-- Health Connect: lese puls for tidsrommet en økt varte (valgfritt, slås på under Mer) -->
+    <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
+    <!-- Health Connect: lese økter (klokkeslettet til eldre logger, fra klokkas styrkeøkt) -->
+    <uses-permission android:name="android.permission.health.READ_EXERCISE" />
 
     <!-- Sjekke om Health Connect er installert (Android 13 og eldre) -->
     <queries>
@@ -24,12 +28,21 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+        <!-- singleTask: når Strava sender deg tilbake etter innloggingen, gjenbrukes appen som allerede er åpen -->
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:launchMode="singleTask">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- Tilbake fra Strava-innloggingen: rigg://localhost/strava?code=... (se StravaClient.REDIRECT_URI) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="rigg" android:host="localhost" android:path="/strava" />
             </intent-filter>
         </activity>
 
@@ -62,6 +75,17 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Workout session: rest timer with sound and session clock while the screen is off" />
         </service>
+
+        <!-- Deling av øktbildet (WorkoutShareImage): gir appen som mottar det lesetilgang til filen -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
         <receiver android:name=".ReminderReceiver" android:exported="false" />
 
