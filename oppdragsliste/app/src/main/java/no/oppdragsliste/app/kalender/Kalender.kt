@@ -97,26 +97,52 @@ object Kalender {
         val onsketIder = onsket.map { it.first.id }.toSet()
         val endringer = prefs.edit()
         var appEndret = false
+        // Koblingene slik de blir etter denne synken (for å rydde bort hendelser ingen oppdrag eier).
+        val endelig = koblinger.toMutableMap()
         fun lagre(id: Long, hendelse: Long, h: Kalenderhendelse, stand: Kalenderstand) {
-            endringer.putString(id.toString(), Kobling(hendelse, oppsett.kalenderId, h.signatur, stand.start, stand.heldag, stand.slutt).tilTekst())
+            val ny = Kobling(hendelse, oppsett.kalenderId, h.signatur, stand.start, stand.heldag, stand.slutt)
+            endringer.putString(id.toString(), ny.tilTekst())
+            endelig[id] = ny
         }
+        val valgt = oppsett.kalenderId
         try {
+            // Hendelsene appen selv har laget (merket med pakkenavnet), uansett kalender.
+            val egne = egneHendelser(ctx)
             // Fjern hendelser for oppdrag som er slettet, eller ikke lenger er avtaler med dato.
             koblinger.filterKeys { it !in onsketIder }.forEach { (id, k) ->
                 slett(ctx, k.hendelse)
                 endringer.remove(id.toString())
+                endelig.remove(id)
             }
             onsket.forEach { (o, h) ->
-                val k = koblinger[o.id]
-                val stand = k?.takeIf { it.kalender == oppsett.kalenderId }?.let { les(ctx, it.hendelse) }
-                when (velgSynkhandling(k, oppsett.kalenderId, h.signatur, stand)) {
-                    Synkhandling.OPPRETT -> settInn(ctx, oppsett.kalenderId, h)?.let { lagre(o.id, it, h, Kalenderstand(h.start, h.heldag, h.slutt)) }
+                var k = koblinger[o.id]
+                var stand = k?.takeIf { it.kalender == valgt }?.let { les(ctx, it.hendelse) }
+                // Finnes ikke hendelsen under id-en vi husket (kalendersynken kan gi den ny id), eller mangler
+                // koblingen: finn vår hendelse igjen i stedet for å lage en ny (det ga duplikater før).
+                if (stand == null && (k == null || k.kalender == valgt)) {
+                    // Andre oppdrags hendelser skal ikke tas.
+                    val andres = koblinger.filterKeys { it != o.id }.values.map { it.hendelse }.toSet()
+                    val ledige = egne.filter { it.kalender == valgt && it.id !in andres && (it.oppdragId == null || it.oppdragId == o.id) }
+                    val funnet = ledige.firstOrNull { it.oppdragId == o.id }
+                        ?: k?.start?.let { start ->
+                            // Uten merke: samme starttid som sist, helst samme tittel.
+                            val sammeStart = ledige.filter { it.start == start }
+                            sammeStart.firstOrNull { it.tittel == h.tittel } ?: sammeStart.singleOrNull()
+                        }
+                    if (funnet != null) {
+                        stand = les(ctx, funnet.id)
+                        // Uten tidligere kobling: tom signatur, så hendelsen oppdateres med appens versjon.
+                        k = (k ?: Kobling(funnet.id, valgt, "")).copy(hendelse = funnet.id)
+                    }
+                }
+                when (velgSynkhandling(k, valgt, h.signatur, stand)) {
+                    Synkhandling.OPPRETT -> settInn(ctx, valgt, h, o.id)?.let { lagre(o.id, it, h, Kalenderstand(h.start, h.heldag, h.slutt)) }
                     Synkhandling.FLYTT_KALENDER -> {
                         slett(ctx, k!!.hendelse)
-                        settInn(ctx, oppsett.kalenderId, h)?.let { lagre(o.id, it, h, Kalenderstand(h.start, h.heldag, h.slutt)) }
+                        settInn(ctx, valgt, h, o.id)?.let { lagre(o.id, it, h, Kalenderstand(h.start, h.heldag, h.slutt)) }
                     }
                     Synkhandling.OPPDATER_KALENDER -> {
-                        oppdater(ctx, k!!.hendelse, h)
+                        oppdater(ctx, k!!.hendelse, h, o.id)
                         lagre(o.id, k.hendelse, h, Kalenderstand(h.start, h.heldag, h.slutt))
                     }
                     Synkhandling.OPPDATER_APP -> {
@@ -129,9 +155,16 @@ object Kalender {
                         lagre(o.id, k!!.hendelse, nyH, stand)
                     }
                     Synkhandling.HUSK_STAND -> lagre(o.id, k!!.hendelse, h, stand!!)
-                    Synkhandling.INGEN -> {}
+                    Synkhandling.INGEN -> if (k != null && k != koblinger[o.id]) {
+                        // Funnet igjen under ny id: husk den nye id-en.
+                        endringer.putString(o.id.toString(), k.tilTekst())
+                        endelig[o.id] = k
+                    }
                 }
             }
+            // Rydd: våre egne hendelser som ingen oppdrag eier (f.eks. duplikater fra før), slettes.
+            val eid = endelig.values.map { it.hendelse }.toSet()
+            egne.filter { it.id !in eid }.forEach { slett(ctx, it.id) }
         } catch (e: SecurityException) {
             // Tilgangen trukket tilbake underveis.
         } finally {
@@ -198,17 +231,56 @@ object Kalender {
         put(Events.EVENT_TIMEZONE, h.tidssone)
     }
 
-    private fun settInn(ctx: Context, kalender: Long, h: Kalenderhendelse): Long? {
+    /** Merket på hendelsene appen lager, så de kan finnes igjen og knyttes til riktig oppdrag. */
+    private const val MERKE = "oppdragsliste://oppdrag/"
+
+    /** Siste linje i beskrivelsen på våre hendelser (se [kalenderhendelse]). */
+    private const val SIGNATUR = "Fra Oppdragsliste"
+
+    private fun merk(ctx: Context, oppdragId: Long) = ContentValues().apply {
+        put(Events.CUSTOM_APP_PACKAGE, ctx.packageName)
+        put(Events.CUSTOM_APP_URI, MERKE + oppdragId)
+    }
+
+    private fun settInn(ctx: Context, kalender: Long, h: Kalenderhendelse, oppdragId: Long): Long? {
         val v = verdier(h).apply {
             put(Events.CALENDAR_ID, kalender)
-            put(Events.CUSTOM_APP_PACKAGE, ctx.packageName)
-            put(Events.CUSTOM_APP_URI, "oppdragsliste://avtale")
+            putAll(merk(ctx, oppdragId))
         }
         return ctx.contentResolver.insert(Events.CONTENT_URI, v)?.let { ContentUris.parseId(it) }
     }
 
-    private fun oppdater(ctx: Context, id: Long, h: Kalenderhendelse) {
-        ctx.contentResolver.update(ContentUris.withAppendedId(Events.CONTENT_URI, id), verdier(h), null, null)
+    private fun oppdater(ctx: Context, id: Long, h: Kalenderhendelse, oppdragId: Long) {
+        // Merket settes også her, så hendelser laget av eldre versjoner får det.
+        val v = verdier(h).apply { putAll(merk(ctx, oppdragId)) }
+        ctx.contentResolver.update(ContentUris.withAppendedId(Events.CONTENT_URI, id), v, null, null)
+    }
+
+    /** En hendelse appen har laget. [oppdragId] er null for hendelser fra eldre versjoner uten oppdragsmerke. */
+    private data class EgenHendelse(val id: Long, val kalender: Long, val oppdragId: Long?, val tittel: String, val start: Long)
+
+    private fun egneHendelser(ctx: Context): List<EgenHendelse> {
+        val liste = mutableListOf<EgenHendelse>()
+        ctx.contentResolver.query(
+            Events.CONTENT_URI,
+            arrayOf(Events._ID, Events.CALENDAR_ID, Events.CUSTOM_APP_URI, Events.TITLE, Events.DTSTART),
+            // Merket med pakkenavnet, eller med «Fra Oppdragsliste» i beskrivelsen (beskrivelsen følger med når
+            // Google synker hendelsen, det gjør ikke alltid pakkemerket).
+            "(${Events.CUSTOM_APP_PACKAGE} = ? OR ${Events.DESCRIPTION} LIKE ?) AND ${Events.DELETED} = 0",
+            arrayOf(ctx.packageName, "%$SIGNATUR"),
+            null,
+        )?.use { c ->
+            while (c.moveToNext()) {
+                liste += EgenHendelse(
+                    id = c.getLong(0),
+                    kalender = c.getLong(1),
+                    oppdragId = c.getString(2)?.takeIf { it.startsWith(MERKE) }?.removePrefix(MERKE)?.toLongOrNull(),
+                    tittel = c.getString(3).orEmpty(),
+                    start = c.getLong(4),
+                )
+            }
+        }
+        return liste
     }
 
     private fun slett(ctx: Context, id: Long) {
