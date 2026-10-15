@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Oppdragsliste</string>
+    <string name="nytt_oppdrag">Nytt oppdrag</string>
+    <string name="widget_beskrivelse">Akutte oppdrag, dagens avtaler og påminnelser</string>
+</resources>
