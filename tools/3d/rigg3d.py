@@ -356,16 +356,22 @@ def grip(side, sx, c, r, n, f, elbow_hint):
     d_now = (PB[f"lowerarm01.{side}"].head - PB[f"upperarm01.{side}"].head).normalized()
     d_want = (elbow - sh).normalized()
     raise_deg = math.degrees(math.acos(max(-1, min(1, d_want.dot(Vector((0, 0, -1)))))))
-    k = 0.33 * ramp(raise_deg, 30, 90)
+    k = ramp(raise_deg, 30, 90)
     if k > 0:
         q = d_now.rotation_difference(d_want)
-        rotate_world(sp, Quaternion().slerp(q, k), sp.head.copy())
+        for bone, share in GIRDLE:
+            b = PB[f"{bone}.{side}"]
+            rotate_world(b, Quaternion().slerp(q, share * k), b.head.copy())
         sh = PB[f"upperarm01.{side}"].head.copy()
         elbow = two_bone(sh, wrist, l1, l2, elbow_hint)
     aim(PB[f"upperarm01.{side}"], PB[f"lowerarm01.{side}"].head.copy(), elbow)
     aim(PB[f"lowerarm01.{side}"], PB[f"wrist.{side}"].head.copy(), wrist)
     orient_hand(side, sx, f, n)
     return palm_center(side) + n * (r + 0.016)   # der håndtaket faktisk havner
+
+
+# Hvor mye av armløftet kragebeinet og skulderen tar (resten tar overarmen). Kan prøves med SKULDERBLAD=...
+GIRDLE = [(b, float(k)) for b, k in (x.split(":") for x in os.environ.get("SKULDERBLAD", "clavicle:0.2,shoulder01:0.1").split(","))]
 
 
 def inside(p, shapes):
@@ -382,22 +388,29 @@ def grasp(shapes):
     for side, sx in (("L", 1), ("R", -1)):
         R = hand_R(side)
         palm = palm_rest(side, sx)
-        for f, limit in ((2, 95), (3, 95), (4, 95), (5, 95), (1, 60)):
+        for f, limit in ((2, 100), (3, 100), (4, 100), (5, 100), (1, 85)):
             chain = [PB[f"finger{f}-{k}.{side}"] for k in (1, 2, 3)]
             for i, pb in enumerate(chain):
                 d = (REST[pb.name][1] - REST[pb.name][0]).normalized()
                 q = Matrix.Rotation(math.radians(5), 4, (R @ d.cross(palm)).normalized()).to_quaternion()
+                def hits():
+                    pts = []
+                    for k in chain[i:]:
+                        pts += [k.tail.copy(), (k.head + k.tail) / 2]
+                    return any(inside(p, shapes) for p in pts)
+
+                # Starter fingeren delvis inni håndtaket, bøyes den videre til den er ute igjen og ligger an.
+                was_inside = hits()
                 bent = 0
                 while bent < limit:
                     before = pb.matrix.copy()
                     rotate_world(pb, q, pb.head.copy())
-                    pts = []
-                    for k in chain[i:]:
-                        pts += [k.tail.copy(), (k.head + k.tail) / 2]
-                    if any(inside(p, shapes) for p in pts):
+                    now = hits()
+                    if now and not was_inside:
                         pb.matrix = before
                         upd()
                         break
+                    was_inside = was_inside and now
                     bent += 5
 
 
@@ -414,7 +427,7 @@ def mat(name, rgb, rough=0.5, metal=0.0):
 
 rubber, _ = mat("gummi", (0.03, 0.03, 0.035), 0.6, 0.0)
 chrome, _ = mat("krom", (0.75, 0.75, 0.78), 0.18, 1.0)
-HEAD_R, HEAD_H, HANDLE_R, HANDLE_L = 0.06, 0.1, 0.017, 0.13
+HEAD_R, HEAD_H, HANDLE_R, HANDLE_L = 0.06, 0.1, 0.017, 0.155
 DB_OFF = HANDLE_L / 2 + HEAD_H / 2
 
 
@@ -499,12 +512,14 @@ def ex_db_shoulder_press(s):
     used = []
     for (side, sx), db in zip(SIDES, DB):
         sh = PB[f"upperarm01.{side}"].head.copy()
-        # Fra skuldrene (albuene ut og ned) til strake armer over hodet.
-        low = sh + Vector((0.13 * sx, -0.05, 0.04))
         l1, l2, hand = arm_lengths(side)
-        high = sh + Vector((0.06 * sx, -0.02, (l1 + l2 + hand * 0.5) * 0.93))
+        # Start: albuene ut til siden i omtrent skulderhøyde, underarmene loddrett, manualene ved hodet.
+        elbow0 = sh + Vector((0.24 * sx, -0.07, -0.05))
+        low = elbow0 + Vector((-0.015 * sx, 0, l2 + hand * 0.55))
+        # Topp: nesten strake armer, manualene nesten inntil hverandre over hodet.
+        high = Vector((0.175 * sx, sh.y - 0.04, sh.z + (l1 + l2 + hand * 0.5) * 0.95))
         c = low.lerp(high, e)
-        at = grip(side, sx, c, HANDLE_R, Vector((0, -1, 0.15)), Vector((0, -0.25, 1)), Vector((sx, 0.25, -0.6)))
+        at = grip(side, sx, c, HANDLE_R, Vector((0, -1, 0.1)), Vector((0, -0.1, 1)), Vector((sx, 0.2, -0.25)))
         db.place(at, X)
         used.append(db)
     return used
