@@ -9,7 +9,7 @@ holdes. Rammeverket tar seg av kropp, muskelfarger (samme vekting som muskelkart
 """
 import json, math, os, sys
 import bpy
-from mathutils import Vector, Matrix
+from mathutils import Vector, Matrix, Quaternion
 
 HERE = os.environ.get("MODELL") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "modell")
 EX = sys.argv[1] if len(sys.argv) > 1 else "goblet_squat"
@@ -50,7 +50,7 @@ apply_target("universal-male-young-maxmuscle-averageweight.target", 1.15)
 apply_target("universal-male-young-maxmuscle-minweight.target", 0.45)
 # Hver muskelgruppe for seg. Over 1,0 forvrenger formen (særlig leggene), så bein og legger holdes innenfor.
 LOCAL = {"upperarm-muscle": 1.3, "upperarm-shoulder-muscle": 1.3, "lowerarm-muscle": 1.0,
-         "upperleg-muscle": 1.0, "lowerleg-muscle": 0.55, "torso-muscle-pectoral": 1.2, "torso-muscle-dorsi": 1.2}
+         "upperleg-muscle": 1.0, "lowerleg-muscle": 0.55, "torso-muscle-pectoral": 0.5, "torso-muscle-dorsi": 1.2}
 for fn in sorted(os.listdir(os.path.join(HERE, "lokal"))):
     key = fn.replace("-incr.target", "")
     key = key[2:] if key[:2] in ("l-", "r-") else key
@@ -145,7 +145,10 @@ for vi, v in enumerate(V):
     up = bone_w(vi, f"upperarm", f"shoulder01")
     t_ua, _ = limb_t(v, jh(f"upperarm01.{S}"), jh(f"lowerarm01.{S}"))
     near_sh = (v - jh(f"upperarm01.{S}")).length
-    MUSCLES["SHOULDERS"][vi] = min(1, up * 1.4) * (1 - ramp(near_sh, 0.085, 0.115)) * (1 - ramp(v.z, z_clav + 0.03, z_clav + 0.06))
+    # Deltamuskelen: kula ytterst på skulderen (utside og overside), ikke rundt hele armen
+    cap = n.dot(Vector((sx, 0.0, 0.55)).normalized())
+    MUSCLES["SHOULDERS"][vi] = min(1, up * 1.4) * (1 - ramp(near_sh, 0.075, 0.11)) * ramp(cap, 0.1, 0.45) * \
+        (1 - ramp(v.z, z_clav + 0.03, z_clav + 0.06))
     # Biceps/triceps: muskelbuk på for-/baksiden av overarmen, smal mot albuen
     ua_c = jh(f"upperarm01.{S}").lerp(jh(f"lowerarm01.{S}"), t_ua)
     ua_n = (v - ua_c)
@@ -258,13 +261,14 @@ def move_root(delta):
     upd()
 
 
-def lean(deg):
-    """Overkroppen fram (positiv) fra hofta, fordelt på ryggvirvlene; hodet holdes oppe."""
+def lean(deg, spread=(0.6, 0.3, 0.1), head=0.55):
+    """Overkroppen fram (positiv). [spread]: hvor mye nederst, midt og øverst i ryggen (rett rygg = alt nederst).
+    [head]: hvor mye hodet løftes tilbake (0 = følger ryggen, 1 = ser rett fram)."""
     X = Vector((1, 0, 0))
-    rot(PB["spine05"], X, deg * 0.6)
-    rot(PB["spine03"], X, deg * 0.3)
-    rot(PB["spine01"], X, deg * 0.1)
-    rot(PB["neck01"], X, -deg * 0.55)
+    for bone, k in zip(("spine05", "spine03", "spine01"), spread):
+        if k:
+            rot(PB[bone], X, deg * k)
+    rot(PB["neck01"], X, -deg * head)
 
 
 def leg(side, ankle, hint=Vector((0, -1, 0)), foot_dir=None):
@@ -276,9 +280,27 @@ def leg(side, ankle, hint=Vector((0, -1, 0)), foot_dir=None):
     knee = two_bone(hip, ankle, l1, l2, hint)
     aim(PB[f"upperleg01.{side}"], PB[f"lowerleg01.{side}"].head.copy(), knee)
     aim(PB[f"lowerleg01.{side}"], PB[f"foot.{side}"].head.copy(), ankle)
+    # Foten: peker [d], uten å vri seg rundt (fotsålen ned, sidene vannrett som i hvilestilling).
     ft = PB[f"foot.{side}"]
-    d = foot_dir if foot_dir is not None else (REST[f"foot.{side}"][1] - REST[f"foot.{side}"][0])
-    aim(ft, ft.tail.copy(), ft.head + d)
+    d = (foot_dir if foot_dir is not None else (REST[f"foot.{side}"][1] - REST[f"foot.{side}"][0])).normalized()
+    Rf = ft.matrix.to_3x3() @ arm_data.bones[f"foot.{side}"].matrix_local.to_3x3().inverted()
+    f_now = (Rf @ (REST[f"foot.{side}"][1] - REST[f"foot.{side}"][0])).normalized()
+    x_now = (Rf @ Vector((1, 0, 0)))
+    x_now = (x_now - f_now * x_now.dot(f_now)).normalized()
+    x_want = Vector((1, 0, 0))
+    x_want = (x_want - d * x_want.dot(d)).normalized()
+    B = Matrix((f_now, x_now, f_now.cross(x_now))).transposed()
+    D = Matrix((d, x_want, d.cross(x_want))).transposed()
+    rotate_world(ft, (D @ B.transposed()).to_quaternion(), ft.head.copy())
+
+
+def toes_flat(side):
+    """Tærne bøyes opp så de ligger flatt mot gulvet (når hælen er løftet)."""
+    for pb in PB:
+        if pb.name.startswith("toe") and pb.name.endswith("-1." + side):
+            L = (REST[pb.name][1] - REST[pb.name][0]).length
+            d = Vector((0, -1, 0))
+            aim(pb, pb.tail.copy(), pb.head + d * L)
 
 
 # ======================================================================== HENDER OG GREP
@@ -328,6 +350,18 @@ def grip(side, sx, c, r, n, f, elbow_hint):
     l1 = (el_r - REST[f"upperarm01.{side}"][0]).length
     l2 = (REST[f"wrist.{side}"][0] - el_r).length
     elbow = two_bone(sh, wrist, l1, l2, elbow_hint)
+    # Skulderbladet og kragebeinet følger med når armen løftes (ca. 1/3 av bevegelsen), ellers knekker
+    # skulderen ned. Bare den delen av løftet som går over ca. 30 grader fra kroppen.
+    sp = PB[f"shoulder01.{side}"]
+    d_now = (PB[f"lowerarm01.{side}"].head - PB[f"upperarm01.{side}"].head).normalized()
+    d_want = (elbow - sh).normalized()
+    raise_deg = math.degrees(math.acos(max(-1, min(1, d_want.dot(Vector((0, 0, -1)))))))
+    k = 0.33 * ramp(raise_deg, 30, 90)
+    if k > 0:
+        q = d_now.rotation_difference(d_want)
+        rotate_world(sp, Quaternion().slerp(q, k), sp.head.copy())
+        sh = PB[f"upperarm01.{side}"].head.copy()
+        elbow = two_bone(sh, wrist, l1, l2, elbow_hint)
     aim(PB[f"upperarm01.{side}"], PB[f"lowerarm01.{side}"].head.copy(), elbow)
     aim(PB[f"lowerarm01.{side}"], PB[f"wrist.{side}"].head.copy(), wrist)
     orient_hand(side, sx, f, n)
@@ -496,7 +530,8 @@ def ex_db_curl(s):
 def ex_rdl_db(s):
     e = s * s * (3 - 2 * s)
     move_root(Vector((0, 0.16 * e, -0.07 * e)))
-    lean(72 * e)
+    # Hoftebøy: rett (litt spent) rygg, bøyningen kommer fra hofta. Hodet følger ryggen og ser litt fram.
+    lean(72 * e, spread=(1.04, -0.04, 0.0), head=0.35)
     for side, sx in SIDES:
         leg(side, ankle_rest(side), Vector((0, -1, 0)))
     used = []
@@ -518,9 +553,12 @@ def ex_db_lunge(s):
     lean(6 * e)
     leg("L", ankle_rest("L") + Vector((0, -0.04 * e, 0)), Vector((0, -1, 0)))
     ar = ankle_rest("R")
-    back_ankle = ar + Vector((0, 0.72 * e, 0.07 * e))
-    toe = back_ankle + Vector((0, -0.13, -0.06 * e - 0.02 * (1 - e)))
-    leg("R", back_ankle, Vector((0, -1, -0.3)), foot_dir=(toe - back_ankle))
+    # Bakfoten: hælen løftes, foten peker bratt ned med fotballen i gulvet og tærne flatt.
+    back_ankle = ar + Vector((0, 0.72 * e, 0.05 * e))
+    rest_dir = (REST["foot.R"][1] - REST["foot.R"][0]).normalized()
+    steep = Vector((0, -0.42, -0.9)).normalized()
+    leg("R", back_ankle, Vector((0, -1, -0.3)), foot_dir=rest_dir.lerp(steep, e))
+    toes_flat("R")
     used = []
     for (side, sx), db in zip(SIDES, DB):
         l1, l2, hand = arm_lengths(side)
