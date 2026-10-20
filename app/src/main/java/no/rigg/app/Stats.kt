@@ -10,7 +10,7 @@ import java.time.temporal.TemporalAdjusters
 
 fun weekStart(date: LocalDate): LocalDate = date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
 
-private fun SessionLog.localDate(): LocalDate? = runCatching { LocalDate.parse(date) }.getOrNull()
+fun SessionLog.localDate(): LocalDate? = runCatching { LocalDate.parse(date) }.getOrNull()
 
 /** Loggene fra og med mandag denne uka. */
 fun logsThisWeek(logs: List<SessionLog>, today: LocalDate): List<SessionLog> {
@@ -32,11 +32,23 @@ fun nextDay(plan: Plan, logs: List<SessionLog>, today: LocalDate): WorkoutDay? {
     }
 }
 
+/**
+ * Forslag til en ekstra økt når ukas økter er gjort: dagen i programmet det er lengst siden du trente
+ * (aldri trent først), så musklene som har hvilt mest får jobbe.
+ */
+fun extraDay(plan: Plan, logs: List<SessionLog>): WorkoutDay? = plan.days.minByOrNull { day ->
+    logs.withIndex().lastOrNull { it.value.dayTitle == day.title }?.index ?: -1
+}
+
 /** Omtrentlig varighet på en økt i minutter (arbeid + pauser, uten oppvarming). */
 fun estimateMinutes(day: WorkoutDay): Int {
     val seconds = sessionSteps(day).sumOf { step ->
         val ex = ExerciseLibrary.get(step.pe.exerciseId)
-        val work = if (ex?.timed == true) (parseRepRange(step.pe.reps)?.last ?: 40) else 40
+        val work = when {
+            day.hiit != null -> day.hiit.workSec
+            ex?.timed == true -> parseRepRange(step.pe.reps)?.last ?: 40
+            else -> 40
+        }
         work + step.restAfter
     }
     return ((seconds + 59) / 60).coerceAtLeast(1)

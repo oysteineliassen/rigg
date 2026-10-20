@@ -1,11 +1,11 @@
 package no.rigg.app
 
-import android.os.SystemClock
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -56,8 +56,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.delay
-import kotlin.math.ceil
+import androidx.compose.ui.window.Dialog
 
 /**
  * Øktmodus: økta gjennomføres ett sett om gangen. Oppvarming først, så hvert sett med forslag fra forrige gang,
@@ -72,7 +71,7 @@ fun WorkoutSessionScreen(vm: AppViewModel, day: WorkoutDay, state: GuidedWorkout
         onDispose { view.keepScreenOn = false }
     }
     val steps = remember(day) { sessionSteps(day) }
-    val warmup = remember(day, vm.profile.equipment) { warmupFor(day, vm.profile.equipment) }
+    val warmup = remember(day, vm.profile.equipment, vm.logs.size) { vm.warmupItems(day) }
     var confirmExit by remember { mutableStateOf(false) }
     val colors = MaterialTheme.colorScheme
 
@@ -85,7 +84,7 @@ fun WorkoutSessionScreen(vm: AppViewModel, day: WorkoutDay, state: GuidedWorkout
             Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(day.title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 vm.sessionTimer?.takeIf { it.dayTitle == day.title }?.let {
-                    SessionClock(it, style = MaterialTheme.typography.titleMedium.copy(fontFamily = Condensed, letterSpacing = 0.6.sp), color = colors.onSurfaceVariant)
+                    PauseClock(it, paused = vm.timersPaused, onToggle = { if (vm.timersPaused) vm.resumeTimers() else vm.pauseTimers() })
                 }
             }
             IconButton(onClick = { vm.hideGuided() }) {
@@ -97,17 +96,22 @@ fun WorkoutSessionScreen(vm: AppViewModel, day: WorkoutDay, state: GuidedWorkout
         Spacer(Modifier.height(14.dp))
 
         val resting = vm.restTimer
+        val paused = vm.timersPaused
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when {
                 !state.warmupDone && warmup.isNotEmpty() ->
-                    WarmupView(warmup, onDone = { vm.updateGuided(state.copy(warmupDone = true)) })
+                    WarmupView(vm, warmup, state)
                 resting != null && state.step in 1 until steps.size ->
-                    RestView(vm, resting, steps, state)
+                    RestView(vm, resting, steps, state, day.hiit)
+                state.step < steps.size && day.hiit != null -> key(state.step) {
+                    HiitSetView(vm, day.hiit, steps, state)
+                }
                 state.step < steps.size -> key(state.step) {
-                    SetView(vm, steps, state)
+                    SetView(vm, day, steps, state)
                 }
                 else -> SummaryView(vm, day, state)
             }
+            if (paused) PausedOverlay(vm, onResume = { vm.resumeTimers() })
         }
     }
 
@@ -133,6 +137,67 @@ fun WorkoutSessionScreen(vm: AppViewModel, day: WorkoutDay, state: GuidedWorkout
                 }
             },
         )
+    }
+}
+
+/** Øktklokka med pauseknapp: trykk for å sette alt (klokke, hvile, oppvarming, tidsøvelser) på pause. */
+@Composable
+private fun PauseClock(session: ActiveSession, paused: Boolean, onToggle: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    Row(
+        Modifier.padding(top = 2.dp).clip(CircleShape)
+            .then(if (paused) Modifier.background(colors.primary) else Modifier.border(1.dp, colors.outline, CircleShape))
+            .clickable(onClick = onToggle)
+            .semantics { contentDescription = if (paused) tr("Resume", "Fortsett") else tr("Pause", "Pause") }
+            .padding(start = 10.dp, end = 12.dp, top = 3.dp, bottom = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        val tint = if (paused) colors.onPrimary else colors.onSurfaceVariant
+        Icon(if (paused) RiggIcons.Play else RiggIcons.Pause, contentDescription = null, tint = tint, modifier = Modifier.size(14.dp))
+        SessionClock(session, style = MaterialTheme.typography.titleMedium.copy(fontFamily = Condensed, letterSpacing = 0.6.sp), color = tint)
+    }
+}
+
+/** Dekker økta mens den står på pause, så ingenting trykkes ved et uhell. */
+@Composable
+private fun PausedOverlay(vm: AppViewModel, onResume: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    Box(
+        Modifier.fillMaxSize().background(colors.background.copy(alpha = 0.94f))
+            // Fanger trykk, så knappene bak ikke kan brukes.
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {}),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Box(Modifier.size(84.dp).clip(CircleShape).background(colors.primaryContainer), contentAlignment = Alignment.Center) {
+                Icon(RiggIcons.Pause, contentDescription = null, tint = colors.onPrimaryContainer, modifier = Modifier.size(36.dp))
+            }
+            Text(tr("Paused", "Pause"), style = MaterialTheme.typography.displaySmall)
+            vm.workTimer?.takeIf { !it.finished }?.let {
+                Text(
+                    "${it.label}: " + tr("${formatDuration(it.secondsLeft())} left", "${formatDuration(it.secondsLeft())} igjen"),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = colors.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+            }
+            vm.restTimer?.let {
+                Text(
+                    tr("Rest: ${formatDuration(it.secondsLeft())} left", "Hvile: ${formatDuration(it.secondsLeft())} igjen"),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = colors.onSurfaceVariant,
+                )
+            }
+            Text(
+                tr("The clock stands still until you continue.", "Klokka står stille til du fortsetter."),
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(4.dp))
+            BigButton(tr("Continue", "Fortsett"), onClick = onResume, icon = RiggIcons.Play, modifier = Modifier.padding(horizontal = 24.dp))
+        }
     }
 }
 
@@ -171,64 +236,63 @@ private fun RoundButton(text: String, contentDescription: String, onClick: () ->
 // ---------------------------------------------------------------- OPPVARMING
 
 @Composable
-private fun WarmupView(items: List<WarmupItem>, onDone: () -> Unit) {
-    val context = LocalContext.current
-    var index by remember { mutableIntStateOf(0) }
-    var endsAt by remember { mutableStateOf<Long?>(null) }
-    var left by remember { mutableIntStateOf(items.first().seconds) }
-
-    // Nedtelling gjennom øvelsene: pip de siste tre sekundene, så videre til neste.
-    LaunchedEffect(endsAt, index) {
-        val end = endsAt ?: return@LaunchedEffect
-        var lastBeep = Int.MAX_VALUE
-        while (true) {
-            val ms = end - SystemClock.elapsedRealtime()
-            val s = ceil(ms.coerceAtLeast(0) / 1000.0).toInt()
-            left = s
-            if (s in 1..3 && s < lastBeep) { Beeper.countdown(); lastBeep = s }
-            if (ms <= 0) {
-                Beeper.go()
-                Haptics.vibrate(context, 300)
-                if (index < items.lastIndex) {
-                    index++
-                    left = items[index].seconds
-                    endsAt = SystemClock.elapsedRealtime() + items[index].seconds * 1000L
-                } else {
-                    endsAt = null
-                    onDone()
-                }
-                break
-            }
-            delay(100)
-        }
-    }
+private fun WarmupView(vm: AppViewModel, items: List<WarmupItem>, state: GuidedWorkout) {
+    val index = state.warmupIndex.coerceIn(0, items.lastIndex)
+    // Nedtellingen ligger i WorkoutTimers (fortsetter når øktmodus skjules, pipene kommer fra tjenesten).
+    val timer = vm.workTimer?.takeIf { it.kind == WorkKind.WARMUP && it.index == index && !it.finished }
+    @Suppress("UNUSED_VARIABLE")
+    val tick = rememberTick(active = timer != null, periodMs = 200L)
+    val left = timer?.secondsLeft()
 
     val colors = MaterialTheme.colorScheme
+    val item = items[index]
+    var preview by remember { mutableStateOf<WarmupItem?>(null) }
+    preview?.let { WarmupInfoDialog(it, onDismiss = { preview = null }) }
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         SectionLabel(tr("Warm-up · about ${(items.sumOf { it.seconds } + 30) / 60} min", "Oppvarming · ca. ${(items.sumOf { it.seconds } + 30) / 60} min"))
-        Text(items[index].name, style = MaterialTheme.typography.headlineMedium)
-        Text(
-            formatDuration(if (endsAt != null) left else items[index].seconds),
-            style = MaterialTheme.typography.displayLarge,
-            color = if (endsAt != null) colors.onSurface else colors.onSurfaceVariant,
-            modifier = Modifier.fillMaxWidth(),
-            textAlign = TextAlign.Center,
-        )
-        items.forEachIndexed { i, item ->
+        Text(item.name, style = MaterialTheme.typography.headlineMedium)
+
+        // Scenen med figuren og nedtellingen.
+        Row(
+            Modifier.fillMaxWidth().height(190.dp).clip(RoundedCornerShape(24.dp)).background(colors.surfaceVariant)
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            key(index) {
+                ExerciseIllustration(item.figure, modifier = Modifier.size(170.dp), animate = true)
+            }
+            Text(
+                formatDuration(left ?: item.seconds),
+                style = MaterialTheme.typography.displayLarge,
+                color = if (timer != null && !timer.paused) colors.onSurface else colors.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+                textAlign = TextAlign.Center,
+            )
+        }
+        val context = LocalContext.current
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            TextButton(onClick = { openVideoSearch(context, item.video) }) {
+                Icon(RiggIcons.Play, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(tr("Watch video", "Se video"))
+            }
+        }
+        items.forEachIndexed { i, w ->
             val current = i == index
             Row(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
                     .background(if (current) colors.primaryContainer else colors.surfaceContainer)
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                    .clickable { preview = w }
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                if (i < index) CheckDot(18.dp) else Spacer(Modifier.width(18.dp))
+                FigureTile(w.figure, size = 36.dp)
                 Text(
-                    item.name,
+                    w.name,
                     Modifier.weight(1f),
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = if (current) FontWeight.SemiBold else FontWeight.Normal,
@@ -238,30 +302,52 @@ private fun WarmupView(items: List<WarmupItem>, onDone: () -> Unit) {
                         else -> colors.onSurface
                     },
                 )
-                Text(formatDuration(item.seconds), style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant)
+                if (i < index) CheckDot(18.dp)
+                else Text(formatDuration(w.seconds), style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant)
             }
         }
         Spacer(Modifier.height(8.dp))
-        if (endsAt == null) {
-            BigButton(tr("Start warm-up", "Start oppvarming"), onClick = {
-                left = items[index].seconds
-                endsAt = SystemClock.elapsedRealtime() + items[index].seconds * 1000L
-            }, icon = RiggIcons.Play)
+        if (timer == null) {
+            BigButton(
+                if (index == 0) tr("Start warm-up", "Start oppvarming") else tr("Continue warm-up", "Fortsett oppvarmingen"),
+                onClick = { vm.startWarmup() },
+                icon = RiggIcons.Play,
+            )
         } else {
-            BigButton(tr("Next", "Neste"), onClick = {
-                // Neste øvelse med en gang.
-                if (index < items.lastIndex) {
-                    index++
-                    left = items[index].seconds
-                    endsAt = SystemClock.elapsedRealtime() + items[index].seconds * 1000L
-                } else {
-                    endsAt = null
-                    onDone()
-                }
-            })
+            // Neste øvelse med en gang.
+            BigButton(tr("Next", "Neste"), onClick = { vm.nextWarmup() })
         }
-        TextButton(onClick = onDone, modifier = Modifier.align(Alignment.CenterHorizontally)) {
+        TextButton(onClick = { vm.skipWarmup() }, modifier = Modifier.align(Alignment.CenterHorizontally)) {
             Text(tr("Skip warm-up", "Hopp over oppvarming"))
+        }
+    }
+}
+
+/** Oppvarmingsøvelsen i stort, animert, med navn og tid. Åpnes ved å trykke på en øvelse i lista. */
+@Composable
+private fun WarmupInfoDialog(item: WarmupItem, onDismiss: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            Modifier.clip(RoundedCornerShape(24.dp)).background(colors.surfaceContainer).padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Box(
+                Modifier.fillMaxWidth().height(220.dp).clip(RoundedCornerShape(20.dp)).background(colors.surfaceVariant),
+                contentAlignment = Alignment.Center,
+            ) {
+                ExerciseIllustration(item.figure, modifier = Modifier.size(200.dp), animate = true)
+            }
+            Text(item.name, style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center)
+            Text(
+                tr("Warm-up · ${formatDuration(item.seconds)}", "Oppvarming · ${formatDuration(item.seconds)}"),
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.onSurfaceVariant,
+            )
+            val context = LocalContext.current
+            OutlinedButton(onClick = { openVideoSearch(context, item.video) }) { Text(tr("Watch video", "Se video")) }
+            TextButton(onClick = onDismiss) { Text(tr("Close", "Lukk")) }
         }
     }
 }
@@ -269,7 +355,7 @@ private fun WarmupView(items: List<WarmupItem>, onDone: () -> Unit) {
 // ---------------------------------------------------------------- ETT SETT
 
 @Composable
-private fun SetView(vm: AppViewModel, steps: List<WorkStep>, state: GuidedWorkout) {
+private fun SetView(vm: AppViewModel, day: WorkoutDay, steps: List<WorkStep>, state: GuidedWorkout) {
     val step = steps[state.step]
     val pe = step.pe
     val slot = step.exerciseNo - 1
@@ -290,12 +376,7 @@ private fun SetView(vm: AppViewModel, steps: List<WorkStep>, state: GuidedWorkou
     var reps by remember { mutableIntStateOf(previous?.reps ?: target.reps) }
     var weight by remember { mutableStateOf(previous?.weightKg ?: earlierToday?.weightKg ?: target.weightKg) }
 
-    fun complete(value: Int) {
-        val done = state.done.filterNot { it.slot == slot && it.setIndex == step.setIndex } +
-            DoneSet(pe.exerciseId, slot, step.setIndex, value, if (ex.isWeighted()) weight else null)
-        vm.updateGuided(state.copy(step = state.step + 1, done = done))
-        if (step.restAfter > 0 && state.step + 1 < steps.size) vm.startRestTimer(step.restAfter)
-    }
+    fun complete(value: Int) = vm.completeSet(day, state.step, value, if (ex.isWeighted()) weight else null)
 
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 16.dp),
@@ -326,16 +407,19 @@ private fun SetView(vm: AppViewModel, steps: List<WorkStep>, state: GuidedWorkou
             Modifier.fillMaxWidth().height(230.dp).clip(RoundedCornerShape(24.dp)).background(colors.surfaceVariant),
             contentAlignment = Alignment.Center,
         ) {
-            ExerciseIllustration(ex, modifier = Modifier.size(200.dp), animate = true)
+            var showInfo by remember { mutableStateOf(false) }
+            if (showInfo) ExerciseInfoDialog(ex, onDismiss = { showInfo = false })
+            ExerciseIllustration(ex, modifier = Modifier.size(200.dp).clickable { showInfo = true }, animate = true)
         }
 
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(ex.name, style = MaterialTheme.typography.headlineMedium)
             Text(
-                tr("Target ${pe.reps}", "Mål ${pe.reps}") + (lastTime?.let { tr(" · last $it", " · sist $it") } ?: ""),
+                tr("Target ${pe.reps}", "Mål ${pe.reps}") + ex.perSideSuffix + (lastTime?.let { tr(" · last $it", " · sist $it") } ?: ""),
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.onSurfaceVariant,
             )
+            ex.perSideHint?.let { PerSideHint(it) }
             if (pe.tip.isNotBlank()) {
                 Text(pe.tip, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
             }
@@ -343,16 +427,20 @@ private fun SetView(vm: AppViewModel, steps: List<WorkStep>, state: GuidedWorkou
 
         if (ex.timed) {
             WorkTimer(
+                vm = vm,
+                step = state.step,
                 seconds = reps,
+                perSide = ex.perSide,
                 onSecondsChange = { reps = it },
-                onFinished = { complete(it) },
+                onStart = { vm.startTimedSet(state.step, ex.name, reps, if (ex.isWeighted()) weight else null, ex.perSide) },
+                onLogWithoutTimer = { complete(reps) },
             )
         } else {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 RoundButton("−", tr("Fewer reps", "Færre reps"), onClick = { if (reps > 0) reps-- })
                 Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(reps.toString(), style = MaterialTheme.typography.displayLarge)
-                    SectionLabel("Reps")
+                    SectionLabel(if (ex.perSide) tr("Reps per side", "Reps per side") else "Reps")
                 }
                 RoundButton("+", tr("More reps", "Flere reps"), onClick = { reps++ })
             }
@@ -433,7 +521,13 @@ private fun SetView(vm: AppViewModel, steps: List<WorkStep>, state: GuidedWorkou
 
         steps.getOrNull(state.step + 1)?.let { next ->
             val nextEx = ExerciseLibrary.get(next.pe.exerciseId)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            var showNext by remember { mutableStateOf(false) }
+            if (showNext && nextEx != null) ExerciseInfoDialog(nextEx, onDismiss = { showNext = false })
+            Row(
+                Modifier.clip(RoundedCornerShape(12.dp)).clickable(enabled = nextEx != null) { showNext = true },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
                 if (nextEx != null) ExerciseTile(nextEx, size = 36.dp)
                 Text(
                     tr("Next: ", "Neste: ") + (nextEx?.name ?: next.pe.exerciseId) +
@@ -453,10 +547,116 @@ private fun SetView(vm: AppViewModel, steps: List<WorkStep>, state: GuidedWorkou
     }
 }
 
+// ---------------------------------------------------------------- HIIT
+
+/**
+ * Én HIIT-øvelse: stor figur og nedtelling. Første øvelse startes med knappen; etter det går økta av seg selv
+ * (arbeid, pause, neste øvelse) til den er ferdig. Pause-knappen øverst stopper alt.
+ */
+@Composable
+private fun HiitSetView(vm: AppViewModel, hiit: HiitSpec, steps: List<WorkStep>, state: GuidedWorkout) {
+    val step = steps[state.step]
+    val ex = ExerciseLibrary.get(step.pe.exerciseId)
+    if (ex == null) {
+        LaunchedEffect(Unit) { vm.updateGuided(state.copy(step = state.step + 1)) }
+        return
+    }
+    val colors = MaterialTheme.colorScheme
+    val timer = vm.workTimer?.takeIf { it.kind == WorkKind.SET && it.index == state.step && !it.finished }
+    @Suppress("UNUSED_VARIABLE")
+    val tick = rememberTick(active = timer != null, periodMs = 200L)
+    val running = timer != null
+    val left = timer?.secondsLeft() ?: hiit.workSec
+    var showInfo by remember { mutableStateOf(false) }
+    if (showInfo) ExerciseInfoDialog(ex, onDismiss = { showInfo = false })
+
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            SectionLabel(
+                tr(
+                    "Round ${step.setIndex + 1} of ${hiit.rounds} · exercise ${step.exerciseNo} of ${step.exerciseCount}",
+                    "Runde ${step.setIndex + 1} av ${hiit.rounds} · øvelse ${step.exerciseNo} av ${step.exerciseCount}",
+                ),
+                Modifier.weight(1f),
+            )
+            Text(
+                "HIIT",
+                style = MaterialTheme.typography.labelMedium,
+                color = colors.tertiary,
+                modifier = Modifier.border(1.dp, colors.tertiary.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                    .padding(horizontal = 8.dp, vertical = 3.dp),
+            )
+        }
+        Box(
+            Modifier.fillMaxWidth().height(230.dp).clip(RoundedCornerShape(24.dp)).background(colors.surfaceVariant),
+            contentAlignment = Alignment.Center,
+        ) {
+            ExerciseIllustration(ex, modifier = Modifier.size(200.dp).clickable { showInfo = true }, animate = true)
+        }
+        Text(ex.name, style = MaterialTheme.typography.headlineMedium)
+
+        // Nedtellingen, med en stolpe som tømmes.
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+            Text(
+                formatDuration(left),
+                style = MaterialTheme.typography.displayLarge.copy(fontSize = 84.sp),
+                color = if (running) colors.onSurface else colors.onSurfaceVariant,
+            )
+            val fraction = if (timer == null) 1f else (timer.remainingMs().coerceAtLeast(0) / (hiit.workSec * 1000f)).coerceIn(0f, 1f)
+            Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(colors.surfaceContainerHighest)) {
+                Box(Modifier.fillMaxWidth(fraction).height(8.dp).clip(RoundedCornerShape(4.dp)).background(colors.secondary))
+            }
+        }
+
+        if (!running) {
+            BigButton(
+                if (state.done.isEmpty()) tr("Start", "Start") else tr("Continue", "Fortsett"),
+                onClick = { vm.startHiitWork(state.step) },
+                icon = RiggIcons.Play,
+            )
+        } else {
+            Button(
+                onClick = { vm.stopTimedSetEarly() },
+                modifier = Modifier.fillMaxWidth().height(58.dp),
+                shape = RoundedCornerShape(18.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = colors.inverseSurface, contentColor = colors.inverseOnSurface),
+            ) { Text(tr("Done, take the break", "Ferdig, ta pausen"), style = MaterialTheme.typography.labelLarge) }
+        }
+
+        steps.getOrNull(state.step + 1)?.let { next ->
+            val nextEx = ExerciseLibrary.get(next.pe.exerciseId)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (nextEx != null) ExerciseTile(nextEx, size = 36.dp)
+                Text(
+                    tr("Next: ", "Neste: ") + (nextEx?.name ?: next.pe.exerciseId) + " · " +
+                        if (step.restAfter == hiit.roundRestSec && next.setIndex > step.setIndex) {
+                            tr("after ${step.restAfter} s round break", "etter ${step.restAfter} sek rundepause")
+                        } else {
+                            tr("after ${step.restAfter} s rest", "etter ${step.restAfter} sek pause")
+                        },
+                    style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant,
+                )
+            }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            TextButton(
+                onClick = { vm.stopWork(); vm.updateGuided(state.copy(step = state.step - 1)) },
+                enabled = state.step > 0,
+            ) { Text(tr("Back", "Tilbake")) }
+            TextButton(onClick = { vm.stopWork(); vm.updateGuided(state.copy(step = state.step + 1)) }) {
+                Text(tr("Skip exercise", "Hopp over øvelsen"))
+            }
+        }
+    }
+}
+
 // ---------------------------------------------------------------- HVILE
 
 @Composable
-private fun RestView(vm: AppViewModel, timer: RestTimer, steps: List<WorkStep>, state: GuidedWorkout) {
+private fun RestView(vm: AppViewModel, timer: RestTimer, steps: List<WorkStep>, state: GuidedWorkout, hiit: HiitSpec?) {
     @Suppress("UNUSED_VARIABLE")
     val tick = rememberTick(active = true, periodMs = 100L)
     val msLeft = timer.remainingMs().coerceAtLeast(0)
@@ -467,13 +667,14 @@ private fun RestView(vm: AppViewModel, timer: RestTimer, steps: List<WorkStep>, 
     val lastStep = steps[state.step - 1]
     val lastEx = ExerciseLibrary.get(lastStep.pe.exerciseId)
     val lastDone = state.done.find { it.slot == lastStep.exerciseNo - 1 && it.setIndex == lastStep.setIndex }
-    val next = steps[state.step]
-    val nextEx = ExerciseLibrary.get(next.pe.exerciseId)
+    val upcoming = remember(steps, state.step) { stepsUntilRest(steps, state.step) }
+    // Med flere kommende øvelser blir ringen litt mindre, så alt får plass.
+    val ringSize = if (upcoming.size > 1) 190.dp else 250.dp
 
     Column(Modifier.fillMaxSize().padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         // Siste sett, med mulighet til å rette det.
         if (lastEx != null && lastDone != null) {
-            val unit = if (lastEx.timed) tr(" s", " sek") else ""
+            val unit = if (hiit != null || lastEx.timed) tr(" s", " sek") else ""
             Row(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(colors.surfaceContainer)
                     .padding(start = 14.dp, end = 4.dp),
@@ -489,20 +690,32 @@ private fun RestView(vm: AppViewModel, timer: RestTimer, steps: List<WorkStep>, 
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                TextButton(onClick = {
-                    vm.stopRestTimer()
-                    vm.updateGuided(state.copy(step = state.step - 1))
-                }) { Text(tr("Edit", "Endre")) }
+                // I HIIT starter neste øvelse når pausen er over, så der rettes ingenting underveis.
+                if (hiit == null) {
+                    TextButton(onClick = {
+                        vm.stopRestTimer()
+                        vm.updateGuided(state.copy(step = state.step - 1))
+                    }) { Text(tr("Edit", "Endre")) }
+                } else {
+                    Spacer(Modifier.height(48.dp))
+                }
             }
         }
 
         Column(
             Modifier.weight(1f).fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterVertically),
+            verticalArrangement = Arrangement.spacedBy(if (upcoming.size > 1) 14.dp else 24.dp, Alignment.CenterVertically),
         ) {
-            SectionLabel(tr("Rest", "Hvile"), color = colors.onSurfaceVariant)
-            Box(Modifier.size(250.dp), contentAlignment = Alignment.Center) {
+            val roundRest = hiit != null && steps[state.step - 1].restAfter == hiit.roundRestSec && steps[state.step].setIndex > steps[state.step - 1].setIndex
+            SectionLabel(
+                when {
+                    roundRest -> tr("Round ${steps[state.step - 1].setIndex + 1} done · rest", "Runde ${steps[state.step - 1].setIndex + 1} ferdig · hvile")
+                    else -> tr("Rest", "Hvile")
+                },
+                color = colors.onSurfaceVariant,
+            )
+            Box(Modifier.size(ringSize), contentAlignment = Alignment.Center) {
                 val track = colors.surfaceContainerHighest
                 val ring = colors.secondary
                 Canvas(Modifier.fillMaxSize()) {
@@ -514,7 +727,7 @@ private fun RestView(vm: AppViewModel, timer: RestTimer, steps: List<WorkStep>, 
                         drawArc(ring, -90f, 360f * fraction, false, topLeft = Offset(inset, inset), size = arcSize, style = Stroke(stroke, cap = StrokeCap.Round))
                     }
                 }
-                Text(formatDuration(left), style = MaterialTheme.typography.displayLarge.copy(fontSize = 84.sp))
+                Text(formatDuration(left), style = MaterialTheme.typography.displayLarge.copy(fontSize = if (upcoming.size > 1) 64.sp else 84.sp))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedButton(
@@ -531,89 +744,120 @@ private fun RestView(vm: AppViewModel, timer: RestTimer, steps: List<WorkStep>, 
             }
         }
 
-        // Neste sett.
-        if (nextEx != null) {
-            val weights = remember(nextEx, vm.profile) { weightOptions(nextEx, vm.profile) }
-            val target = remember(next) { setTarget(nextEx, next.pe, next.setIndex, vm.logs, weights) }
-            val sameEarlier = state.done.filter { it.slot == next.exerciseNo - 1 && it.setIndex < next.setIndex }.maxByOrNull { it.setIndex }
-            val w = sameEarlier?.weightKg ?: target.weightKg
-            val unit = if (nextEx.timed) tr(" s", " sek") else ""
-            Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(colors.surfaceContainer).padding(14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                ExerciseTile(nextEx, size = 64.dp, animate = true)
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    SectionLabel(tr("Next", "Neste"))
-                    Text(
-                        "${nextEx.name} · ${tr("set", "sett")} ${next.setIndex + 1}",
-                        style = MaterialTheme.typography.titleMedium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        tr("Target ", "Mål ") + "${target.reps}$unit" + (if (nextEx.isWeighted() && w != null) " × ${formatWeight(w)} kg" else ""),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = colors.onSurfaceVariant,
-                    )
-                }
-            }
+        // Alt som kommer før neste pause (i et supersett flere øvelser rett etter hverandre), så alt kan planlegges nå.
+        upcoming.forEachIndexed { i, st ->
+            NextStepCard(vm, st, state, if (i == 0) tr("Next", "Neste") else tr("Straight after", "Rett etterpå"), compact = upcoming.size > 1, hiit = hiit)
         }
     }
 }
 
-/**
- * Nedtelling for tidsøvelser (planke, veggsitt ...): juster sekundene, trykk Start. Pip de siste tre sekundene
- * og en høyere tone ved null, som hviletimeren. Stopper man tidlig, logges tiden man holdt.
- */
+/** Kort med et kommende sett: figur, navn, sett nummer og målet (reps/tid og vekt). Trykk for detaljer. */
 @Composable
-private fun WorkTimer(seconds: Int, onSecondsChange: (Int) -> Unit, onFinished: (Int) -> Unit) {
-    val context = LocalContext.current
-    var endsAt by remember { mutableStateOf<Long?>(null) }
-    var left by remember { mutableIntStateOf(seconds) }
-
-    LaunchedEffect(endsAt) {
-        val end = endsAt ?: return@LaunchedEffect
-        var lastBeep = Int.MAX_VALUE
-        while (true) {
-            val ms = end - SystemClock.elapsedRealtime()
-            val s = ceil(ms.coerceAtLeast(0) / 1000.0).toInt()
-            left = s
-            if (s in 1..3 && s < lastBeep) { Beeper.countdown(); lastBeep = s }
-            if (ms <= 0) {
-                Beeper.go()
-                Haptics.vibrate(context, 400)
-                onFinished(seconds)
-                break
+private fun NextStepCard(vm: AppViewModel, next: WorkStep, state: GuidedWorkout, label: String, compact: Boolean, hiit: HiitSpec? = null) {
+    val nextEx = ExerciseLibrary.get(next.pe.exerciseId) ?: return
+    val colors = MaterialTheme.colorScheme
+    val weights = remember(nextEx, vm.profile) { weightOptions(nextEx, vm.profile) }
+    val target = remember(next) { setTarget(nextEx, next.pe, next.setIndex, vm.logs, weights) }
+    val sameEarlier = state.done.filter { it.slot == next.exerciseNo - 1 && it.setIndex < next.setIndex }.maxByOrNull { it.setIndex }
+    val w = sameEarlier?.weightKg ?: target.weightKg
+    val unit = if (nextEx.timed) tr(" s", " sek") else ""
+    var showNext by remember { mutableStateOf(false) }
+    if (showNext) ExerciseInfoDialog(nextEx, onDismiss = { showNext = false })
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(colors.surfaceContainer)
+            .clickable { showNext = true }.padding(if (compact) 10.dp else 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        ExerciseTile(nextEx, size = if (compact) 52.dp else 64.dp, animate = true)
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SectionLabel(label)
+                if (next.pe.group.isNotEmpty()) {
+                    Text(tr("SUPERSET ${next.pe.group}", "SUPERSETT ${next.pe.group}"), style = MaterialTheme.typography.labelSmall, color = colors.tertiary)
+                }
             }
-            delay(100)
+            Text(
+                if (hiit != null) nextEx.name else "${nextEx.name} · ${tr("set", "sett")} ${next.setIndex + 1}",
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                if (hiit != null) {
+                    tr("${hiit.workSec} s · round ${next.setIndex + 1} of ${hiit.rounds}", "${hiit.workSec} sek · runde ${next.setIndex + 1} av ${hiit.rounds}")
+                } else {
+                    tr("Target ", "Mål ") + "${target.reps}$unit" + nextEx.perSideSuffix +
+                        (if (nextEx.isWeighted() && w != null) " × ${formatWeight(w)} kg" else "")
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.onSurfaceVariant,
+            )
         }
     }
+}
+
+/** Påminnelse om at øvelsen tas én side om gangen. */
+@Composable
+private fun PerSideHint(text: String) {
+    val colors = MaterialTheme.colorScheme
+    Row(
+        Modifier.padding(top = 4.dp).clip(RoundedCornerShape(10.dp)).background(colors.tertiaryContainer)
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+    ) {
+        Text(text, style = MaterialTheme.typography.bodySmall, color = colors.onTertiaryContainer)
+    }
+}
+
+/**
+ * Nedtelling for tidsøvelser (planke, veggsitt ...): juster sekundene, trykk Start. Selve nedtellingen ligger i
+ * WorkoutTimers, så den fortsetter når øktmodus skjules, og tjenesten piper de siste tre sekundene og ved null.
+ * Ved null logges settet automatisk (AppViewModel). Stopper man tidlig, logges tiden man holdt.
+ */
+@Composable
+private fun WorkTimer(
+    vm: AppViewModel,
+    step: Int,
+    seconds: Int,
+    perSide: Boolean,
+    onSecondsChange: (Int) -> Unit,
+    onStart: () -> Unit,
+    onLogWithoutTimer: () -> Unit,
+) {
+    val timer = vm.workTimer?.takeIf { it.kind == WorkKind.SET && it.index == step && !it.finished }
+    @Suppress("UNUSED_VARIABLE")
+    val tick = rememberTick(active = timer != null, periodMs = 200L)
+    val left = timer?.secondsLeft()
 
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        val running = endsAt != null
+        val running = timer != null
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             if (!running) RoundButton("−", tr("5 seconds less", "5 sekunder mindre"), onClick = { onSecondsChange((seconds - 5).coerceAtLeast(5)) })
             Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(formatDuration(if (running) left else seconds), style = MaterialTheme.typography.displayLarge)
-                SectionLabel(if (running) tr("Hold", "Hold") else tr("Seconds", "Sekunder"))
+                val switching = timer?.side == WorkSide.SWITCH
+                Text(
+                    formatDuration(left ?: seconds),
+                    style = MaterialTheme.typography.displayLarge,
+                    color = if (switching) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurface,
+                )
+                SectionLabel(
+                    when (timer?.side) {
+                        null -> if (perSide) tr("Seconds per side", "Sekunder per side") else tr("Seconds", "Sekunder")
+                        WorkSide.NONE -> tr("Hold", "Hold")
+                        WorkSide.FIRST -> tr("Hold · side 1 of 2", "Hold · side 1 av 2")
+                        WorkSide.SWITCH -> tr("Switch sides", "Bytt side")
+                        WorkSide.SECOND -> tr("Hold · side 2 of 2", "Hold · side 2 av 2")
+                    },
+                )
             }
             if (!running) RoundButton("+", tr("5 seconds more", "5 sekunder mer"), onClick = { onSecondsChange(seconds + 5) })
         }
         if (!running) {
-            BigButton(tr("Start", "Start"), onClick = {
-                left = seconds
-                endsAt = SystemClock.elapsedRealtime() + seconds * 1000L
-            }, icon = RiggIcons.Play)
-            TextButton(onClick = { onFinished(seconds) }) { Text(tr("Log without timer", "Logg uten tidtaker")) }
+            BigButton(tr("Start", "Start"), onClick = onStart, icon = RiggIcons.Play)
+            TextButton(onClick = onLogWithoutTimer) { Text(tr("Log without timer", "Logg uten tidtaker")) }
         } else {
             Button(
-                onClick = {
-                    val held = (seconds - left).coerceAtLeast(0)
-                    endsAt = null
-                    onFinished(held)
-                },
+                onClick = { vm.stopTimedSetEarly() },
                 modifier = Modifier.fillMaxWidth().height(58.dp),
                 shape = RoundedCornerShape(18.dp),
                 colors = ButtonDefaults.buttonColors(
@@ -651,12 +895,15 @@ private fun SummaryView(vm: AppViewModel, day: WorkoutDay, state: GuidedWorkout)
         day.exercises.forEachIndexed { slot, pe ->
             val ex = ExerciseLibrary.get(pe.exerciseId)
             val sets = state.done.filter { it.slot == slot }.sortedBy { it.setIndex }
-            val unit = if (ex?.timed == true) tr(" s", " sek") else ""
+            val unit = if (day.hiit != null || ex?.timed == true) tr(" s", " sek") else ""
             val text = if (sets.isEmpty()) tr("skipped", "hoppet over") else sets.joinToString("  ·  ") { s ->
                 "${s.reps}$unit" + (s.weightKg?.let { " × ${formatWeight(it)}" } ?: "")
             } + if (sets.any { it.weightKg != null }) " kg" else ""
+            var showInfo by remember { mutableStateOf(false) }
+            if (showInfo && ex != null) ExerciseInfoDialog(ex, onDismiss = { showInfo = false })
             Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(colors.surfaceContainer).padding(12.dp),
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(colors.surfaceContainer)
+                    .clickable(enabled = ex != null) { showInfo = true }.padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {

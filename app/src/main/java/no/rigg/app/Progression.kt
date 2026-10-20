@@ -7,7 +7,7 @@ data class ProgressPoint(val date: LocalDate, val value: Double, val unit: Strin
 
 /** Alle øvelse-id-er som er logget med minst ett sett, i den rekkefølgen de sist ble logget. */
 fun loggedExerciseIds(logs: List<SessionLog>): List<String> =
-    logs.asReversed()
+    logs.asReversed().filter { !it.hiit }
         .flatMap { log -> log.results.filter { it.sets.isNotEmpty() }.map { it.exerciseId } }
         .distinct()
 
@@ -17,6 +17,7 @@ fun loggedExerciseIds(logs: List<SessionLog>): List<String> =
  */
 fun historyFor(logs: List<SessionLog>, exercise: Exercise): List<ProgressPoint> =
     logs.mapNotNull { log ->
+        if (log.hiit) return@mapNotNull null // HIIT er på tid, ikke sammenlignbart med vanlige sett
         val result = log.results.find { it.exerciseId == exercise.id } ?: return@mapNotNull null
         if (result.sets.isEmpty()) return@mapNotNull null
         val date = runCatching { LocalDate.parse(log.date) }.getOrNull() ?: return@mapNotNull null
@@ -51,7 +52,7 @@ fun formatWeight(kg: Double): String =
 object ProgressionAdvisor {
 
     fun lastResult(logs: List<SessionLog>, exerciseId: String): ExerciseResult? =
-        logs.asReversed().firstNotNullOfOrNull { log -> log.results.find { it.exerciseId == exerciseId } }
+        logs.asReversed().firstNotNullOfOrNull { log -> if (log.hiit) null else log.results.find { it.exerciseId == exerciseId } }
 
     /** [weights]: vektene man har for øvelsen (se [weightOptions]); da kan forslaget si nøyaktig hvilken vekt. */
     fun suggestion(exercise: Exercise, planned: PlannedExercise, logs: List<SessionLog>, weights: List<Double> = emptyList()): String? {

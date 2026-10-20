@@ -68,31 +68,91 @@ fun stepWeight(current: Double?, options: List<Double>, up: Boolean): Double? {
 
 // ---------------------------------------------------------------- OPPVARMING
 
-data class WarmupItem(val text: Txt, val seconds: Int) {
+/** Én oppvarmingsøvelse. [figure] er strekfiguren som vises mens den pågår, [video] et engelsk videosøk. */
+data class WarmupItem(val text: Txt, val seconds: Int, val figure: IllustrationType, val video: String = text.en) {
     val name: String get() = text.get()
 }
 
-/** Kort oppvarming (rundt 4-5 minutter) tilpasset bevegelsene i dagens økt. */
-fun warmupFor(day: WorkoutDay, equipment: Set<Equipment>): List<WarmupItem> {
+private fun w(en: String, no: String, seconds: Int, figure: IllustrationType, video: String) =
+    WarmupItem(Txt(en, no), seconds, figure, video)
+
+/** [count] øvelser fra [pool], startet på [variant] og videre rundt, så det varierer fra økt til økt. */
+private fun <T> pick(pool: List<T>, variant: Int, count: Int = 1): List<T> {
+    if (pool.isEmpty()) return emptyList()
+    val start = Math.floorMod(variant, pool.size)
+    return (0 until minOf(count, pool.size)).map { pool[(start + it) % pool.size] }
+}
+
+/**
+ * Kort oppvarming (rundt 4-5 minutter) tilpasset bevegelsene i dagens økt. Hver del har flere øvelser å velge
+ * mellom; [variant] (f.eks. antall loggførte økter) bestemmer hvilke, så oppvarmingen skifter fra økt til økt,
+ * men er den samme gjennom én økt.
+ */
+fun warmupFor(day: WorkoutDay, equipment: Set<Equipment>, variant: Int = 0): List<WarmupItem> {
     val patterns = day.exercises.mapNotNull { ExerciseLibrary.get(it.exerciseId)?.pattern }.toSet()
-    val items = mutableListOf(WarmupItem(Txt("Jumping jacks or marching on the spot", "Jumping jacks eller marsj på stedet"), 60))
+
+    // Puls opp.
+    val pulse = listOfNotNull(
+        w("Jumping jacks or marching on the spot", "Jumping jacks eller marsj på stedet", 60, IllustrationType.JUMPING_JACK, "jumping jacks"),
+        w("High knees, easy pace", "Høye knær i rolig tempo", 45, IllustrationType.CARDIO_RUN, "high knees warm up"),
+        if (JUMP_ROPE in equipment) {
+            w("Easy skipping with the jump rope", "Rolig hoppetau", 60, IllustrationType.JUMP_ROPE, "jump rope basic bounce")
+        } else null,
+        w("Slow mountain climbers", "Rolige mountain climbers", 40, IllustrationType.MOUNTAIN_CLIMBER, "slow mountain climbers"),
+    )
+    val items = pick(pulse, variant).toMutableList()
+
     if (patterns.any { it == SQUAT || it == LUNGE || it == HINGE }) {
-        items += WarmupItem(Txt("Slow bodyweight squats", "Rolige knebøy uten vekt"), 45)
-        items += WarmupItem(Txt("Hip hinges: hands on hips, push the hips back", "Hoftebøy: hendene på hofta, skyv rumpa bakover"), 30)
+        val legs = listOf(
+            w("Slow bodyweight squats", "Rolige knebøy uten vekt", 45, IllustrationType.SQUAT, "bodyweight squat form"),
+            w("Hip hinges: hands on hips, push the hips back", "Hoftebøy: hendene på hofta, skyv rumpa bakover", 30,
+                IllustrationType.HINGE_WARMUP, "hip hinge drill warm up"),
+            w("Glute bridges on the floor", "Rumpeløft på gulvet", 40, IllustrationType.GLUTE_BRIDGE, "glute bridge"),
+            w("Side lunges without weight", "Sideutfall uten vekt", 40, IllustrationType.LATERAL_LUNGE, "lateral lunge bodyweight"),
+            w("Reverse lunges without weight", "Utfall bakover uten vekt", 40, IllustrationType.LUNGE, "reverse lunge bodyweight"),
+        )
+        items += pick(legs, variant, 2)
     }
-    if (LUNGE in patterns) items += WarmupItem(Txt("Leg swings, both sides", "Beinsving, begge sider"), 40)
+    if (LUNGE in patterns) {
+        val lunge = listOf(
+            w("Leg swings, both sides", "Beinsving, begge sider", 40, IllustrationType.LEG_SWING, "leg swings warm up"),
+            w("Slow walking lunges", "Rolige gående utfall", 40, IllustrationType.WALKING_LUNGE, "walking lunges"),
+        )
+        items += pick(lunge, variant)
+    }
     if (PUSH in patterns) {
-        items += WarmupItem(Txt("Arm circles, forward and back", "Armsirkler forover og bakover"), 30)
-        items += WarmupItem(Txt("Easy push-ups (on knees or against a bench)", "Lette armhevinger (på knærne eller mot benk)"), 30)
+        val push = listOf(
+            w("Arm circles, forward and back", "Armsirkler forover og bakover", 30, IllustrationType.ARM_CIRCLES, "arm circles warm up"),
+            w("Easy push-ups (on knees or against a bench)", "Lette armhevinger (på knærne eller mot benk)", 30,
+                IllustrationType.PUSHUP_INCLINE, "incline push up"),
+            w("Plank, easy hold", "Planke, rolig hold", 30, IllustrationType.PLANK, "plank form"),
+        )
+        items += pick(push, variant, 2)
     }
     if (PULL in patterns) {
-        items += if (RESISTANCE_BANDS in equipment) {
-            WarmupItem(Txt("Band pull-aparts in front of the chest", "Strikk trukket fra hverandre foran brystet"), 30)
-        } else {
-            WarmupItem(Txt("Squeeze the shoulder blades together", "Klem skulderbladene sammen"), 30)
-        }
+        val pull = listOfNotNull(
+            if (RESISTANCE_BANDS in equipment) {
+                w("Band pull-aparts in front of the chest", "Strikk trukket fra hverandre foran brystet", 30,
+                    IllustrationType.SCAP_SQUEEZE, "band pull apart")
+            } else {
+                w("Squeeze the shoulder blades together", "Klem skulderbladene sammen", 30, IllustrationType.SCAP_SQUEEZE,
+                    "scapular squeeze exercise")
+            },
+            w("Slow supermans", "Rolige supermans", 30, IllustrationType.SUPERMAN, "superman exercise"),
+            if (PULL_UP_BAR in equipment) {
+                w("Hang loosely from the bar", "Heng løst i stanga", 20, IllustrationType.DEAD_HANG, "dead hang")
+            } else null,
+        )
+        items += pick(pull, variant)
     }
-    if (HINGE in patterns || CORE in patterns) items += WarmupItem(Txt("Cat-cow on all fours", "Katt og ku på alle fire"), 30)
+    if (HINGE in patterns || CORE in patterns) {
+        val core = listOf(
+            w("Cat-cow on all fours", "Katt og ku på alle fire", 30, IllustrationType.CAT_COW, "cat cow stretch"),
+            w("Bird dog, slow", "Bird dog, rolig", 30, IllustrationType.BIRD_DOG, "bird dog exercise"),
+            w("Dead bug, slow", "Dead bug, rolig", 30, IllustrationType.DEAD_BUG, "dead bug exercise"),
+        )
+        items += pick(core, variant)
+    }
 
     // Hold den kort: kutt fra slutten til den er under ca. 5 minutter.
     while (items.size > 2 && items.sumOf { it.seconds } > 300) items.removeAt(items.lastIndex)
@@ -164,6 +224,17 @@ data class WorkStep(
 fun sessionSteps(day: WorkoutDay): List<WorkStep> {
     val exercises = day.exercises
     val steps = mutableListOf<WorkStep>()
+    // HIIT: hele lista som én runde, kort pause mellom øvelsene og lengre pause mellom rundene.
+    day.hiit?.let { h ->
+        for (r in 0 until h.rounds) {
+            exercises.forEachIndexed { idx, pe ->
+                val rest = if (idx == exercises.lastIndex) h.roundRestSec else h.restSec
+                steps += WorkStep(pe, r, rest, idx + 1, exercises.size)
+            }
+        }
+        if (steps.isNotEmpty()) steps[steps.lastIndex] = steps.last().copy(restAfter = 0)
+        return steps
+    }
     var i = 0
     while (i < exercises.size) {
         val group = exercises[i].group
@@ -183,6 +254,18 @@ fun sessionSteps(day: WorkoutDay): List<WorkStep> {
     // Ingen pause etter aller siste sett.
     if (steps.isNotEmpty()) steps[steps.lastIndex] = steps.last().copy(restAfter = 0)
     return steps
+}
+
+/** Stegene fra [from] til og med det første som har pause etter seg (maks [max]). */
+fun stepsUntilRest(steps: List<WorkStep>, from: Int, max: Int = 4): List<WorkStep> {
+    val out = mutableListOf<WorkStep>()
+    var i = from
+    while (i < steps.size && out.size < max) {
+        out += steps[i]
+        if (steps[i].restAfter > 0) break
+        i++
+    }
+    return out
 }
 
 /** Forslag til ett sett: reps (sekunder for tidsøvelser) og vekt. */

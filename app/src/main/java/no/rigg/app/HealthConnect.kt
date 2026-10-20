@@ -23,6 +23,9 @@ import androidx.compose.ui.unit.dp
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.ExerciseSessionRecord
+import androidx.health.connect.client.records.HeartRateRecord
+import androidx.health.connect.client.request.ReadRecordsRequest
+import androidx.health.connect.client.time.TimeRangeFilter
 import androidx.health.connect.client.records.metadata.Device
 import androidx.health.connect.client.records.metadata.Metadata
 import java.time.Instant
@@ -30,10 +33,71 @@ import java.time.ZoneId
 
 /**
  * Skriver fullførte økter til Health Connect (styrketrening, med start, slutt og dagens navn),
- * så de dukker opp i andre helse- og treningsapper. Appen ber bare om å skrive, aldri lese.
+ * så de dukker opp i andre helse- og treningsapper. Kan også lese puls (f.eks. fra Garmin-klokka) for tidsrommet
+ * en økt varte, hvis du slår det på. Det er den eneste lesingen appen gjør.
  */
 object HealthConnectSync {
     val permissions: Set<String> = setOf(HealthPermission.getWritePermission(ExerciseSessionRecord::class))
+    val heartRatePermissions: Set<String> = setOf(HealthPermission.getReadPermission(HeartRateRecord::class))
+
+    /** Lesing av økter (f.eks. Garmins styrkeøkt), for å finne klokkeslettet til eldre logger uten det. */
+    val workoutReadPermissions: Set<String> = setOf(HealthPermission.getReadPermission(ExerciseSessionRecord::class))
+
+    suspend fun hasWorkoutReadPermission(context: Context): Boolean = runCatching {
+        HealthConnectClient.getOrCreate(context).permissionController.getGrantedPermissions().containsAll(workoutReadPermissions)
+    }.getOrDefault(false)
+
+    /**
+     * Finner en styrkeøkt fra en annen app (klokka) på [date], den som ligger nærmest [durationMin] i lengde
+     * (eller den siste, uten kjent lengde). Returnerer start og slutt, eller null.
+     */
+    suspend fun findStrengthWorkout(context: Context, date: java.time.LocalDate, durationMin: Int): Pair<Instant, Instant>? = runCatching {
+        if (!isAvailable(context) || !hasWorkoutReadPermission(context)) return@runCatching null
+        val zone = ZoneId.systemDefault()
+        val from = date.atStartOfDay(zone).toInstant()
+        val to = date.plusDays(1).atStartOfDay(zone).toInstant()
+        val strength = setOf(
+            ExerciseSessionRecord.EXERCISE_TYPE_STRENGTH_TRAINING,
+            ExerciseSessionRecord.EXERCISE_TYPE_WEIGHTLIFTING,
+            ExerciseSessionRecord.EXERCISE_TYPE_CALISTHENICS,
+            ExerciseSessionRecord.EXERCISE_TYPE_HIGH_INTENSITY_INTERVAL_TRAINING,
+            ExerciseSessionRecord.EXERCISE_TYPE_EXERCISE_CLASS,
+        )
+        val sessions = HealthConnectClient.getOrCreate(context)
+            .readRecords(ReadRecordsRequest(ExerciseSessionRecord::class, timeRangeFilter = TimeRangeFilter.between(from, to)))
+            .records
+            .filter { it.metadata.dataOrigin.packageName != context.packageName && it.exerciseType in strength }
+        val best = if (durationMin > 0) {
+            sessions.minByOrNull { kotlin.math.abs(java.time.Duration.between(it.startTime, it.endTime).toMinutes() - durationMin) }
+        } else {
+            sessions.maxByOrNull { it.startTime }
+        }
+        best?.let { it.startTime to it.endTime }
+    }.getOrNull()
+
+    suspend fun hasHeartRatePermission(context: Context): Boolean = runCatching {
+        HealthConnectClient.getOrCreate(context).permissionController.getGrantedPermissions().containsAll(heartRatePermissions)
+    }.getOrDefault(false)
+
+    /** Alle pulsmålinger mellom [start] og [end], sortert på tid. Tom liste hvis ingen finnes (ennå) eller tilgang mangler. */
+    suspend fun readHeartRate(context: Context, start: Instant, end: Instant): List<HrSample> = runCatching {
+        if (!isAvailable(context) || !hasHeartRatePermission(context)) return@runCatching emptyList<HrSample>()
+        val client = HealthConnectClient.getOrCreate(context)
+        val out = mutableListOf<HrSample>()
+        var token: String? = null
+        do {
+            val response = client.readRecords(
+                ReadRecordsRequest(HeartRateRecord::class, timeRangeFilter = TimeRangeFilter.between(start, end), pageToken = token),
+            )
+            response.records.forEach { r ->
+                r.samples.forEach { s ->
+                    if (!s.time.isBefore(start) && !s.time.isAfter(end)) out += HrSample(s.time.toEpochMilli(), s.beatsPerMinute.toInt())
+                }
+            }
+            token = response.pageToken
+        } while (token != null)
+        out.sortedBy { it.timeMs }
+    }.getOrDefault(emptyList())
 
     /** SDK_AVAILABLE, SDK_UNAVAILABLE eller SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED. */
     fun status(context: Context): Int = HealthConnectClient.getSdkStatus(context)
@@ -44,7 +108,7 @@ object HealthConnectSync {
         HealthConnectClient.getOrCreate(context).permissionController.getGrantedPermissions().containsAll(permissions)
     }.getOrDefault(false)
 
-    suspend fun writeWorkout(context: Context, title: String, start: Instant, end: Instant): Result<Unit> = runCatching {
+    suspend fun writeWorkout(context: Context, title: String, start: Instant, end: Instant, hiit: Boolean = false): Result<Unit> = runCatching {
         check(isAvailable(context)) { tr("Health Connect isn't available", "Health Connect er ikke tilgjengelig") }
         check(hasPermission(context)) { tr("Permission is missing. Turn it on again under More.", "Mangler tillatelse. Slå det på igjen under Mer.") }
         val rules = ZoneId.systemDefault().rules
@@ -53,7 +117,11 @@ object HealthConnectSync {
             startZoneOffset = rules.getOffset(start),
             endTime = end,
             endZoneOffset = rules.getOffset(end),
-            exerciseType = ExerciseSessionRecord.EXERCISE_TYPE_STRENGTH_TRAINING,
+            exerciseType = if (hiit) {
+                ExerciseSessionRecord.EXERCISE_TYPE_HIGH_INTENSITY_INTERVAL_TRAINING
+            } else {
+                ExerciseSessionRecord.EXERCISE_TYPE_STRENGTH_TRAINING
+            },
             title = title,
             metadata = Metadata.activelyRecorded(device = Device(type = Device.TYPE_PHONE)),
         )

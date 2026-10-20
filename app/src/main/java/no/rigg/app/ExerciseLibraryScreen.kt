@@ -195,8 +195,9 @@ private fun ExerciseRow(ex: Exercise, missing: String?, onClick: () -> Unit) {
     }
 }
 
+/** Stor animert figur med navn, utstyr, muskler og videolenke. Brukes overalt der man trykker på en øvelse. */
 @Composable
-private fun ExerciseInfoDialog(ex: Exercise, missing: String?, onDismiss: () -> Unit) {
+internal fun ExerciseInfoDialog(ex: Exercise, missing: String? = null, onDismiss: () -> Unit) {
     val context = LocalContext.current
     Dialog(onDismissRequest = onDismiss) {
         Card {
@@ -225,6 +226,10 @@ private fun ExerciseInfoDialog(ex: Exercise, missing: String?, onDismiss: () -> 
                 if (ex.note.isNotBlank()) {
                     Spacer(Modifier.height(10.dp))
                     Text(ex.note, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
+                }
+                ex.perSideHint?.let {
+                    Spacer(Modifier.height(8.dp))
+                    Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.tertiary, textAlign = TextAlign.Center)
                 }
                 Spacer(Modifier.height(16.dp))
                 OutlinedButton(onClick = { openExerciseVideo(context, ex) }) { Text(tr("Watch video", "Se video")) }
