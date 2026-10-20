@@ -194,12 +194,33 @@ for name, b in skel["bones"].items():
         arm_data.edit_bones[name].parent = arm_data.edit_bones[b["parent"]]
         arm_data.edit_bones[name].use_connect = False
 bpy.ops.object.mode_set(mode="OBJECT")
+# Deltamuskelen og toppen av overarmen skal følge overarmen, ikke skulderbladet. Med MakeHuman-vektene blir
+# huden der liggende igjen når armen løftes over hodet, og skulderen krølles. Flytter derfor vekten fra
+# skulderbladet/kragebeinet til overarmen gradvis utover fra skulderleddet.
+DELT_A, DELT_B, DELT_K = (float(x) for x in os.environ.get("DELTVEKT", "-0.04,0.03,0.8").split(","))
+for side in ("L", "R"):
+    ua = skel["bones"][f"upperarm01.{side}"]
+    h, d = J[ua["head"]], (J[ua["tail"]] - J[ua["head"]]).normalized()
+    for vi, ws in wmap.items():
+        g = ws.get(f"shoulder01.{side}", 0) + ws.get(f"clavicle.{side}", 0)
+        k = DELT_K * ramp((V[vi] - h).dot(d), DELT_A, DELT_B)
+        if g <= 0 or k <= 0:
+            continue
+        for b in (f"shoulder01.{side}", f"clavicle.{side}"):
+            if b in ws:
+                ws[b] *= 1 - k
+        ws[f"upperarm01.{side}"] = ws.get(f"upperarm01.{side}", 0) + g * k
+weights = {}
+for vi, ws in wmap.items():
+    for bone, w in ws.items():
+        weights.setdefault(bone, []).append((vi, w))
 for bone, lst in weights.items():
     vg = body.vertex_groups.new(name=bone)
     for vi, w in lst:
         vg.add([vi], w, "REPLACE")
 mod = body.modifiers.new("skjelett", "ARMATURE")
 mod.object = arm
+mod.use_deform_preserve_volume = os.environ.get("DQ", "0") == "1"
 body.parent = arm
 bpy.context.view_layer.objects.active = body
 bpy.ops.object.mode_set(mode="EDIT")
@@ -365,13 +386,17 @@ def grip(side, sx, c, r, n, f, elbow_hint):
         sh = PB[f"upperarm01.{side}"].head.copy()
         elbow = two_bone(sh, wrist, l1, l2, elbow_hint)
     aim(PB[f"upperarm01.{side}"], PB[f"lowerarm01.{side}"].head.copy(), elbow)
+    if k > 0 and TWIST:
+        rot(PB[f"upperarm01.{side}"], (elbow - sh).normalized(), TWIST * sx * k, sh)
     aim(PB[f"lowerarm01.{side}"], PB[f"wrist.{side}"].head.copy(), wrist)
     orient_hand(side, sx, f, n)
     return palm_center(side) + n * (r + 0.016)   # der håndtaket faktisk havner
 
 
+# Overarmen roteres litt utover når den løftes høyt (som i virkeligheten), så deltamuskelen legger seg over skulderen.
+TWIST = float(os.environ.get("TWIST", 20))
 # Hvor mye av armløftet kragebeinet og skulderen tar (resten tar overarmen). Kan prøves med SKULDERBLAD=...
-GIRDLE = [(b, float(k)) for b, k in (x.split(":") for x in os.environ.get("SKULDERBLAD", "clavicle:0.2,shoulder01:0.1").split(","))]
+GIRDLE = [(b, float(k)) for b, k in (x.split(":") for x in os.environ.get("SKULDERBLAD", "clavicle:0.25,shoulder01:0.15").split(","))]
 
 
 def inside(p, shapes):
@@ -516,8 +541,9 @@ def ex_db_shoulder_press(s):
         # Start: albuene ut til siden i omtrent skulderhøyde, underarmene loddrett, manualene ved hodet.
         elbow0 = sh + Vector((0.24 * sx, -0.07, -0.05))
         low = elbow0 + Vector((-0.015 * sx, 0, l2 + hand * 0.55))
-        # Topp: nesten strake armer, manualene nesten inntil hverandre over hodet.
-        high = Vector((0.175 * sx, sh.y - 0.04, sh.z + (l1 + l2 + hand * 0.5) * 0.95))
+        # Topp: strake armer, manualene nesten inntil hverandre over hodet. Målet ligger litt over det armen
+        # rekker fra hvilestillingen, siden skulderen løftes med skulderbladet; armen strekkes da helt ut.
+        high = Vector((0.2 * sx, sh.y - 0.04, sh.z + (l1 + l2 + hand * 0.5) * 1.15))
         c = low.lerp(high, e)
         at = grip(side, sx, c, HANDLE_R, Vector((0, -1, 0.1)), Vector((0, -0.1, 1)), Vector((sx, 0.2, -0.25)))
         db.place(at, X)
@@ -603,9 +629,9 @@ def ex_db_lateral_raise(s):
 
 
 EXERCISES = {
-    # navn: (funksjon, kameravinkel fra forsiden, høyde over midten)
+    # navn: (funksjon, kameravinkel fra forsiden, høyde over midten[, midtpunkt i høyden, avstand])
     "goblet_squat": (ex_goblet_squat, 48, 1.25),
-    "db_shoulder_press": (ex_db_shoulder_press, 35, 0.9, 0.58),
+    "db_shoulder_press": (ex_db_shoulder_press, 35, 0.9, 0.6, 4.4),
     "db_curl": (ex_db_curl, 55, 0.9),
     "rdl_db": (ex_rdl_db, 70, 1.0),
     "db_lunge": (ex_db_lunge, 72, 0.9),
@@ -700,6 +726,7 @@ def light(name, loc, energy, size, color=(1, 1, 1)):
 
 fn, cam_ang, cam_up, *rest_cam = EXERCISES[EX]
 cam_mid = rest_cam[0] if rest_cam else 0.5
+cam_dist = rest_cam[1] if len(rest_cam) > 1 else 3.9
 cam_ang = float(os.environ.get("KAMERA", cam_ang))
 a = math.radians(cam_ang)
 # Lyset følger kameraet, så figuren blir lyssatt likt uansett vinkel.
@@ -712,7 +739,7 @@ cam = bpy.data.objects.new("kamera", cam_d)
 sc.collection.objects.link(cam)
 sc.camera = cam
 cam_d.lens = 60
-dist = 3.9
+dist = cam_dist
 center = Vector((0, 0.08, FEET_Z + (TOP_Z - FEET_Z) * cam_mid))
 cam.location = center + Vector((dist * math.sin(a), -dist * math.cos(a), cam_up))
 tgt = bpy.data.objects.new("mål", None); tgt.location = center
@@ -767,7 +794,11 @@ def check_arms():
     mod.show_viewport = False
 
 
-if os.environ.get("SJEKK"):
+if os.environ.get("LEDD"):
+    for s in (0.0, 0.5, 1.0):
+        pose(s)
+        print("LEDD", s, {n: tuple(round(x, 3) for x in PB[n].head) for n in ("clavicle.L", "shoulder01.L", "upperarm01.L", "lowerarm01.L", "wrist.L")})
+elif os.environ.get("SJEKK"):
     check_arms()
 elif not os.environ.get("BARE_OPPSETT"):
     if NFRAMES:
@@ -776,5 +807,6 @@ elif not os.environ.get("BARE_OPPSETT"):
             shot(s, os.path.join(OUT, f"anim_{k:02d}.png"))
     else:
         for s, nm in ((0.0, "start"), (0.5, "midt"), (1.0, "slutt")):
-            shot(s, os.path.join(OUT, f"{EX}_{nm}.png"))
+            if nm in os.environ.get("BILDER", "start,midt,slutt"):
+                shot(s, os.path.join(OUT, f"{EX}_{nm}.png"))
     print("ferdig")
