@@ -22,6 +22,7 @@ import no.oppdragsliste.app.data.KjentAnlegg
 import no.oppdragsliste.app.data.Oppdrag
 import no.oppdragsliste.app.data.Paminnelse
 import no.oppdragsliste.app.data.Ordre
+import no.oppdragsliste.app.data.nummerTekst
 import no.oppdragsliste.app.logikk.TolketOrdre
 import no.oppdragsliste.app.logikk.slaSammenTolket
 import no.oppdragsliste.app.logikk.tolkOrdreliste
@@ -473,7 +474,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 feil = when {
                     samlet.isNotEmpty() -> null
                     feilet == bilder.size -> "Kunne ikke lese bildet."
-                    else -> "Fant ingen saker («SAK : …») i bildet."
+                    else -> "Fant ingen saker («SAK : …» eller P-nummer) i bildet."
                 },
             )
         }
@@ -499,7 +500,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun settOrdreFakturert(o: Ordre, pa: Boolean) = viewModelScope.launch {
         repo.lagreOrdre(o.copy(fakturert = pa, fakturertDato = if (pa) java.time.Instant.now() else null))
-        if (pa && o.utfort) _ordreMelding.value = "SAK ${o.saksnr} er utført og fakturert – flyttet til arkivet"
+        if (pa && o.utfort) _ordreMelding.value = "${o.nummerTekst} er utført og fakturert – flyttet til arkivet"
     }
 
     fun slettOrdre(o: Ordre) = viewModelScope.launch { repo.slettOrdre(o) }
@@ -508,9 +509,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun lagreOrdreManuelt(o: Ordre) = viewModelScope.launch {
         try {
             if (o.id == 0L) repo.settInnOrdre(listOf(o)) else repo.lagreOrdre(o)
-            _ordreMelding.value = "SAK ${o.saksnr} er lagret"
+            _ordreMelding.value = "${o.nummerTekst} er lagret"
         } catch (e: android.database.sqlite.SQLiteConstraintException) {
-            _ordreMelding.value = "SAK ${o.saksnr} finnes allerede – ikke lagret"
+            _ordreMelding.value = "${o.nummerTekst} finnes allerede – ikke lagret"
         }
     }
 
@@ -527,7 +528,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         sett(
             Skjema(
                 prioritet = innstillinger.na.standardPrioritet,
-                beskrivelse = "SAK ${o.saksnr} – ${o.tittel}".trim(),
+                beskrivelse = "${o.nummerTekst} – ${o.tittel}".trim(),
                 kunde = o.kunde,
                 adresse = o.adresse,
             ),

@@ -34,6 +34,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import no.oppdragsliste.app.data.Ordre
+import no.oppdragsliste.app.data.nummerTekst
 import no.oppdragsliste.app.logikk.formaterDato
 import java.time.Instant
 import java.time.LocalDate
@@ -54,7 +55,7 @@ fun OrdreRedigerDialog(ordre: Ordre, onLagre: (Ordre) -> Unit, onLukk: () -> Uni
         onDismissRequest = onLukk,
         // Trykk utenfor skal ikke forkaste det som er skrevet.
         properties = DialogProperties(dismissOnClickOutside = false),
-        title = { Text(if (ordre.id == 0L) "Ny sak" else "Endre SAK ${ordre.saksnr}") },
+        title = { Text(if (ordre.id == 0L) "Ny sak" else "Endre ${ordre.nummerTekst}") },
         text = {
             Column(
                 Modifier
@@ -64,14 +65,15 @@ fun OrdreRedigerDialog(ordre: Ordre, onLagre: (Ordre) -> Unit, onLukk: () -> Uni
             ) {
                 OutlinedTextField(
                     value = saksnr,
-                    onValueChange = { saksnr = it.filter { c -> c.isDigit() }; visFeil = false },
-                    label = { Text("Saksnummer") },
+                    // Saksnummer (bare sifre) eller P-nummer (P + sifre).
+                    onValueChange = { saksnr = it.uppercase().filter { c -> c.isDigit() || c == 'P' }; visFeil = false },
+                    label = { Text("Saksnummer eller P-nummer") },
                     singleLine = true,
                     isError = visFeil && saksnr.isBlank(),
                     supportingText = if (visFeil && saksnr.isBlank()) {
                         { Text("Saksnummer må fylles inn") }
                     } else null,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
                     modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(value = tittel, onValueChange = { tittel = it }, label = { Text("Tittel") }, minLines = 2, modifier = Modifier.fillMaxWidth())

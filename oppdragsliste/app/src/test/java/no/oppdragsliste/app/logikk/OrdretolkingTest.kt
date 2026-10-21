@@ -1,5 +1,7 @@
 package no.oppdragsliste.app.logikk
 
+import no.oppdragsliste.app.data.nummerTekst
+import no.oppdragsliste.app.data.saksnrTall
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.LocalDate
@@ -133,5 +135,43 @@ class OrdretolkingTest {
         assertEquals("Magnus Barfots vei 9 4633 KRISTIANSAND S", rettet.adresse)
         assertEquals(true, rettet.utfort)
         assertEquals("Magnus Barfots vei 9 4633 KRISTIANSAND S", no.oppdragsliste.app.data.slaSammen(rettet, kuttet).adresse)
+    }
+
+    @Test
+    fun `P-nummer for ordre uten saksnummer`() {
+        val linjer = listOf(
+            "Middels", "07:00–15:00",
+            "SAK : 38129 - SJEKKE FEILMELDING PÅ", "BRANNSENTRALEN.",
+            "Torvparkeringen : Festningsgata 21 4611", "KRISTIANSAND S NORWAY , Kunde : K103911", "Torvparkering AS", "Pågår",
+            "MAN. 27. APRIL 2026", "Middels", "08:00–09:00",
+            "P134940 ROGER AAMODT EIENDOM AS :", "BYDALSLIA 28-36, 12 LEILIGHETER",
+            "Prosjektoppgave : Prosjekt", "Ikke Startet",
+            "ONS. 1. APRIL 2026", "Middels 08:00–12:00",
+            "SAK : 37332 - SERVICEAVTALE: IVELAND", "KIRKE, 2026",
+            "Iveland Kirke : Frikstadveien 14 IVELAND 4724 Norge", ", Kunde : K110759 Iveland Sokn",
+        )
+        val saker = tolkOrdreliste(linjer)
+        assertEquals(listOf("38129", "P134940", "37332"), saker.map { it.saksnr })
+        assertEquals("SJEKKE FEILMELDING PÅ BRANNSENTRALEN.", saker[0].tittel)
+        assertEquals("Festningsgata 21 4611 KRISTIANSAND S", saker[0].adresse)
+        assertEquals("Torvparkering AS", saker[0].kunde)
+
+        val p = saker[1]
+        assertEquals("BYDALSLIA 28-36, 12 LEILIGHETER", p.tittel)
+        assertEquals("ROGER AAMODT EIENDOM AS", p.kunde)
+        assertEquals("", p.adresse)
+        assertEquals("Ikke Startet", p.status)
+
+        assertEquals("Frikstadveien 14 IVELAND 4724", saker[2].adresse)
+        assertEquals("Iveland Sokn", saker[2].kunde)
+    }
+
+    @Test
+    fun `nummertekst og sortering`() {
+        val sak = no.oppdragsliste.app.data.Ordre(saksnr = "38129")
+        val p = no.oppdragsliste.app.data.Ordre(saksnr = "P134940")
+        assertEquals("SAK 38129", sak.nummerTekst)
+        assertEquals("P134940", p.nummerTekst)
+        assertEquals(listOf("38129", "P134940"), listOf(p, sak).sortedBy { it.saksnrTall }.map { it.saksnr })
     }
 }

@@ -60,6 +60,9 @@ fun slaSammen(eksisterende: Ordre?, ny: TolketOrdre): Ordre {
     )
 }
 
+/** «SAK 38129» eller «P134940» (ordre uten saksnummer har P-nummer). */
+val Ordre.nummerTekst: String get() = if (saksnr.startsWith("P")) saksnr else "SAK $saksnr"
+
 /** Saksnummer som tall, for sortering (ukjent format sist). */
 val Ordre.saksnrTall: Long get() = saksnr.filter { it.isDigit() }.toLongOrNull() ?: Long.MAX_VALUE
 

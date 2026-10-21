@@ -20,6 +20,9 @@ private val maneder = listOf(
 )
 
 private val sakRegex = Regex("""^\s*SAK\s*[:;.]?\s*(\d{3,7})\s*[-–—]?\s*(.*)$""", RegexOption.IGNORE_CASE)
+/** Ordre uten saksnummer har P-nummer: «P134940 KUNDE : PROSJEKT». */
+private val pRegex = Regex("""^\s*(P\d{6})\b\s*[-–:]?\s*(.*)$""")
+
 private val datoRegex = Regex("""^(man|tir|ons|tor|fre|lør|lor|søn|son)[a-zæøå]*\.?\s+(\d{1,2})\.?\s+([a-zæøå]+)\s+(\d{4})$""", RegexOption.IGNORE_CASE)
 private val tidRegex = Regex("""(\d{1,2})[:.](\d{2})\s*[-–—]\s*(\d{1,2})[:.](\d{2})""")
 private val statusRegex = Regex("""^(pågår|pagar|pågar|ny|ferdig|planlagt|avsluttet|utført|fullført|venter|ikke startet|ikke påbegynt)$""")
@@ -90,7 +93,9 @@ fun tolkOrdreliste(linjer: List<String>): List<TolketOrdre> {
             iTittel = false
             return
         }
+        // «Prosjektoppgave : Prosjekt» under P-nummer er ingen adresse.
         val rest = resten.joinToString(" ").replace(Regex("\\s+"), " ").trim()
+            .let { if (it.startsWith("Prosjektoppgave", ignoreCase = true)) "" else it }
         val kundeTreff = kundeRegex.find(rest)
         val kundenr = kundeTreff?.groupValues?.get(1).orEmpty()
         val kunde = kundeTreff?.groupValues?.get(2).orEmpty().trim().trim(',', ':', ' ')
@@ -98,12 +103,19 @@ fun tolkOrdreliste(linjer: List<String>): List<TolketOrdre> {
         // «Dvergsnesbakken 22 : Dvergsnesbakken 22 4639 KRISTIANSAND S NORWAY»: den fullstendige adressen står sist.
         if (adresse.contains(" : ")) adresse = adresse.substringAfterLast(" : ").trim()
         adresse = adresse.replace(Regex("""[,\s]*(Norge|Norway)\s*$""", RegexOption.IGNORE_CASE), "").trim().trim(',')
+        var heleTittel = tittel.joinToString(" ").replace(Regex("\\s+"), " ").trim()
+        var kundeNavn = kunde
+        // P-nummer: «ROGER AAMODT EIENDOM AS : BYDALSLIA 28-36» – kunden står foran « : ».
+        if (nr.startsWith("P") && kundeNavn.isBlank() && heleTittel.contains(" : ")) {
+            kundeNavn = heleTittel.substringBefore(" : ").trim()
+            heleTittel = heleTittel.substringAfter(" : ").trim()
+        }
         resultat += TolketOrdre(
             saksnr = nr,
-            tittel = tittel.joinToString(" ").replace(Regex("\\s+"), " ").trim(),
+            tittel = heleTittel,
             adresse = adresse,
             kundenr = kundenr,
-            kunde = kunde,
+            kunde = kundeNavn,
             dato = sakDato,
             tid = sakTid,
             status = status,
@@ -134,7 +146,7 @@ fun tolkOrdreliste(linjer: List<String>): List<TolketOrdre> {
             continue
         }
 
-        val sak = sakRegex.matchEntire(linje)
+        val sak = sakRegex.matchEntire(linje) ?: pRegex.matchEntire(linje)
         if (sak != null) {
             avslutt()
             saksnr = sak.groupValues[1]

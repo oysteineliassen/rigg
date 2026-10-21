@@ -72,6 +72,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import no.oppdragsliste.app.data.Ordre
+import no.oppdragsliste.app.data.nummerTekst
 import no.oppdragsliste.app.data.saksnrTall
 import no.oppdragsliste.app.logikk.formaterDato
 import java.time.LocalDate
@@ -159,7 +160,7 @@ fun OrdreSkjerm(
                 OutlinedTextField(
                     value = sok,
                     onValueChange = { sok = it },
-                    placeholder = { Text("Søk i saksnr, kunde, adresse …") },
+                    placeholder = { Text("Søk i saks-/P-nr, kunde, adresse …") },
                     leadingIcon = { Icon(Icons.Outlined.Search, null) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
@@ -261,7 +262,7 @@ private fun OrdreKort(
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("SAK ${o.saksnr}", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+            Text(o.nummerTekst, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
             Text(
                 o.tittel.ifBlank { "(uten tittel)" },
                 style = MaterialTheme.typography.titleSmall,
@@ -279,7 +280,7 @@ private fun OrdreKort(
             AnimatedVisibility(utvidet) {
                 Column(Modifier.padding(top = 8.dp)) {
                     if (bekreftSlett) {
-                        Text("Slette SAK ${o.saksnr} fra oversikten?", style = MaterialTheme.typography.bodyMedium)
+                        Text("Slette ${o.nummerTekst} fra oversikten?", style = MaterialTheme.typography.bodyMedium)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
                             OutlinedButton(onClick = { bekreftSlett = false }) { Text("Avbryt") }
                             Button(
@@ -374,7 +375,7 @@ private fun OrdreImportDialog(imp: OrdreImport, onBekreft: () -> Unit, onAvbryt:
                     imp.funnet.forEach { (t, finnes) ->
                         Column {
                             Text(
-                                "SAK ${t.saksnr}" + if (finnes) " · finnes" else " · ny",
+                                (if (t.saksnr.startsWith("P")) t.saksnr else "SAK ${t.saksnr}") + if (finnes) " · finnes" else " · ny",
                                 style = MaterialTheme.typography.labelLarge,
                                 color = if (finnes) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
                             )
