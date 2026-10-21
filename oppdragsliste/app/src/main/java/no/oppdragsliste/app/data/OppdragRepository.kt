@@ -12,11 +12,35 @@ class OppdragRepository(
     private val dao: OppdragDao,
     private val kjenteDao: KjentAnleggDao,
     private val paminnelseDao: PaminnelseDao,
+    private val ordreDao: OrdreDao,
     private val etterEndring: suspend () -> Unit = {},
 ) {
     val alle: Flow<List<Oppdrag>> = dao.observerAlle()
     val kjente: Flow<List<KjentAnlegg>> = kjenteDao.observerAlle()
     val paminnelser: Flow<List<Paminnelse>> = paminnelseDao.observerAlle()
+    val ordre: Flow<List<Ordre>> = ordreDao.observerAlle()
+
+    suspend fun alleOrdre(): List<Ordre> = ordreDao.alle()
+
+    /** Legger inn eller oppdaterer saker (etter saksnummer). Returnerer (nye, oppdaterte). */
+    suspend fun importerOrdre(saker: List<no.oppdragsliste.app.logikk.TolketOrdre>): Pair<Int, Int> {
+        val finnes = ordreDao.alle().associateBy { it.saksnr }
+        var nye = 0
+        var oppdaterte = 0
+        saker.distinctBy { it.saksnr }.forEach { t ->
+            val gammel = finnes[t.saksnr]
+            val ny = slaSammen(gammel, t)
+            when {
+                gammel == null -> { ordreDao.settInn(ny); nye++ }
+                ny != gammel -> { ordreDao.oppdater(ny); oppdaterte++ }
+            }
+        }
+        return nye to oppdaterte
+    }
+
+    suspend fun lagreOrdre(o: Ordre) = ordreDao.oppdater(o)
+    suspend fun slettOrdre(o: Ordre) = ordreDao.slett(o)
+    suspend fun settInnOrdre(liste: List<Ordre>) = liste.forEach { ordreDao.settInn(it) }
 
     suspend fun allePaminnelser(): List<Paminnelse> = paminnelseDao.alle()
     suspend fun apnePaminnelser(): List<Paminnelse> = paminnelseDao.apne()

@@ -21,6 +21,11 @@ import no.oppdragsliste.app.app
 import no.oppdragsliste.app.data.KjentAnlegg
 import no.oppdragsliste.app.data.Oppdrag
 import no.oppdragsliste.app.data.Paminnelse
+import no.oppdragsliste.app.data.Ordre
+import no.oppdragsliste.app.logikk.TolketOrdre
+import no.oppdragsliste.app.logikk.slaSammenTolket
+import no.oppdragsliste.app.logikk.tolkOrdreliste
+import no.oppdragsliste.app.ordre.lesTekst
 import no.oppdragsliste.app.logikk.filtrerPaminnelser
 import no.oppdragsliste.app.logikk.sorterPaminnelser
 import no.oppdragsliste.app.data.Oppsett
@@ -45,6 +50,7 @@ import no.oppdragsliste.app.sikkerhetskopi.les
 import no.oppdragsliste.app.sikkerhetskopi.nyeOppdrag
 import no.oppdragsliste.app.sikkerhetskopi.lesPaminnelser
 import no.oppdragsliste.app.sikkerhetskopi.lesNotater
+import no.oppdragsliste.app.sikkerhetskopi.lesOrdre
 import no.oppdragsliste.app.sikkerhetskopi.nyePaminnelser
 import no.oppdragsliste.app.sted.geokod
 import no.oppdragsliste.app.sted.naverendePosisjon
@@ -75,6 +81,16 @@ data class ListeTilstand(
 ) {
     fun notat(o: Oppdrag): String? = notater[anleggNokkel(o.kunde, o.anlegg)]
 }
+
+enum class Fane { OPPDRAG, ORDRE }
+
+/** Resultatet av å lese skjermbilder av ordrelisten, før det lagres. */
+data class OrdreImport(
+    val laster: Boolean = false,
+    /** Sakene som ble funnet, og om de finnes fra før. */
+    val funnet: List<Pair<TolketOrdre, Boolean>> = emptyList(),
+    val feil: String? = null,
+)
 
 /** «Samtale med …: vil du registrere et oppdrag?» – vises når appen åpnes like etter en samtale. */
 data class SamtaleSporsmal(
@@ -384,7 +400,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun eksporterTil(uri: Uri) = viewModelScope.launch {
         _kopiStatus.value = try {
             val alle = repo.alleNa()
-            val tekst = eksporter(alle, repo.allePaminnelser(), repo.alleKjente())
+            val tekst = eksporter(alle, repo.allePaminnelser(), repo.alleKjente(), repo.alleOrdre())
             withContext(Dispatchers.IO) {
                 getApplication<Application>().contentResolver.openOutputStream(uri, "wt")!!.use {
                     it.write(tekst.toByteArray(Charsets.UTF_8))
@@ -409,11 +425,109 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if (nyeP.isNotEmpty()) repo.settInnPaminnelser(nyeP)
             // Notater for kunder/anlegg (eksisterende notater beholdes).
             repo.importerNotater(lesNotater(tekst))
+            // Ordre: saker som ikke finnes fra før (samme saksnummer).
+            val finnesOrdre = repo.alleOrdre().map { it.saksnr }.toSet()
+            repo.settInnOrdre(lesOrdre(tekst).filter { it.saksnr !in finnesOrdre }.map { it.copy(id = 0) })
             "Importerte ${nye.size} oppdrag" + (if (nyeP.isNotEmpty()) " og ${nyeP.size} påminnelser." else ".") +
                 if (hoppet > 0) " $hoppet oppdrag fantes fra før og ble hoppet over." else ""
         } catch (e: Exception) {
             "Kunne ikke lese filen. Er det en sikkerhetskopi fra Oppdragsliste?"
         }
+    }
+
+    // ---- Faner og ordre ----
+
+    private val _fane = MutableStateFlow(Fane.OPPDRAG)
+    val fane: StateFlow<Fane> = _fane.asStateFlow()
+    fun visFane(f: Fane) { _fane.value = f }
+
+    val ordre: StateFlow<List<Ordre>> = repo.ordre.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    private val _ordreImport = MutableStateFlow<OrdreImport?>(null)
+    val ordreImport: StateFlow<OrdreImport?> = _ordreImport.asStateFlow()
+
+    private val _ordreMelding = MutableStateFlow<String?>(null)
+    val ordreMelding: StateFlow<String?> = _ordreMelding.asStateFlow()
+    fun ordreMeldingVist() { _ordreMelding.value = null }
+
+    /** Leser sakene i ett eller flere skjermbilder og viser hva som ble funnet før det lagres. */
+    fun importerOrdreBilder(bilder: List<Uri>) {
+        if (bilder.isEmpty()) return
+        _fane.value = Fane.ORDRE
+        _ordreImport.value = OrdreImport(laster = true)
+        viewModelScope.launch {
+            val app = getApplication<Application>()
+            val funnet = mutableListOf<TolketOrdre>()
+            var feilet = 0
+            bilder.forEach { uri ->
+                try {
+                    funnet += tolkOrdreliste(lesTekst(app, uri))
+                } catch (e: Exception) {
+                    feilet++
+                }
+            }
+            val samlet = funnet.groupBy { it.saksnr }.values.map { it.reduce(::slaSammenTolket) }
+            val finnes = ordre.value.associateBy { it.saksnr }
+            _ordreImport.value = OrdreImport(
+                funnet = samlet.map { it to (finnes[it.saksnr] != null) },
+                feil = when {
+                    samlet.isNotEmpty() -> null
+                    feilet == bilder.size -> "Kunne ikke lese bildet."
+                    else -> "Fant ingen saker («SAK : …») i bildet."
+                },
+            )
+        }
+    }
+
+    fun bekreftOrdreImport() {
+        val imp = _ordreImport.value ?: return
+        _ordreImport.value = null
+        viewModelScope.launch {
+            val (nye, oppdaterte) = repo.importerOrdre(imp.funnet.map { it.first })
+            _ordreMelding.value = listOfNotNull(
+                if (nye > 0) "La til $nye" else null,
+                if (oppdaterte > 0) "oppdaterte $oppdaterte" else null,
+            ).joinToString(", ").replaceFirstChar { it.uppercase() }.ifBlank { "Ingen endringer" }
+        }
+    }
+
+    fun avbrytOrdreImport() { _ordreImport.value = null }
+
+    fun settOrdreUtfort(o: Ordre, pa: Boolean) = viewModelScope.launch {
+        repo.lagreOrdre(o.copy(utfort = pa, utfortDato = if (pa) java.time.Instant.now() else null))
+    }
+
+    fun settOrdreFakturert(o: Ordre, pa: Boolean) = viewModelScope.launch {
+        repo.lagreOrdre(o.copy(fakturert = pa, fakturertDato = if (pa) java.time.Instant.now() else null))
+        if (pa && o.utfort) _ordreMelding.value = "SAK ${o.saksnr} er utført og fakturert – flyttet til arkivet"
+    }
+
+    fun slettOrdre(o: Ordre) = viewModelScope.launch { repo.slettOrdre(o) }
+
+    /** Lager et oppdrag fra en sak (beskrivelse, kunde, adresse, dato og tid fylt inn). */
+    fun lagOppdragFraOrdre(o: Ordre) {
+        _fane.value = Fane.OPPDRAG
+        val lagret = utkast.hentNytt()?.tilSkjema(null)
+        if (lagret != null) {
+            // Et påbegynt oppdrag skal ikke gå tapt: vis det, og si fra.
+            sett(lagret)
+            _ordreMelding.value = "Du har et påbegynt oppdrag. Lagre eller tøm det først."
+            return
+        }
+        val (tid, slutt) = o.tid?.split("–")?.mapNotNull { runCatching { LocalTime.parse(it.trim()) }.getOrNull() }
+            ?.let { it.getOrNull(0) to it.getOrNull(1) } ?: (null to null)
+        sett(
+            Skjema(
+                prioritet = if (o.dato != null) Prioritet.AVTALE else innstillinger.na.standardPrioritet,
+                beskrivelse = "SAK ${o.saksnr} – ${o.tittel}".trim(),
+                kunde = o.kunde,
+                adresse = o.adresse,
+                dato = o.dato,
+                tid = if (o.dato != null) tid else null,
+                sluttid = if (o.dato != null && tid != null) slutt else null,
+            ),
+        )
+        fyllFraKjente()
     }
 
     // ---- Spørsmål etter samtale ----

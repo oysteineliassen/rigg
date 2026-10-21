@@ -5,6 +5,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import no.oppdragsliste.app.data.KjentAnlegg
 import no.oppdragsliste.app.data.Oppdrag
+import no.oppdragsliste.app.data.Ordre
 import no.oppdragsliste.app.data.Paminnelse
 import no.oppdragsliste.app.data.Prioritet
 import java.time.Instant
@@ -44,6 +45,23 @@ data class PaminnelseJson(
     val opprettet: String,
 )
 
+/** En sak fra ordrelisten. */
+@Serializable
+data class OrdreJson(
+    val saksnr: String,
+    val tittel: String = "",
+    val adresse: String = "",
+    val kundenr: String = "",
+    val kunde: String = "",
+    val dato: String? = null,
+    val tid: String? = null,
+    val utfort: Boolean = false,
+    val utfortDato: String? = null,
+    val fakturert: Boolean = false,
+    val fakturertDato: String? = null,
+    val opprettet: String,
+)
+
 /** Notat for en kunde/anlegg. */
 @Serializable
 data class NotatJson(val kunde: String = "", val anlegg: String = "", val notat: String = "")
@@ -56,6 +74,7 @@ data class SikkerhetskopiFil(
     val oppdrag: List<OppdragJson>,
     val paminnelser: List<PaminnelseJson> = emptyList(),
     val notater: List<NotatJson> = emptyList(),
+    val ordre: List<OrdreJson> = emptyList(),
 )
 
 /** En påminnelse fra en sikkerhetskopi, før den er koblet til oppdragets nye id. */
@@ -89,6 +108,7 @@ fun eksporter(
     oppdrag: List<Oppdrag>,
     paminnelser: List<Paminnelse> = emptyList(),
     kjente: List<KjentAnlegg> = emptyList(),
+    ordre: List<Ordre> = emptyList(),
     na: Instant = Instant.now(),
 ): String {
     val opprettet = oppdrag.associate { it.id to it.opprettet.toString() }
@@ -104,9 +124,26 @@ fun eksporter(
                 )
             },
             notater = kjente.filter { it.notat.isNotBlank() }.map { NotatJson(it.kunde, it.anlegg, it.notat) },
+            ordre = ordre.map {
+                OrdreJson(
+                    it.saksnr, it.tittel, it.adresse, it.kundenr, it.kunde, it.dato?.toString(), it.tid,
+                    it.utfort, it.utfortDato?.toString(), it.fakturert, it.fakturertDato?.toString(), it.opprettet.toString(),
+                )
+            },
         ),
     )
 }
+
+/** Sakene fra ordrelisten i en sikkerhetskopi. */
+fun lesOrdre(tekst: String): List<Ordre> =
+    json.decodeFromString<SikkerhetskopiFil>(tekst).ordre.map {
+        Ordre(
+            saksnr = it.saksnr, tittel = it.tittel, adresse = it.adresse, kundenr = it.kundenr, kunde = it.kunde,
+            dato = it.dato?.let(LocalDate::parse), tid = it.tid, utfort = it.utfort,
+            utfortDato = it.utfortDato?.let(Instant::parse), fakturert = it.fakturert,
+            fakturertDato = it.fakturertDato?.let(Instant::parse), opprettet = Instant.parse(it.opprettet),
+        )
+    }
 
 /** Notatene (kunde, anlegg, notat) i en sikkerhetskopi. */
 fun lesNotater(tekst: String): List<Triple<String, String, String>> =

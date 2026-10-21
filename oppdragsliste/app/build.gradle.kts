@@ -81,6 +81,8 @@ dependencies {
 
     implementation("androidx.work:work-runtime-ktx:2.9.1")
     implementation("androidx.glance:glance-appwidget:1.1.1")
+    // Tekstgjenkjenning (på telefonen, uten nett) for import av skjermbilder av ordrelisten.
+    implementation("com.google.mlkit:text-recognition:16.0.1")
     implementation("com.google.android.gms:play-services-location:21.3.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")

@@ -22,7 +22,7 @@ fun KopiInnstillinger(status: String?, onEksporter: (Uri) -> Unit, onImporter: (
     }
     Gruppe("Sikkerhetskopi") {
         Forklaring(
-            "Lagre alle oppdrag (også utførte), påminnelser og notater som en JSON-fil, f.eks. i Google Disk eller Nedlastinger. " +
+            "Lagre alle oppdrag (også utførte), påminnelser, notater og ordre som en JSON-fil, f.eks. i Google Disk eller Nedlastinger. " +
                 "Import legger til oppdragene fra filen; de som allerede finnes, hoppes over.",
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
