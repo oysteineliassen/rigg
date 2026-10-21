@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutId="nytt_oppdrag"
+        android:shortcutLongLabel="@string/nytt_oppdrag"
+        android:shortcutShortLabel="@string/nytt_oppdrag">
+        <intent
+            android:action="no.oppdragsliste.app.NYTT_OPPDRAG"
+            android:targetClass="no.oppdragsliste.app.MainActivity"
+            android:targetPackage="no.oppdragsliste.app" />
+    </shortcut>
+</shortcuts>

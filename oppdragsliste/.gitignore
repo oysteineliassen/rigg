@@ -1,0 +1,10 @@
+.gradle/
+build/
+.kotlin/
+local.properties
+.idea/
+*.iml
+captures/
+*.apk
+# Felles debug-nøkkel (ikke hemmelig), så APK-er fra GitHub og Android Studio kan installeres over hverandre
+!app/oppdragsliste-debug.keystore
