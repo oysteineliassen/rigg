@@ -19,6 +19,11 @@ private val maneder = listOf(
     "juli", "august", "september", "oktober", "november", "desember",
 )
 
+/**
+ * «SAK : 42154 - TITTEL». Tekstgjenkjenningen setter av og til mellomrom inne i tallet («421 54»), så sifre med
+ * enkle mellomrom før bindestreken regnes som ett nummer.
+ */
+private val sakMedStrekRegex = Regex("""^\s*SAK\s*[:;.]?\s*((?:\d ?){3,8})\s*[-–—]\s*(.*)$""", RegexOption.IGNORE_CASE)
 private val sakRegex = Regex("""^\s*SAK\s*[:;.]?\s*(\d{3,7})\s*[-–—]?\s*(.*)$""", RegexOption.IGNORE_CASE)
 /** Ordre uten saksnummer har P-nummer: «P134940 KUNDE : PROSJEKT». */
 private val pRegex = Regex("""^\s*(P\d{6})\b\s*[-–:]?\s*(.*)$""")
@@ -146,10 +151,10 @@ fun tolkOrdreliste(linjer: List<String>): List<TolketOrdre> {
             continue
         }
 
-        val sak = sakRegex.matchEntire(linje) ?: pRegex.matchEntire(linje)
+        val sak = sakMedStrekRegex.matchEntire(linje) ?: sakRegex.matchEntire(linje) ?: pRegex.matchEntire(linje)
         if (sak != null) {
             avslutt()
-            saksnr = sak.groupValues[1]
+            saksnr = sak.groupValues[1].filter { !it.isWhitespace() }
             sakDato = dato
             sakTid = ventendeTid
             ventendeTid = null

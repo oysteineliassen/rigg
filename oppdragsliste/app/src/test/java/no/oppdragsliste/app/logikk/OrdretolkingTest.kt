@@ -174,4 +174,22 @@ class OrdretolkingTest {
         assertEquals("P134940", p.nummerTekst)
         assertEquals(listOf("38129", "P134940"), listOf(p, sak).sortedBy { it.saksnrTall }.map { it.saksnr })
     }
+
+    @Test
+    fun `mellomrom inne i saksnummeret`() {
+        val linjer = listOf(
+            "SAK : 421 54 - REK- M11-15 - LUKKE AVVIK",
+            "MG11 : Markensgate 11 4611 KRISTIANSAND S", "NORWAY , Kunde : K103849 Mosvold", "Eiendomservice AS", "Pågår",
+            "SAK : 43098 - PRESTEKRAGEVEIEN 54,", "INSTALLASJON AV ELBIL LADER",
+            ": Prestekrageveien 54 KRISTIANSAND S 4634 Norge ,", "Kunde : K112827 Johan Øen", "Pågår",
+        )
+        val saker = tolkOrdreliste(linjer)
+        assertEquals(listOf("42154", "43098"), saker.map { it.saksnr })
+        assertEquals("REK- M11-15 - LUKKE AVVIK", saker[0].tittel)
+        assertEquals("Markensgate 11 4611 KRISTIANSAND S", saker[0].adresse)
+        assertEquals("Mosvold Eiendomservice AS", saker[0].kunde)
+        assertEquals("PRESTEKRAGEVEIEN 54, INSTALLASJON AV ELBIL LADER", saker[1].tittel)
+        assertEquals("Prestekrageveien 54 KRISTIANSAND S 4634", saker[1].adresse)
+        assertEquals("Johan Øen", saker[1].kunde)
+    }
 }
