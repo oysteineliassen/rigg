@@ -524,17 +524,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _ordreMelding.value = "Du har et påbegynt oppdrag. Lagre eller tøm det først."
             return
         }
-        val (tid, slutt) = o.tid?.split("–")?.mapNotNull { runCatching { LocalTime.parse(it.trim()) }.getOrNull() }
-            ?.let { it.getOrNull(0) to it.getOrNull(1) } ?: (null to null)
         sett(
             Skjema(
-                prioritet = if (o.dato != null) Prioritet.AVTALE else innstillinger.na.standardPrioritet,
+                prioritet = innstillinger.na.standardPrioritet,
                 beskrivelse = "SAK ${o.saksnr} – ${o.tittel}".trim(),
                 kunde = o.kunde,
                 adresse = o.adresse,
-                dato = o.dato,
-                tid = if (o.dato != null) tid else null,
-                sluttid = if (o.dato != null && tid != null) slutt else null,
             ),
         )
         fyllFraKjente()

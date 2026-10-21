@@ -72,6 +72,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import no.oppdragsliste.app.data.Ordre
+import no.oppdragsliste.app.data.saksnrTall
 import no.oppdragsliste.app.logikk.formaterDato
 import java.time.LocalDate
 
@@ -116,11 +117,12 @@ fun OrdreSkjerm(
         val tekst = listOf(o.saksnr, o.tittel, o.adresse, o.kunde, o.kundenr).joinToString(" ").lowercase()
         ord.all { tekst.contains(it) }
     }
-    val faktureres = treff.filter { it.utfort && !it.fakturert }.sortedByDescending { it.utfortDato }
-    val ikkeUtfort = treff.filter { !it.utfort }.sortedWith(compareBy<Ordre, LocalDate?>(nullsLast()) { it.dato }.thenBy { it.saksnr })
-    val arkiv = treff.filter { it.fakturert && it.utfort }.sortedByDescending { it.fakturertDato }
-    // Fakturert men ikke utført (uvanlig): vises sammen med de som ikke er utført.
-    val fakturertIkkeUtfort = treff.filter { it.fakturert && !it.utfort }
+    // Alt sorteres på saksnummer.
+    val sortert = treff.sortedBy { it.saksnrTall }
+    val faktureres = sortert.filter { it.utfort && !it.fakturert }
+    // Ikke utført (også det uvanlige tilfellet fakturert, men ikke utført).
+    val ikkeUtfort = sortert.filter { !it.utfort }
+    val arkiv = sortert.filter { it.fakturert && it.utfort }
 
     Scaffold(
         topBar = {
@@ -191,7 +193,7 @@ fun OrdreSkjerm(
                 }
             }
             seksjon("faktureres", "Må faktureres", faktureres, Color(0xFFEF6C00))
-            seksjon("ikke", "Ikke utført", ikkeUtfort + fakturertIkkeUtfort, Color(0xFF1976D2))
+            seksjon("ikke", "Ikke utført", ikkeUtfort, Color(0xFF1976D2))
             if (arkiv.isNotEmpty()) {
                 item(key = "arkiv") {
                     TextButton(onClick = { visArkiv = !visArkiv }, modifier = Modifier.fillMaxWidth()) {
@@ -259,14 +261,7 @@ private fun OrdreKort(
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("SAK ${o.saksnr}", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                val nar = listOfNotNull(o.dato?.let { formaterDato(it, LocalDate.now()) }, o.tid).joinToString(" ")
-                if (nar.isNotBlank()) {
-                    Spacer(Modifier.width(8.dp))
-                    Text(nar, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
+            Text("SAK ${o.saksnr}", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
             Text(
                 o.tittel.ifBlank { "(uten tittel)" },
                 style = MaterialTheme.typography.titleSmall,

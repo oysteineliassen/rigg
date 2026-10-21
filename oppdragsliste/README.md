@@ -107,8 +107,8 @@ commits i git, så en nyere versjon er alltid høyere.
   påminnelser, morgendagens avtaler og det som haster. Gjort liten (2×1) viser den bare oppsummering og «+».
 - **Ordre** (fanen nederst): oversikt over saker fra ordrelisten som er utført og må faktureres. Ta skjermbilde
   av ordrelisten og del det til Oppdragsliste (eller «Importer skjermbilde» i fanen; flere bilder går fint).
-  Teksten leses av på telefonen (ML Kit, uten nett), og saksnummer, tittel, adresse, kunde, dato og tid hentes
-  ut. Samme sak to ganger blir én; «Admin oppgave/Admin task» ignoreres. Kryss av «Utført» og «Fakturert»;
+  Teksten leses av på telefonen (ML Kit, uten nett), og saksnummer, tittel, adresse og kunde hentes ut
+  (dato og tid fra ordrelisten brukes ikke; sakene sorteres på saksnummer). Samme sak to ganger blir én; «Admin oppgave/Admin task» ignoreres. Kryss av «Utført» og «Fakturert»;
   «Må faktureres» ligger øverst, og saker som er begge deler, går til et sammenfoldet arkiv. Fanen viser hvor
   mange som venter på fakturering. Fra en sak kan du endre den for hånd, lage et oppdrag eller åpne adressen
   i kartet; «Legg til manuelt» lager en sak uten skjermbilde. En sak som leses helt (med status) retter opp

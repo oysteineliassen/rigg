@@ -54,10 +54,14 @@ fun slaSammen(eksisterende: Ordre?, ny: TolketOrdre): Ordre {
         adresse = velg(base.adresse, ny.adresse),
         kundenr = velg(base.kundenr, ny.kundenr),
         kunde = velg(base.kunde, ny.kunde),
-        dato = if (hel || base.dato == null) ny.dato ?: base.dato else base.dato,
-        tid = if (hel || base.tid == null) ny.tid ?: base.tid else base.tid,
+        // Dato og tid fra ordrelisten brukes ikke (sakene sorteres på saksnummer).
+        dato = null,
+        tid = null,
     )
 }
+
+/** Saksnummer som tall, for sortering (ukjent format sist). */
+val Ordre.saksnrTall: Long get() = saksnr.filter { it.isDigit() }.toLongOrNull() ?: Long.MAX_VALUE
 
 @Dao
 interface OrdreDao {

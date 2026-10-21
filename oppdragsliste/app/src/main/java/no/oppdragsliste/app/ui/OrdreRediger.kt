@@ -48,10 +48,7 @@ fun OrdreRedigerDialog(ordre: Ordre, onLagre: (Ordre) -> Unit, onLukk: () -> Uni
     var kunde by rememberSaveable { mutableStateOf(ordre.kunde) }
     var kundenr by rememberSaveable { mutableStateOf(ordre.kundenr) }
     var adresse by rememberSaveable { mutableStateOf(ordre.adresse) }
-    var dato by rememberSaveable { mutableStateOf(ordre.dato) }
-    var tid by rememberSaveable { mutableStateOf(ordre.tid.orEmpty()) }
     var visFeil by rememberSaveable { mutableStateOf(false) }
-    var velgDato by rememberSaveable { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onLukk,
@@ -81,21 +78,6 @@ fun OrdreRedigerDialog(ordre: Ordre, onLagre: (Ordre) -> Unit, onLukk: () -> Uni
                 OutlinedTextField(value = kunde, onValueChange = { kunde = it }, label = { Text("Kunde") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = kundenr, onValueChange = { kundenr = it }, label = { Text("Kundenummer") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = adresse, onValueChange = { adresse = it }, label = { Text("Adresse") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedButton(onClick = { velgDato = true }, modifier = Modifier.weight(1f)) {
-                        Icon(Icons.Outlined.Event, null)
-                        Text("  " + (dato?.let { formaterDato(it, LocalDate.now()) } ?: "Dato"))
-                    }
-                    if (dato != null) IconButton(onClick = { dato = null }) { Icon(Icons.Outlined.Close, "Fjern dato") }
-                }
-                OutlinedTextField(
-                    value = tid,
-                    onValueChange = { tid = it },
-                    label = { Text("Tid") },
-                    placeholder = { Text("F.eks. 07:00–15:00") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
             }
         },
         confirmButton = {
@@ -106,7 +88,7 @@ fun OrdreRedigerDialog(ordre: Ordre, onLagre: (Ordre) -> Unit, onLukk: () -> Uni
                     onLagre(
                         ordre.copy(
                             saksnr = saksnr.trim(), tittel = tittel.trim(), kunde = kunde.trim(), kundenr = kundenr.trim(),
-                            adresse = adresse.trim(), dato = dato, tid = tid.trim().replace('-', '–').ifBlank { null },
+                            adresse = adresse.trim(), dato = null, tid = null,
                         ),
                     )
                 }
@@ -114,19 +96,4 @@ fun OrdreRedigerDialog(ordre: Ordre, onLagre: (Ordre) -> Unit, onLukk: () -> Uni
         },
         dismissButton = { TextButton(onClick = onLukk) { Text("Avbryt") } },
     )
-
-    if (velgDato) {
-        val start = (dato ?: LocalDate.now()).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
-        val tilstand = rememberDatePickerState(initialSelectedDateMillis = start)
-        DatePickerDialog(
-            onDismissRequest = { velgDato = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    tilstand.selectedDateMillis?.let { dato = Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate() }
-                    velgDato = false
-                }) { Text("OK") }
-            },
-            dismissButton = { TextButton(onClick = { velgDato = false }) { Text("Avbryt") } },
-        ) { DatePicker(state = tilstand) }
-    }
 }
