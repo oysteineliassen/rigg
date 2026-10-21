@@ -14,9 +14,17 @@ import kotlinx.coroutines.tasks.await
 suspend fun lesTekst(context: Context, bilde: Uri): List<String> {
     val gjenkjenner = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
     try {
-        val resultat = gjenkjenner.process(InputImage.fromFilePath(context, bilde)).await()
+        val bildet = InputImage.fromFilePath(context, bilde)
+        val resultat = gjenkjenner.process(bildet).await()
+        val hoyde = bildet.height
         return resultat.textBlocks
             .flatMap { blokk -> blokk.lines }
+            // Linjer helt nederst ligger ofte halvveis bak nettleserens bunnlinje og blir feillest; de tas
+            // med fra neste skjermbilde i stedet. Øverst er statuslinjen.
+            .filter { l ->
+                val boks = l.boundingBox ?: return@filter true
+                hoyde <= 0 || (boks.bottom < hoyde * 0.885 && boks.top > hoyde * 0.03)
+            }
             // Ovenfra og ned; linjer på omtrent samme høyde fra venstre mot høyre.
             .sortedWith(compareBy({ (it.boundingBox?.top ?: 0) / 12 }, { it.boundingBox?.left ?: 0 }))
             .map { it.text }

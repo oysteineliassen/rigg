@@ -107,4 +107,31 @@ class OrdretolkingTest {
         // Admin oppgave med saksnummer hoppes også over.
         assertEquals(emptyList<TolketOrdre>(), tolkOrdreliste(listOf("SAK : 999 - ADMIN TASK", "Pågår")))
     }
+
+    @Test
+    fun `fanetelleren og tiden til admin oppgave blandes ikke inn`() {
+        val linjer = listOf(
+            "Middels", "03:00–04:00", "ADMIN OPPGAVE", "Ikke Startet",
+            "SAK : 46257 - MES - MAGNUS BARFOTSVEI 9 -", "LUKKE AVVIK", "86",
+            ": Magnus Barfots vei 9 4633 KRISTIANSAND S", "NORWAY , Kunde : K103849 Mosvold Eiendomservice AS", "86", "Pågår",
+        )
+        val sak = tolkOrdreliste(linjer).single()
+        assertEquals("MES - MAGNUS BARFOTSVEI 9 - LUKKE AVVIK", sak.tittel)
+        assertEquals("Mosvold Eiendomservice AS", sak.kunde)
+        assertEquals(null, sak.tid)
+    }
+
+    @Test
+    fun `hel sak vinner over kuttet sak med feillest tekst`() {
+        val kuttet = TolketOrdre("46257", "MES - LUKKE AVVIK", adresse = "Magnus Barfots vei 9 4633 KRISTIANSAND S NODALAV Vnd 10ooANMaarald")
+        val hel = TolketOrdre("46257", "MES - LUKKE AVVIK", adresse = "Magnus Barfots vei 9 4633 KRISTIANSAND S", kunde = "Mosvold", status = "Pågår")
+        assertEquals("Magnus Barfots vei 9 4633 KRISTIANSAND S", slaSammenTolket(kuttet, hel).adresse)
+        assertEquals("Magnus Barfots vei 9 4633 KRISTIANSAND S", slaSammenTolket(hel, kuttet).adresse)
+        // Lagret sak rettes opp av en hel lesing, men ikke ødelagt av en kuttet.
+        val lagret = no.oppdragsliste.app.data.slaSammen(null, kuttet).copy(utfort = true)
+        val rettet = no.oppdragsliste.app.data.slaSammen(lagret, hel)
+        assertEquals("Magnus Barfots vei 9 4633 KRISTIANSAND S", rettet.adresse)
+        assertEquals(true, rettet.utfort)
+        assertEquals("Magnus Barfots vei 9 4633 KRISTIANSAND S", no.oppdragsliste.app.data.slaSammen(rettet, kuttet).adresse)
+    }
 }

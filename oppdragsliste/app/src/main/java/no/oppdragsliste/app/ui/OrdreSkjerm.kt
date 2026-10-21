@@ -24,7 +24,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.AddTask
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.ExpandLess
@@ -91,7 +93,10 @@ fun OrdreSkjerm(
     onFakturert: (Ordre, Boolean) -> Unit,
     onLagOppdrag: (Ordre) -> Unit,
     onSlett: (Ordre) -> Unit,
+    onLagreManuelt: (Ordre) -> Unit,
 ) {
+    // Sak som endres (eller ny, id 0) i dialogen.
+    var redigeres by remember { mutableStateOf<Ordre?>(null) }
     val velgBilder = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(10)) { uris ->
         onImporter(uris)
     }
@@ -121,6 +126,13 @@ fun OrdreSkjerm(
         topBar = {
             TopAppBar(
                 title = { Text("Ordre", fontWeight = FontWeight.SemiBold) },
+                actions = {
+                    TextButton(onClick = { redigeres = Ordre(saksnr = "") }) {
+                        Icon(Icons.Outlined.Add, null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Legg til manuelt")
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
             )
         },
@@ -172,6 +184,7 @@ fun OrdreSkjerm(
                         onUtfort = { onUtfort(o, it) },
                         onFakturert = { onFakturert(o, it) },
                         onLagOppdrag = { onLagOppdrag(o) },
+                        onEndre = { redigeres = o },
                         onSlett = { onSlett(o); utvidet = null },
                         modifier = Modifier.animateItem(),
                     )
@@ -194,6 +207,7 @@ fun OrdreSkjerm(
                             onUtfort = { onUtfort(o, it) },
                             onFakturert = { onFakturert(o, it) },
                             onLagOppdrag = { onLagOppdrag(o) },
+                            onEndre = { redigeres = o },
                             onSlett = { onSlett(o); utvidet = null },
                             modifier = Modifier.animateItem(),
                         )
@@ -204,6 +218,13 @@ fun OrdreSkjerm(
     }
 
     if (import != null) OrdreImportDialog(import, onBekreftImport, onAvbrytImport)
+    redigeres?.let { o ->
+        OrdreRedigerDialog(
+            ordre = o,
+            onLagre = { ny -> onLagreManuelt(ny); redigeres = null },
+            onLukk = { redigeres = null },
+        )
+    }
 }
 
 @Composable
@@ -224,6 +245,7 @@ private fun OrdreKort(
     onUtfort: (Boolean) -> Unit,
     onFakturert: (Boolean) -> Unit,
     onLagOppdrag: () -> Unit,
+    onEndre: () -> Unit,
     onSlett: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -285,6 +307,11 @@ private fun OrdreKort(
                                     Spacer(Modifier.width(6.dp))
                                     Text("Vis i kart")
                                 }
+                            }
+                            FilledTonalButton(onClick = onEndre) {
+                                Icon(Icons.Outlined.Edit, null, Modifier.size(18.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("Endre")
                             }
                             FilledTonalButton(onClick = onLagOppdrag) {
                                 Icon(Icons.Outlined.AddTask, null, Modifier.size(18.dp))

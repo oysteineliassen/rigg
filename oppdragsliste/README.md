@@ -110,7 +110,9 @@ commits i git, så en nyere versjon er alltid høyere.
   Teksten leses av på telefonen (ML Kit, uten nett), og saksnummer, tittel, adresse, kunde, dato og tid hentes
   ut. Samme sak to ganger blir én; «Admin oppgave/Admin task» ignoreres. Kryss av «Utført» og «Fakturert»;
   «Må faktureres» ligger øverst, og saker som er begge deler, går til et sammenfoldet arkiv. Fanen viser hvor
-  mange som venter på fakturering. Fra en sak kan du lage et oppdrag eller åpne adressen i kartet.
+  mange som venter på fakturering. Fra en sak kan du endre den for hånd, lage et oppdrag eller åpne adressen
+  i kartet; «Legg til manuelt» lager en sak uten skjermbilde. En sak som leses helt (med status) retter opp
+  tidligere feillesing; tekst helt nederst i bildet (bak nettleserens bunnlinje) ignoreres.
 - **Sikkerhetskopi:** eksport/import av alle oppdrag som JSON (Innstillinger > Sikkerhetskopi).
   Import hopper over oppdrag som allerede finnes.
 

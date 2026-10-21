@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
@@ -140,7 +141,8 @@ class MainActivity : ComponentActivity() {
                         Box(
                             Modifier
                                 .padding(bottom = fanePadding.calculateBottomPadding())
-                                .consumeWindowInsets(fanePadding),
+                                // Bare bunnen (fanelinjen); toppen trenger skjermene selv for statuslinjen.
+                                .consumeWindowInsets(PaddingValues(bottom = fanePadding.calculateBottomPadding())),
                         ) {
                     if (fane == Fane.ORDRE) {
                         BackHandler { vm.visFane(Fane.OPPDRAG) }
@@ -156,6 +158,7 @@ class MainActivity : ComponentActivity() {
                             onFakturert = { o, b -> vm.settOrdreFakturert(o, b) },
                             onLagOppdrag = vm::lagOppdragFraOrdre,
                             onSlett = { vm.slettOrdre(it) },
+                            onLagreManuelt = { vm.lagreOrdreManuelt(it) },
                         )
                     } else {
                     ListeSkjerm(

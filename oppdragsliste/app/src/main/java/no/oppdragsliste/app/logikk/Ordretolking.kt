@@ -31,8 +31,13 @@ private val adminRegex = Regex("""\bADMIN\s*(OPPGAVE|TASK)\b""", RegexOption.IGN
 private val prioritetRegex = Regex("""^(lav|middels|høy|hoy|kritisk|akutt)$""")
 private val kundeRegex = Regex("""Kunde\s*[:;]?\s*(K\d+)?\s*(.*)$""", RegexOption.IGNORE_CASE)
 
-/** Samme sak lest fra to bilder: behold det lengste av hvert felt (en sak kan være kuttet av i det ene). */
+/**
+ * Samme sak lest fra to bilder. En sak som ble lest helt (med status nederst) er til å stole på og vinner;
+ * en som er kuttet av, kan inneholde feillest tekst fra kanten av bildet og brukes bare til å fylle hull.
+ */
 fun slaSammenTolket(a: TolketOrdre, b: TolketOrdre): TolketOrdre {
+    if (a.status != null && b.status == null) return fyllHull(a, b)
+    if (b.status != null && a.status == null) return fyllHull(b, a)
     fun lengst(x: String, y: String) = if (y.length > x.length) y else x
     return a.copy(
         tittel = lengst(a.tittel, b.tittel),
@@ -44,6 +49,16 @@ fun slaSammenTolket(a: TolketOrdre, b: TolketOrdre): TolketOrdre {
         status = a.status ?: b.status,
     )
 }
+
+/** [hel] med tomme felt fylt fra [annen]. */
+private fun fyllHull(hel: TolketOrdre, annen: TolketOrdre) = hel.copy(
+    tittel = hel.tittel.ifBlank { annen.tittel },
+    adresse = hel.adresse.ifBlank { annen.adresse },
+    kundenr = hel.kundenr.ifBlank { annen.kundenr },
+    kunde = hel.kunde.ifBlank { annen.kunde },
+    dato = hel.dato ?: annen.dato,
+    tid = hel.tid ?: annen.tid,
+)
 
 /**
  * Leser saker ut av teksten i et skjermbilde av ordrelisten (linje for linje, ovenfra og ned).
@@ -103,10 +118,13 @@ fun tolkOrdreliste(linjer: List<String>): List<TolketOrdre> {
     for (rå in linjer) {
         val linje = rå.trim().replace('—', '–')
         if (linje.isEmpty()) continue
+        // Løse tall på 1–3 sifre (f.eks. fanetelleren i nettleseren, «86») hører ikke til noen sak.
+        if (linje.matches(Regex("""\d{1,3}"""))) continue
 
         val datoTreff = datoRegex.matchEntire(linje.lowercase())
         if (datoTreff != null) {
             avslutt()
+            ventendeTid = null // tiden står under datooverskriften, så en tid fra før gjelder ikke
             val mnd = maneder.indexOf(datoTreff.groupValues[3].lowercase())
             dato = if (mnd >= 0) {
                 runCatching { LocalDate.of(datoTreff.groupValues[4].toInt(), mnd + 1, datoTreff.groupValues[2].toInt()) }.getOrNull()
@@ -149,9 +167,11 @@ fun tolkOrdreliste(linjer: List<String>): List<TolketOrdre> {
             }
             continue
         }
-        // «ADMIN OPPGAVE» uten saksnummer: en egen oppføring som avslutter forrige sak og ignoreres.
-        if (adminRegex.containsMatchIn(linje) && saksnr != null && !iTittel) {
+        // «ADMIN OPPGAVE» uten saksnummer: en egen oppføring som avslutter forrige sak og ignoreres,
+        // sammen med tiden som sto over den.
+        if (adminRegex.containsMatchIn(linje) && (saksnr == null || !iTittel)) {
             avslutt()
+            ventendeTid = null
             continue
         }
         if (saksnr == null) continue // rester av en sak som er kuttet av i toppen, eller admin oppgave

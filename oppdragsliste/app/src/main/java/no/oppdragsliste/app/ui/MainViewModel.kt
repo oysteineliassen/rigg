@@ -504,6 +504,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun slettOrdre(o: Ordre) = viewModelScope.launch { repo.slettOrdre(o) }
 
+    /** Lagrer en sak som er endret for hånd (eller lagt inn manuelt, id 0). Saksnummeret må være unikt. */
+    fun lagreOrdreManuelt(o: Ordre) = viewModelScope.launch {
+        try {
+            if (o.id == 0L) repo.settInnOrdre(listOf(o)) else repo.lagreOrdre(o)
+            _ordreMelding.value = "SAK ${o.saksnr} er lagret"
+        } catch (e: android.database.sqlite.SQLiteConstraintException) {
+            _ordreMelding.value = "SAK ${o.saksnr} finnes allerede – ikke lagret"
+        }
+    }
+
     /** Lager et oppdrag fra en sak (beskrivelse, kunde, adresse, dato og tid fylt inn). */
     fun lagOppdragFraOrdre(o: Ordre) {
         _fane.value = Fane.OPPDRAG

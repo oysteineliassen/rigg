@@ -37,19 +37,25 @@ data class Ordre(
 }
 
 /**
- * Slår en sak fra et nytt skjermbilde sammen med det vi har: tomme felt fylles inn, og lengre tekst erstatter
- * kortere (en sak kan være kuttet av nederst i ett bilde og hel i det neste). Avkrysningene beholdes.
+ * Slår en sak fra et nytt skjermbilde sammen med det vi har. Ble saken lest helt (med status nederst), erstatter
+ * den det som var lagret, så feillest tekst fra et tidligere bilde rettes opp. En sak som er kuttet av i bildet,
+ * fyller bare tomme felt. Avkrysningene beholdes.
  */
 fun slaSammen(eksisterende: Ordre?, ny: TolketOrdre): Ordre {
-    fun velg(gammel: String, nyTekst: String) = if (nyTekst.length > gammel.length) nyTekst else gammel
+    val hel = ny.status != null
+    fun velg(gammel: String, nyTekst: String) = when {
+        nyTekst.isBlank() -> gammel
+        hel || gammel.isBlank() -> nyTekst
+        else -> gammel
+    }
     val base = eksisterende ?: Ordre(saksnr = ny.saksnr)
     return base.copy(
         tittel = velg(base.tittel, ny.tittel),
         adresse = velg(base.adresse, ny.adresse),
         kundenr = velg(base.kundenr, ny.kundenr),
         kunde = velg(base.kunde, ny.kunde),
-        dato = ny.dato ?: base.dato,
-        tid = ny.tid ?: base.tid,
+        dato = if (hel || base.dato == null) ny.dato ?: base.dato else base.dato,
+        tid = if (hel || base.tid == null) ny.tid ?: base.tid else base.tid,
     )
 }
 
