@@ -158,8 +158,14 @@ fun BigButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, 
 
 /** Øvelsesfiguren i en avrundet flis, brukt i lister og kort. */
 @Composable
-fun ExerciseTile(exercise: Exercise, size: Dp = 48.dp, animate: Boolean = false) =
-    FigureTile(illustrationFor(exercise), size, animate)
+fun ExerciseTile(exercise: Exercise, size: Dp = 48.dp, animate: Boolean = false) {
+    if (Figures3d.has(exercise.id)) {
+        // 3D-figuren har sin egen (mørke) bakgrunn og fyller hele flisen.
+        Figure3d(exercise.id, Modifier.size(size).clip(RoundedCornerShape(size / 3.5f)), animate)
+    } else {
+        FigureTile(illustrationFor(exercise), size, animate)
+    }
+}
 
 /** Som [ExerciseTile], men for en figur direkte (oppvarmingen). */
 @Composable

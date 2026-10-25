@@ -12,10 +12,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.lerp
@@ -3495,7 +3497,13 @@ fun ExerciseIllustration(
     strokeColor: Color = MaterialTheme.colorScheme.onSurface,
     accentColor: Color = MaterialTheme.colorScheme.primary,
     animate: Boolean = false,
-) = ExerciseIllustration(illustrationFor(exercise), modifier, strokeColor, accentColor, animate)
+) {
+    if (Figures3d.has(exercise.id)) {
+        Figure3d(exercise.id, modifier.clip(RoundedCornerShape(20.dp)), animate)
+    } else {
+        ExerciseIllustration(illustrationFor(exercise), modifier, strokeColor, accentColor, animate)
+    }
+}
 
 /** Samme som over, men for en figur direkte (f.eks. oppvarmingsøvelser som ikke er i øvelsesbiblioteket). */
 @Composable
@@ -3618,6 +3626,10 @@ private fun DrawScope.drawSolved(pose: Pose, solved: Solved, figureAlpha: Float,
 /** Liten sirkulær thumbnail med illustrasjonen, til bruk i lister. */
 @Composable
 fun ExerciseThumbnail(exercise: Exercise, size: Dp = 44.dp) {
+    if (Figures3d.has(exercise.id)) {
+        Figure3d(exercise.id, Modifier.size(size).clip(CircleShape))
+        return
+    }
     Box(
         modifier = Modifier
             .size(size)
