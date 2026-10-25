@@ -146,7 +146,9 @@ for vi, v in enumerate(V):
     t_ua, _ = limb_t(v, jh(f"upperarm01.{S}"), jh(f"lowerarm01.{S}"))
     near_sh = (v - jh(f"upperarm01.{S}")).length
     # Deltamuskelen: kula ytterst på skulderen (utside og overside), ikke rundt hele armen
-    cap = n.dot(Vector((sx, 0.0, 0.55)).normalized())
+    # (fremre, midtre og bakre del, så ikke en stripe foran mangler når armen løftes over hodet)
+    cap = max(n.dot(Vector((sx, 0.0, 0.55)).normalized()), n.dot(Vector((0.6 * sx, -1.0, 0.35)).normalized()),
+              n.dot(Vector((0.6 * sx, 1.0, 0.35)).normalized()))
     MUSCLES["SHOULDERS"][vi] = min(1, up * 1.4) * (1 - ramp(near_sh, 0.075, 0.11)) * ramp(cap, 0.1, 0.45) * \
         (1 - ramp(v.z, z_clav + 0.03, z_clav + 0.06))
     # Biceps/triceps: muskelbuk på for-/baksiden av overarmen, smal mot albuen
@@ -221,6 +223,40 @@ for bone, lst in weights.items():
 mod = body.modifiers.new("skjelett", "ARMATURE")
 mod.object = arm
 mod.use_deform_preserve_volume = os.environ.get("DQ", "0") == "1"
+DQLOK = os.environ.get("DQLOK", "1") == "1"
+if DQLOK:
+    # Volumbevarende deformasjon bare rundt skulderleddet (ellers sveller overkroppen): andre skjelett-modifier
+    # i "multi"-modus som blandes inn etter en vertexgruppe.
+    vg = body.vertex_groups.new(name="skulder_dq")
+    for side in ("L", "R"):
+        hz = J[skel["bones"][f"upperarm01.{side}"]["head"]].z
+        sx = 1 if side == "L" else -1
+        for vi in wmap:
+            if V[vi].x * sx <= 0:
+                continue
+            w = ramp(bone_w(vi, f"clavicle.{side}", f"shoulder01.{side}", f"upperarm01.{side}"), 0.15, 0.5)
+            w *= ramp(V[vi].z, hz - 0.11, hz - 0.05)
+            if w > 0:
+                vg.add([vi], w, "REPLACE")
+    mod2 = body.modifiers.new("skjelett_dq", "ARMATURE")
+    mod2.object = arm
+    mod2.use_deform_preserve_volume = True
+    mod2.use_multi_modifier = True
+    mod2.vertex_group = "skulder_dq"
+# Glatter ut krøllene ved skulderen (relativt til hvileformen, så detaljene beholdes).
+CS = int(os.environ.get("CSMOOTH", 20))
+if CS:
+    vg = body.vertex_groups.new(name="skuldersmooth")
+    for vi in wmap:
+        w = min(1.0, 1.5 * bone_w(vi, "clavicle", "shoulder01", "upperarm01"))
+        if w > 0:
+            vg.add([vi], w, "REPLACE")
+    cs = body.modifiers.new("skulderglatt", "CORRECTIVE_SMOOTH")
+    cs.vertex_group = "skuldersmooth"
+    cs.iterations = CS
+    cs.smooth_type = "LENGTH_WEIGHTED"
+    cs.rest_source = "ORCO"
+    cs.use_pin_boundary = False
 body.parent = arm
 bpy.context.view_layer.objects.active = body
 bpy.ops.object.mode_set(mode="EDIT")
@@ -235,6 +271,10 @@ sub.render_levels = 2
 # Bare skjelettet trengs mens stillingen regnes ut; kroppen deformeres først ved rendering (raskere).
 mod.show_viewport = False
 sub.show_viewport = False
+if DQLOK:
+    mod2.show_viewport = False
+if CS:
+    cs.show_viewport = False
 
 PB = arm.pose.bones
 REST = {n: (arm_data.bones[n].head_local.copy(), arm_data.bones[n].tail_local.copy()) for n in arm_data.bones.keys()}
@@ -396,7 +436,7 @@ def grip(side, sx, c, r, n, f, elbow_hint):
 # Overarmen roteres litt utover når den løftes høyt (som i virkeligheten), så deltamuskelen legger seg over skulderen.
 TWIST = float(os.environ.get("TWIST", 20))
 # Hvor mye av armløftet kragebeinet og skulderen tar (resten tar overarmen). Kan prøves med SKULDERBLAD=...
-GIRDLE = [(b, float(k)) for b, k in (x.split(":") for x in os.environ.get("SKULDERBLAD", "clavicle:0.25,shoulder01:0.15").split(","))]
+GIRDLE = [(b, float(k)) for b, k in (x.split(":") for x in os.environ.get("SKULDERBLAD", "clavicle:0.15,shoulder01:0.35").split(","))]
 
 
 def inside(p, shapes):
@@ -543,7 +583,7 @@ def ex_db_shoulder_press(s):
         low = elbow0 + Vector((-0.015 * sx, 0, l2 + hand * 0.55))
         # Topp: strake armer, manualene nesten inntil hverandre over hodet. Målet ligger litt over det armen
         # rekker fra hvilestillingen, siden skulderen løftes med skulderbladet; armen strekkes da helt ut.
-        high = Vector((0.2 * sx, sh.y - 0.04, sh.z + (l1 + l2 + hand * 0.5) * 1.15))
+        high = Vector((0.2 * sx, sh.y - 0.04, sh.z + (l1 + l2 + hand * 0.5) * 1.3))
         c = low.lerp(high, e)
         at = grip(side, sx, c, HANDLE_R, Vector((0, -1, 0.1)), Vector((0, -0.1, 1)), Vector((sx, 0.2, -0.25)))
         db.place(at, X)
@@ -768,6 +808,9 @@ def check_arms():
     """Måler om armer og hender går inn i overkroppen (cm), for start, midt og slutt."""
     from mathutils.bvhtree import BVHTree
     mod.show_viewport = True
+    for m in body.modifiers:
+        if m.name in ("skjelett_dq", "skulderglatt"):
+            m.show_viewport = True
     ARMS = ("upperarm", "lowerarm", "wrist", "finger", "metacarpal")
     TORSO = ("spine", "breast", "clavicle", "pelvis", "root", "neck")
     for s in (0.0, 0.5, 1.0):
@@ -791,7 +834,9 @@ def check_arms():
                 worst = max(worst, depth)
         ev.to_mesh_clear()
         print(f"KOLLISJON {EX} s={s}: dypest {worst * 100:.1f} cm {by}")
-    mod.show_viewport = False
+    for m in body.modifiers:
+        if m.type != "SUBSURF":
+            m.show_viewport = False
 
 
 if os.environ.get("LEDD"):
