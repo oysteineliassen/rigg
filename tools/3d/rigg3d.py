@@ -851,6 +851,9 @@ elif not os.environ.get("BARE_OPPSETT"):
         # ANIM_STEG="1:2" rendrer bare hver andre ramme fra nr. 1 (f.eks. mellomrammene når antallet dobles).
         start, step = (int(x) for x in os.environ.get("ANIM_STEG", "0:1").split(":"))
         for k in range(start, NFRAMES, step):
+            # FORTSETT=1: hopp over rammer som allerede er rendret (f.eks. etter et avbrudd).
+            if os.environ.get("FORTSETT") and os.path.exists(os.path.join(OUT, f"anim_{k:02d}.png")):
+                continue
             s = (1 - math.cos(2 * math.pi * k / NFRAMES)) / 2
             shot(s, os.path.join(OUT, f"anim_{k:02d}.png"))
     else:
