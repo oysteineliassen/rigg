@@ -582,8 +582,9 @@ def ex_db_shoulder_press(s):
         elbow0 = sh + Vector((0.24 * sx, -0.07, -0.05))
         low = elbow0 + Vector((-0.015 * sx, 0, l2 + hand * 0.55))
         # Topp: strake armer, manualene nesten inntil hverandre over hodet. Målet ligger litt over det armen
-        # rekker fra hvilestillingen, siden skulderen løftes med skulderbladet; armen strekkes da helt ut.
-        high = Vector((0.2 * sx, sh.y - 0.04, sh.z + (l1 + l2 + hand * 0.5) * 1.3))
+        # rekker fra hvilestillingen, siden skulderen løftes med skulderbladet. Akkurat nok til at armen er (nesten)
+        # strak helt på toppen; for høyt mål gjør at armen strekkes for tidlig og står stille resten av løftet.
+        high = Vector((0.2 * sx, sh.y - 0.04, sh.z + (l1 + l2 + hand * 0.5) * 1.22))
         c = low.lerp(high, e)
         at = grip(side, sx, c, HANDLE_R, Vector((0, -1, 0.1)), Vector((0, -0.1, 1)), Vector((sx, 0.2, -0.25)))
         db.place(at, X)

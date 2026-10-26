@@ -10,22 +10,30 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Image
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlin.math.max
+import kotlin.math.roundToInt
 
 /**
  * Ferdigrendrede 3D-animasjoner (laget med tools/3d/lag_app.sh) for øvelsene som har fått dem. Resten bruker
@@ -43,7 +51,7 @@ object Figures3d {
 }
 
 /** Én repetisjon i millisekunder (litt roligere enn strekfigurene, siden figuren er mer detaljert). */
-private const val REP_MS_3D = 2600
+private const val REP_MS_3D = 3000
 
 /** Bildene i full størrelse (px). */
 private const val SOURCE_PX = 480
@@ -63,6 +71,7 @@ private fun loadFrame(context: Context, id: String, frame: Int, sample: Int): Im
     val bmp = runCatching {
         context.assets.open("figur3d/$id/%02d.webp".format(frame)).use { BitmapFactory.decodeStream(it, null, opts) }
     }.getOrNull() ?: return null
+    bmp.prepareToDraw() // lastes opp til grafikkortet i forkant, så første runde ikke hakker
     return bmp.asImageBitmap().also { cache.put(key, it) }
 }
 
@@ -83,27 +92,36 @@ fun Figure3d(exerciseId: String, modifier: Modifier = Modifier, animate: Boolean
         }
         if (frames.isEmpty()) return@BoxWithConstraints
         // Posisjonen i animasjonen som desimaltall: heltallsdelen er rammen, resten tones inn fra neste ramme.
-        val pos = if (animate && frames.size > 1) {
-            val transition = rememberInfiniteTransition(label = "figur3d")
-            val t by transition.animateFloat(
+        // Leses bare i tegnefasen, så figuren tegnes på nytt hver skjermoppdatering uten å bygges opp på nytt.
+        val pos: State<Float> = if (animate && frames.size > 1) {
+            rememberInfiniteTransition(label = "figur3d").animateFloat(
                 initialValue = 0f,
                 targetValue = frames.size.toFloat(),
                 animationSpec = infiniteRepeatable(tween(REP_MS_3D, easing = LinearEasing), RepeatMode.Restart),
                 label = "ramme",
             )
-            t
         } else {
-            0f
+            remember { mutableFloatStateOf(0f) }
         }
-        val index = pos.toInt() % frames.size
-        val fade = pos - pos.toInt()
-        Image(frames[index], contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-        // Myk overgang: bildene er ugjennomsiktige, så neste ramme oppå med gjennomsiktighet blander de to.
-        if (fade > 0.02f) {
-            Image(
-                frames[(index + 1) % frames.size], contentDescription = null, modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop, alpha = fade,
-            )
+        Canvas(Modifier.fillMaxSize().clipToBounds()) {
+            val p = pos.value
+            val index = p.toInt() % frames.size
+            val fade = p - p.toInt()
+            drawFrame(frames[index], 1f)
+            // Myk overgang: bildene er ugjennomsiktige, så neste ramme oppå med gjennomsiktighet blander de to.
+            if (fade > 0.02f) drawFrame(frames[(index + 1) % frames.size], fade)
         }
     }
+}
+
+/** Tegner en (kvadratisk) ramme sentrert og beskåret til hele flaten. */
+private fun DrawScope.drawFrame(img: ImageBitmap, alpha: Float) {
+    val side = max(size.width, size.height).roundToInt()
+    drawImage(
+        img,
+        srcSize = IntSize(img.width, img.height),
+        dstOffset = IntOffset(((size.width - side) / 2).roundToInt(), ((size.height - side) / 2).roundToInt()),
+        dstSize = IntSize(side, side),
+        alpha = alpha,
+    )
 }
