@@ -34,7 +34,7 @@ import kotlinx.coroutines.withContext
  */
 object Figures3d {
     private val IDS = setOf("goblet_squat", "db_shoulder_press", "db_curl", "rdl_db", "db_lunge", "db_lateral_raise")
-    const val FRAMES = 24
+    const val FRAMES = 48
 
     /** Bakgrunnen bildene er rendret på (samme som figurflisene i mørkt tema). */
     val background = Color(0xFF262523)
@@ -48,8 +48,8 @@ private const val REP_MS_3D = 2600
 /** Bildene i full størrelse (px). */
 private const val SOURCE_PX = 480
 
-// Dekodede rammer, nøkkel "øvelse/ramme/nedskalering". Ca. 40 MB holder et par animasjoner i full størrelse.
-private val cache = object : LruCache<String, ImageBitmap>(40 * 1024 * 1024) {
+// Dekodede rammer, nøkkel "øvelse/ramme/nedskalering". Ca. 64 MB holder et par animasjoner i full størrelse.
+private val cache = object : LruCache<String, ImageBitmap>(64 * 1024 * 1024) {
     override fun sizeOf(key: String, value: ImageBitmap) = value.width * value.height * 2
 }
 
@@ -68,7 +68,7 @@ private fun loadFrame(context: Context, id: String, frame: Int, sample: Int): Im
 
 /**
  * 3D-figuren for [exerciseId], fyller hele [modifier]-flaten. Stillbildet viser ytterstillingen; med [animate]
- * spilles hele repetisjonen i loop. Rammene dekodes i bakgrunnen, nedskalert til størrelsen de vises i.
+ * spilles hele repetisjonen i loop, med myk overgang mellom rammene. Rammene dekodes i bakgrunnen, nedskalert til størrelsen de vises i.
  */
 @Composable
 fun Figure3d(exerciseId: String, modifier: Modifier = Modifier, animate: Boolean = false) {
@@ -82,7 +82,8 @@ fun Figure3d(exerciseId: String, modifier: Modifier = Modifier, animate: Boolean
             value = withContext(Dispatchers.IO) { wanted.mapNotNull { loadFrame(context, exerciseId, it, sample) } }
         }
         if (frames.isEmpty()) return@BoxWithConstraints
-        val index = if (animate && frames.size > 1) {
+        // Posisjonen i animasjonen som desimaltall: heltallsdelen er rammen, resten tones inn fra neste ramme.
+        val pos = if (animate && frames.size > 1) {
             val transition = rememberInfiniteTransition(label = "figur3d")
             val t by transition.animateFloat(
                 initialValue = 0f,
@@ -90,10 +91,19 @@ fun Figure3d(exerciseId: String, modifier: Modifier = Modifier, animate: Boolean
                 animationSpec = infiniteRepeatable(tween(REP_MS_3D, easing = LinearEasing), RepeatMode.Restart),
                 label = "ramme",
             )
-            t.toInt().coerceIn(0, frames.lastIndex)
+            t
         } else {
-            0
+            0f
         }
+        val index = pos.toInt() % frames.size
+        val fade = pos - pos.toInt()
         Image(frames[index], contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        // Myk overgang: bildene er ugjennomsiktige, så neste ramme oppå med gjennomsiktighet blander de to.
+        if (fade > 0.02f) {
+            Image(
+                frames[(index + 1) % frames.size], contentDescription = null, modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop, alpha = fade,
+            )
+        }
     }
 }
