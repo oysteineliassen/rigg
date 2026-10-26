@@ -6,7 +6,7 @@ import glob, os, sys
 from PIL import Image
 
 SRC, DST = sys.argv[1], sys.argv[2]
-SIZE = 480
+SIZE = 420  # 96 rammer i full størrelse må få plass i minnet
 BG = (38, 37, 35, 255)  # surfaceVariant i mørkt tema (0xFF262523), så figuren glir inn i flisene
 
 frames = [Image.open(p).convert("RGBA") for p in sorted(glob.glob(os.path.join(SRC, "anim_*.png")))]

@@ -5,7 +5,7 @@ set -e
 HER=$(cd "$(dirname "$0")" && pwd)
 B=${B3D:-$HER/b3d}/bin/python
 TMP=${TMPDIR:-/tmp}/rigg3d_app
-N=48
+N=96
 OVELSER=${@:-goblet_squat db_shoulder_press db_curl rdl_db db_lunge db_lateral_raise}
 for E in $OVELSER; do
   mkdir -p "$TMP/$E"

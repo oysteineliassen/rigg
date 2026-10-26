@@ -42,7 +42,7 @@ import kotlin.math.roundToInt
  */
 object Figures3d {
     private val IDS = setOf("goblet_squat", "db_shoulder_press", "db_curl", "rdl_db", "db_lunge", "db_lateral_raise")
-    const val FRAMES = 48
+    const val FRAMES = 96
 
     /** Bakgrunnen bildene er rendret på (samme som figurflisene i mørkt tema). */
     val background = Color(0xFF262523)
@@ -54,10 +54,10 @@ object Figures3d {
 private const val REP_MS_3D = 3000
 
 /** Bildene i full størrelse (px). */
-private const val SOURCE_PX = 480
+private const val SOURCE_PX = 420
 
-// Dekodede rammer, nøkkel "øvelse/ramme/nedskalering". Ca. 64 MB holder et par animasjoner i full størrelse.
-private val cache = object : LruCache<String, ImageBitmap>(64 * 1024 * 1024) {
+// Dekodede rammer, nøkkel "øvelse/ramme/nedskalering". En animasjon i full størrelse er ca. 34 MB.
+private val cache = object : LruCache<String, ImageBitmap>(80 * 1024 * 1024) {
     override fun sizeOf(key: String, value: ImageBitmap) = value.width * value.height * 2
 }
 
@@ -77,7 +77,7 @@ private fun loadFrame(context: Context, id: String, frame: Int, sample: Int): Im
 
 /**
  * 3D-figuren for [exerciseId], fyller hele [modifier]-flaten. Stillbildet viser ytterstillingen; med [animate]
- * spilles hele repetisjonen i loop, med myk overgang mellom rammene. Rammene dekodes i bakgrunnen, nedskalert til størrelsen de vises i.
+ * spilles hele repetisjonen i loop. Rammene dekodes i bakgrunnen, nedskalert til størrelsen de vises i.
  */
 @Composable
 fun Figure3d(exerciseId: String, modifier: Modifier = Modifier, animate: Boolean = false) {
@@ -86,13 +86,20 @@ fun Figure3d(exerciseId: String, modifier: Modifier = Modifier, animate: Boolean
         val px = if (constraints.maxWidth == Constraints.Infinity) SOURCE_PX else constraints.maxWidth
         var sample = 1
         while (SOURCE_PX / (sample * 2) >= px) sample *= 2
-        val wanted = if (animate) (0 until Figures3d.FRAMES).toList() else listOf(Figures3d.FRAMES / 2)
+        // Animasjonen starter i startstillingen; stillbildet (i lister) viser ytterstillingen.
+        val first = if (animate) 0 else Figures3d.FRAMES / 2
         val frames by produceState<List<ImageBitmap>>(emptyList(), exerciseId, animate, sample) {
-            value = withContext(Dispatchers.IO) { wanted.mapNotNull { loadFrame(context, exerciseId, it, sample) } }
+            // Ett bilde først, så figuren vises med en gang; animasjonen starter når alle rammene er lest inn.
+            value = withContext(Dispatchers.IO) { listOfNotNull(loadFrame(context, exerciseId, first, sample)) }
+            if (animate) {
+                value = withContext(Dispatchers.IO) {
+                    (0 until Figures3d.FRAMES).mapNotNull { loadFrame(context, exerciseId, it, sample) }
+                }
+            }
         }
         if (frames.isEmpty()) return@BoxWithConstraints
-        // Posisjonen i animasjonen som desimaltall: heltallsdelen er rammen, resten tones inn fra neste ramme.
-        // Leses bare i tegnefasen, så figuren tegnes på nytt hver skjermoppdatering uten å bygges opp på nytt.
+        // Hvilken ramme som vises. Leses bare i tegnefasen, så figuren tegnes på nytt hver skjermoppdatering
+        // uten å bygges opp på nytt.
         val pos: State<Float> = if (animate && frames.size > 1) {
             rememberInfiniteTransition(label = "figur3d").animateFloat(
                 initialValue = 0f,
@@ -103,25 +110,20 @@ fun Figure3d(exerciseId: String, modifier: Modifier = Modifier, animate: Boolean
         } else {
             remember { mutableFloatStateOf(0f) }
         }
+        // Ingen overtoning mellom rammene: det ga dobbeltbilder når figuren beveger seg raskt. Mange rammer gir flyten.
         Canvas(Modifier.fillMaxSize().clipToBounds()) {
-            val p = pos.value
-            val index = p.toInt() % frames.size
-            val fade = p - p.toInt()
-            drawFrame(frames[index], 1f)
-            // Myk overgang: bildene er ugjennomsiktige, så neste ramme oppå med gjennomsiktighet blander de to.
-            if (fade > 0.02f) drawFrame(frames[(index + 1) % frames.size], fade)
+            drawFrame(frames[pos.value.toInt() % frames.size])
         }
     }
 }
 
 /** Tegner en (kvadratisk) ramme sentrert og beskåret til hele flaten. */
-private fun DrawScope.drawFrame(img: ImageBitmap, alpha: Float) {
+private fun DrawScope.drawFrame(img: ImageBitmap) {
     val side = max(size.width, size.height).roundToInt()
     drawImage(
         img,
         srcSize = IntSize(img.width, img.height),
         dstOffset = IntOffset(((size.width - side) / 2).roundToInt(), ((size.height - side) / 2).roundToInt()),
         dstSize = IntSize(side, side),
-        alpha = alpha,
     )
 }
