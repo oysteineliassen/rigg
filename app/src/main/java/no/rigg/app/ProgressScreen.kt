@@ -57,23 +57,31 @@ fun ProgressScreen(vm: AppViewModel) {
         }
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Trykk på tallene for hele historikken.
                 StatTile(
                     Modifier.weight(1f),
                     buildAnnotatedString { append(sessionsLastDays(vm.logs, today).toString()) },
                     tr("sessions, 30 days", "økter, 30 dager"),
+                    onClick = { vm.openHistory() },
                 )
                 StatTile(
                     Modifier.weight(1f),
                     buildAnnotatedString { append(weekStreak(vm.logs, today).toString()) },
                     tr("weeks in a row", "uker på rad"),
                     accent = true,
+                    onClick = { vm.openHistory() },
                 )
-                StatTile(Modifier.weight(1f), totalTimeText(totalMinutes(vm.logs)), tr("trained in total", "trent totalt"))
+                StatTile(
+                    Modifier.weight(1f), totalTimeText(totalMinutes(vm.logs)), tr("trained in total", "trent totalt"),
+                    onClick = { vm.openHistory() },
+                )
             }
             Spacer(Modifier.height(2.dp))
         }
         item {
-            WeeklyChart(sessionsPerWeek(vm.logs, today), goal = vm.profile.daysPerWeek)
+            WeeklyChart(sessionsPerWeek(vm.logs, today), goal = vm.profile.daysPerWeek) { back ->
+                vm.openHistory(week = weekStart(today).minusWeeks(back.toLong()))
+            }
             Spacer(Modifier.height(10.dp))
         }
         item { SectionLabel(tr("Exercises", "Øvelser")) }
@@ -148,10 +156,10 @@ private fun totalTimeText(minutes: Int): AnnotatedString {
 }
 
 @Composable
-private fun StatTile(modifier: Modifier, value: AnnotatedString, label: String, accent: Boolean = false) {
+private fun StatTile(modifier: Modifier, value: AnnotatedString, label: String, accent: Boolean = false, onClick: () -> Unit) {
     Column(
         modifier.clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceContainer)
-            .padding(horizontal = 12.dp, vertical = 14.dp),
+            .clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         Text(
@@ -164,9 +172,12 @@ private fun StatTile(modifier: Modifier, value: AnnotatedString, label: String, 
     }
 }
 
-/** Søyler for økter per uke. Uker som når målet er rust, denne uka er lys, resten grå. */
+/**
+ * Søyler for økter per uke. Uker som når målet er rust, denne uka er lys, resten grå.
+ * Trykk på en uke for loggen den uka: [onWeek] får hvor mange uker tilbake (0 = denne uka).
+ */
 @Composable
-private fun WeeklyChart(weeks: List<Pair<Int, Int>>, goal: Int) {
+private fun WeeklyChart(weeks: List<Pair<Int, Int>>, goal: Int, onWeek: (Int) -> Unit) {
     val colors = MaterialTheme.colorScheme
     val top = maxOf(goal, weeks.maxOfOrNull { it.second } ?: 0, 1)
     Column(
@@ -177,8 +188,9 @@ private fun WeeklyChart(weeks: List<Pair<Int, Int>>, goal: Int) {
             Text(tr("Sessions per week", "Økter per uke"), style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
             Text(tr("goal $goal", "mål $goal"), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
         }
-        Row(Modifier.fillMaxWidth().height(96.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Bottom) {
-            weeks.forEachIndexed { i, (_, count) ->
+        // Hver uke er én trykkbar kolonne: søyla og ukenummeret under.
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            weeks.forEachIndexed { i, (week, count) ->
                 val current = i == weeks.lastIndex
                 val color = when {
                     current -> colors.onSurface
@@ -186,23 +198,26 @@ private fun WeeklyChart(weeks: List<Pair<Int, Int>>, goal: Int) {
                     else -> colors.outline
                 }
                 val fraction = if (count == 0) 0.04f else count.toFloat() / top
-                Box(
-                    Modifier.weight(1f).fillMaxHeight(fraction).clip(RoundedCornerShape(6.dp))
-                        .background(if (count == 0) colors.outlineVariant else color),
-                )
-            }
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            weeks.forEachIndexed { i, (week, _) ->
-                val current = i == weeks.lastIndex
-                Text(
-                    week.toString(),
-                    Modifier.weight(1f),
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = if (current) FontWeight.SemiBold else FontWeight.Normal,
-                    color = if (current) colors.onSurface else colors.onSurfaceVariant.copy(alpha = 0.75f),
-                    textAlign = TextAlign.Center,
-                )
+                Column(
+                    Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).clickable { onWeek(weeks.lastIndex - i) }
+                        .padding(horizontal = 3.dp, vertical = 2.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Box(Modifier.fillMaxWidth().height(96.dp), contentAlignment = Alignment.BottomCenter) {
+                        Box(
+                            Modifier.fillMaxWidth().fillMaxHeight(fraction).clip(RoundedCornerShape(6.dp))
+                                .background(if (count == 0) colors.outlineVariant else color),
+                        )
+                    }
+                    Text(
+                        week.toString(),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = if (current) FontWeight.SemiBold else FontWeight.Normal,
+                        color = if (current) colors.onSurface else colors.onSurfaceVariant.copy(alpha = 0.75f),
+                        textAlign = TextAlign.Center,
+                    )
+                }
             }
         }
     }

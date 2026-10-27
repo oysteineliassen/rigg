@@ -30,7 +30,7 @@ object AiClient {
         val available = ExerciseLibrary.available(profile.equipment)
         val list = available.joinToString("\n") {
             "- ${it.id} | ${it.nameEn} | ${it.pattern} | ${it.muscles.joinToString("/")} | level ${it.level}" +
-                if (it.timed) " | timed" else ""
+                (if (it.timed) " | timed" else "") + if (it.perSide) " | per side" else ""
         }
         val equipmentText = (profile.equipment.map { englishLabel(it) } + "Bodyweight").joinToString(", ")
         val norwegian = Lang.isNorwegian
@@ -82,6 +82,7 @@ Respond with ONLY valid JSON, no explanation and no markdown code block, in this
   ]
 }
 For timed exercises, write reps as for example "$exampleTimed".
+For exercises marked "per side", reps and time are per side (the app tells the user to do both sides).
 """.trimIndent()
     }
 

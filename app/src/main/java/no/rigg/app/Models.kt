@@ -57,6 +57,8 @@ data class Exercise(
     val level: Int, // 1 = enkel, 2 = middels, 3 = krevende
     val timed: Boolean,
     val notes: Txt,
+    /** Én arm eller ett bein om gangen: reps/tid gjelder per side. */
+    val perSide: Boolean = false,
 ) {
     /** Navnet på telefonens språk. */
     val name: String get() = names.get()
@@ -65,6 +67,19 @@ data class Exercise(
     val nameEn: String get() = names.en
 
     val note: String get() = notes.get()
+
+    /** Forklaring for øvelser som tas én side om gangen, ellers null. */
+    val perSideHint: String?
+        get() = when {
+            !perSide -> null
+            timed -> tr("Per side: hold the time on one side, switch, then the same on the other.",
+                "Per side: hold tiden på den ene siden, bytt, og like lenge på den andre.")
+            else -> tr("Per side: 8 reps = 8 with one side first, then 8 with the other.",
+                "Per side: 8 reps = 8 med den ene siden først, så 8 med den andre.")
+        }
+
+    /** " per side" / " per side" etter reps og tid, eller tom. */
+    val perSideSuffix: String get() = if (perSide) tr(" per side", " per side") else ""
 
     /** True hvis øvelsen bruker utstyr man kan legge på mer belastning på (manualer, kettlebell, stang, strikk, TRX). */
     fun isWeighted(): Boolean = (requiresAll + requiresAny).any { it in Equipment.loadBearing }
@@ -85,6 +100,7 @@ data class Profile(
     val kettlebellWeights: String = "",
     /** Skriv fullførte økter til Health Connect (krever tillatelse). */
     val healthConnect: Boolean = false,
+    val heartRate: Boolean = false, // hent puls fra Health Connect (f.eks. fra Garmin-klokka) inn i loggede økter
 )
 
 @Serializable
@@ -102,6 +118,20 @@ data class PlannedExercise(
 data class WorkoutDay(
     val title: String,
     val exercises: List<PlannedExercise>,
+    /** Satt for en HIIT-økt: øvelsene tas som en runde (sirkel) på tid, se [HiitSpec]. */
+    val hiit: HiitSpec? = null,
+)
+
+/**
+ * HIIT: [rounds] runder der hver øvelse tas i [workSec] sekunder med [restSec] pause mellom, og [roundRestSec]
+ * pause etter hver runde.
+ */
+@Serializable
+data class HiitSpec(
+    val workSec: Int = 40,
+    val restSec: Int = 20,
+    val rounds: Int = 3,
+    val roundRestSec: Int = 60,
 )
 
 @Serializable
@@ -142,6 +172,13 @@ data class SessionLog(
     val dayTitle: String,
     val results: List<ExerciseResult> = emptyList(),
     val durationMin: Int = 0, // 0 = ukjent/ikke tidtatt (eldre logger, eller logget uten å bruke øktklokka)
+    val startedAtMs: Long = 0, // når økta startet (0 = ukjent: eldre logger, eller logget uten øktklokka)
+    val stravaActivityId: Long? = null, // satt når økta er lastet opp til Strava
+    val endedAtMs: Long = 0, // når økta ble lagret (0 = ukjent)
+    val avgHr: Int? = null, // snittpuls fra Health Connect, hvis hentet
+    val maxHr: Int? = null,
+    /** HIIT-økt: settene er sekunder på tid (også for øvelser som ellers telles i reps), og teller ikke i progresjonen. */
+    val hiit: Boolean = false,
 )
 
 /** Ett gjennomført sett i øktmodus. */
@@ -162,6 +199,9 @@ data class GuidedWorkout(
     val step: Int = 0,
     val done: List<DoneSet> = emptyList(),
     val warmupDone: Boolean = false,
+    val warmupIndex: Int = 0, // oppvarmingsøvelsen man er på, så den ikke starter på nytt når øktmodus åpnes igjen
+    /** Selve økta når den ikke står i programmet (HIIT-økter lages for anledningen). */
+    val day: WorkoutDay? = null,
 )
 
 /** Alt appen lagrer, samlet til én fil for backup/eksport. Ekskluderer AI-nøkkelen med vilje. */

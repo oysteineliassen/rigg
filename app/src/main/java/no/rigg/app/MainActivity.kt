@@ -67,6 +67,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Bare første gang: etter en rotasjon er koden fra Strava allerede brukt.
+        if (savedInstanceState == null) handleStravaRedirect(intent)
         setContent {
             RiggTheme {
                 App(
@@ -85,6 +87,18 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleStravaRedirect(intent)
+    }
+
+    private fun handleStravaRedirect(intent: Intent?) {
+        val uri = intent?.data ?: return
+        if (uri.scheme != "rigg" || uri.host != "localhost" || uri.path != "/strava") return
+        vm.finishStravaLogin(uri.getQueryParameter("code"), uri.getQueryParameter("error"), uri.getQueryParameter("scope"))
     }
 }
 
@@ -105,10 +119,13 @@ internal fun formatDuration(totalSeconds: Int): String {
  * Bevisst ikke en pekt til én bestemt video: med ~90 øvelser i biblioteket kan vi ikke kvalitetssikre
  * og vedlikeholde en spesifikk lenke for hver, og et søk slutter aldri å virke selv om enkeltvideoer forsvinner.
  */
-fun openExerciseVideo(context: android.content.Context, exercise: Exercise) {
+fun openExerciseVideo(context: android.content.Context, exercise: Exercise) =
     // Alltid engelsk søk, uansett språk i appen: det gir langt flere og bedre treff.
-    val query = Uri.encode("${exercise.nameEn} exercise proper form")
-    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/results?search_query=$query"))
+    openVideoSearch(context, "${exercise.nameEn} exercise proper form")
+
+/** YouTube-søk etter [query] (engelsk). */
+fun openVideoSearch(context: android.content.Context, query: String) {
+    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/results?search_query=${Uri.encode(query)}"))
     runCatching { context.startActivity(intent) }
 }
 
@@ -140,12 +157,26 @@ private fun App(
 
     // Øktmodus tar hele skjermen (uten fanene) mens den er åpen.
     val guided = vm.guided
-    val guidedDay = guided?.let { g -> vm.plan?.days?.find { it.title == g.dayTitle } }
+    val guidedDay = guided?.let { vm.dayFor(it) }
     if (guided != null && guidedDay != null && vm.guidedVisible) {
         Scaffold(snackbarHost = { SnackbarHost(snackbar) }) { pad ->
             Box(Modifier.padding(pad).fillMaxSize()) {
                 // Hvilen vises som egen skjerm inne i øktmodus, så her trengs ikke baren nederst.
                 WorkoutSessionScreen(vm, guidedDay, guided)
+            }
+        }
+        return
+    }
+
+    // Historikken tar også hele skjermen (uten fanene) mens den er åpen.
+    if (vm.historyOpen) {
+        Scaffold(snackbarHost = { SnackbarHost(snackbar) }) { pad ->
+            Box(Modifier.padding(pad).fillMaxSize()) {
+                // key: ny skjerm hver gang den åpnes, så den starter på riktig økt.
+                key(vm.historyStart, vm.historyWeek) {
+                    HistoryScreen(vm, startWith = vm.historyStart, week = vm.historyWeek, onDismiss = { vm.closeHistory() })
+                }
+                vm.shareLog?.let { log -> WorkoutShareDialog(log, vm, onDismiss = { vm.shareLog = null }) }
             }
         }
         return
@@ -192,11 +223,23 @@ private fun App(
                 Tab.PROGRESS -> ProgressScreen(vm)
                 Tab.SETTINGS -> SettingsScreen(vm, requestNotificationPermission, exportData, importData)
             }
+            vm.shareLog?.let { log -> WorkoutShareDialog(log, vm, onDismiss = { vm.shareLog = null }) }
             vm.restTimer?.let { timer ->
                 RestTimerBar(
                     timer = timer,
                     onAddSeconds = { vm.addRestSeconds(it) },
                     onStop = { vm.stopRestTimer() },
+                    // Trykk på baren: tilbake til økta (bare når det finnes en påbegynt økt i øktmodus).
+                    onOpen = vm.guided?.takeIf { g -> vm.dayFor(g) != null }?.let { { vm.showGuided() } },
+                    modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(12.dp),
+                )
+            }
+            // Oppvarming eller tidsøvelse (planke ...) som teller mens øktmodus er skjult. Hvilen vises heller hvis begge går.
+            if (vm.restTimer == null) vm.workTimer?.takeIf { !it.finished }?.let { work ->
+                WorkTimerBar(
+                    timer = work,
+                    onOpen = { vm.showGuided() },
+                    onStop = if (work.kind == WorkKind.SET) ({ vm.stopTimedSetEarly() }) else null,
                     modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(12.dp),
                 )
             }
@@ -233,21 +276,80 @@ internal fun SessionClock(
 }
 
 @Composable
-internal fun RestTimerBar(timer: RestTimer, onAddSeconds: (Int) -> Unit, onStop: () -> Unit, modifier: Modifier = Modifier) {
+internal fun RestTimerBar(
+    timer: RestTimer,
+    onAddSeconds: (Int) -> Unit,
+    onStop: () -> Unit,
+    modifier: Modifier = Modifier,
+    onOpen: (() -> Unit)? = null,
+) {
     @Suppress("UNUSED_VARIABLE")
     val tick = rememberTick(active = true) // leses her så baren tegnes på nytt hvert kvarte sekund
     val left = timer.secondsLeft() // regnes i samme scope som tick leses, ikke inne i Card-lambdaen
-    Card(modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+    val colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+    val content: @Composable ColumnScope.() -> Unit = {
         Row(
             Modifier.padding(horizontal = 16.dp, vertical = 10.dp).fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Text(tr("Resting: $left s", "Hviler: $left sek"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Column(Modifier.weight(1f)) {
+                Text(
+                    if (timer.paused) tr("Rest paused: $left s", "Hvile på pause: $left sek") else tr("Resting: $left s", "Hviler: $left sek"),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+                if (onOpen != null) {
+                    Text(
+                        tr("Tap to return to the workout", "Trykk for å gå tilbake til økta"),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f),
+                    )
+                }
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 TextButton(onClick = { onAddSeconds(15) }) { Text("+15s") }
                 TextButton(onClick = onStop) { Text(tr("Stop", "Stopp")) }
             }
+        }
+    }
+    if (onOpen != null) Card(onClick = onOpen, modifier = modifier, colors = colors, content = content)
+    else Card(modifier, colors = colors, content = content)
+}
+
+/** Nedtellingen for oppvarming eller en tidsøvelse, nederst på skjermen mens øktmodus er skjult. Trykk for å gå tilbake. */
+@Composable
+internal fun WorkTimerBar(timer: WorkTimer, onOpen: () -> Unit, onStop: (() -> Unit)?, modifier: Modifier = Modifier) {
+    @Suppress("UNUSED_VARIABLE")
+    val tick = rememberTick(active = true)
+    val left = timer.secondsLeft()
+    Card(
+        onClick = onOpen,
+        modifier = modifier,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+    ) {
+        Row(
+            Modifier.padding(horizontal = 16.dp, vertical = 10.dp).fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    (if (timer.kind == WorkKind.WARMUP) tr("Warm-up: ", "Oppvarming: ") else "") + timer.label,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                )
+                Text(
+                    if (timer.paused) tr("Paused · tap to return", "På pause · trykk for å gå tilbake")
+                    else tr("Tap to return to the workout", "Trykk for å gå tilbake til økta"),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f),
+                )
+            }
+            Text(formatDuration(left), style = MaterialTheme.typography.headlineSmall)
+            if (onStop != null) TextButton(onClick = onStop) { Text(tr("Stop", "Stopp")) }
         }
     }
 }
@@ -619,7 +721,6 @@ private fun PlanScreen(vm: AppViewModel, goToSetup: () -> Unit, requestNotificat
     val today = LocalDate.now()
     val doneThisWeek = logsThisWeek(vm.logs, today)
     val next = nextDay(plan, vm.logs, today)
-    var showHistory by remember { mutableStateOf(false) }
     var confirmNextBlock by remember { mutableStateOf(false) }
     var showProgression by remember { mutableStateOf(false) }
 
@@ -654,17 +755,43 @@ private fun PlanScreen(vm: AppViewModel, goToSetup: () -> Unit, requestNotificat
         if (next != null) {
             NextWorkoutCard(vm, next, onStart = { requestNotificationPermission(); vm.openGuided(next) })
         } else {
+            var chooseExtra by remember { mutableStateOf(false) }
+            val suggested = remember(plan, vm.logs) { extraDay(plan, vm.logs) }
+            // Trent i dag eller i går: minn om hvile (samme muskler trenger gjerne et par døgn).
+            val trainedRecently = vm.logs.any { it.date == today.toString() || it.date == today.minusDays(1).toString() }
             Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
                 Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     SectionLabel(tr("Week done", "Uka er i boks"), color = MaterialTheme.colorScheme.tertiary)
                     Text(tr("All workouts done this week", "Alle øktene er gjort denne uka"), style = MaterialTheme.typography.headlineSmall)
                     Text(
-                        tr("Rest up. The plan starts over on Monday.", "Hvil godt. Programmet starter på nytt mandag."),
+                        tr(
+                            "Rest up, or take an extra workout if you have the time and energy. The plan starts over on Monday.",
+                            "Hvil godt, eller ta en ekstra økt hvis du har tid og lyst. Programmet starter på nytt mandag.",
+                        ),
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    if (suggested != null) {
+                        Spacer(Modifier.height(6.dp))
+                        OutlinedButton(onClick = { chooseExtra = true }, shape = RoundedCornerShape(14.dp)) {
+                            Icon(RiggIcons.Play, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(tr("Extra workout", "Ekstra økt"))
+                        }
+                    }
                 }
             }
+            if (chooseExtra && suggested != null) {
+                ExtraWorkoutDialog(
+                    days = plan.days,
+                    suggested = suggested,
+                    trainedRecently = trainedRecently,
+                    onPick = { day -> chooseExtra = false; requestNotificationPermission(); vm.openGuided(day) },
+                    onDismiss = { chooseExtra = false },
+                )
+            }
         }
+
+        HiitCard(vm, onStart = requestNotificationPermission)
 
         nudgeFor(next ?: plan.days.first(), vm.logs, vm.profile)?.let { NudgeCard(it) }
 
@@ -703,7 +830,9 @@ private fun PlanScreen(vm: AppViewModel, goToSetup: () -> Unit, requestNotificat
                 SectionLabel(tr("Done this week", "Gjort denne uka"))
                 doneThisWeek.forEach { log ->
                     Row(
-                        Modifier.fillMaxWidth().border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp)).padding(horizontal = 14.dp, vertical = 12.dp),
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
+                            .clickable { vm.openHistory(log) }.padding(horizontal = 14.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         CheckDot(28.dp)
@@ -747,7 +876,7 @@ private fun PlanScreen(vm: AppViewModel, goToSetup: () -> Unit, requestNotificat
 
         if (vm.logs.isNotEmpty()) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = { showHistory = true }) { Text(tr("All history", "All historikk")) }
+                TextButton(onClick = { vm.openHistory() }) { Text(tr("All history", "All historikk")) }
                 TextButton(onClick = { vm.undoLastLog() }) { Text(tr("Undo last log", "Angre siste logging")) }
             }
         }
@@ -762,9 +891,6 @@ private fun PlanScreen(vm: AppViewModel, goToSetup: () -> Unit, requestNotificat
         )
     }
 
-    if (showHistory) {
-        HistoryDialog(logs = vm.logs, onDismiss = { showHistory = false }, onDelete = { vm.deleteLog(it) })
-    }
 
     if (confirmNextBlock) {
         ConfirmDialog(
@@ -820,13 +946,72 @@ private fun WeekStrip(trained: Set<Int>, today: Int) {
     }
 }
 
+/** Velg hvilken dag i programmet du vil ta som ekstra økt. Forslaget er dagen det er lengst siden du tok. */
+@Composable
+private fun ExtraWorkoutDialog(
+    days: List<WorkoutDay>,
+    suggested: WorkoutDay,
+    trainedRecently: Boolean,
+    onPick: (WorkoutDay) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(tr("Extra workout", "Ekstra økt")) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    tr(
+                        "Pick a day from your plan. It's logged like any other workout and counts this week.",
+                        "Velg en dag fra programmet. Den logges som en vanlig økt og teller med denne uka.",
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                if (trainedRecently) {
+                    Text(
+                        tr(
+                            "You trained today or yesterday. Muscles often need a couple of days, so go a little lighter if you're sore.",
+                            "Du trente i dag eller i går. Musklene trenger ofte et par døgn, så ta det litt roligere hvis du er støl.",
+                        ),
+                        style = MaterialTheme.typography.bodySmall, color = colors.tertiary,
+                    )
+                }
+                days.forEach { day ->
+                    val isSuggested = day.title == suggested.title
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                            .background(if (isSuggested) colors.primaryContainer else colors.surfaceContainerHigh)
+                            .clickable { onPick(day) }.padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(day.title, style = MaterialTheme.typography.titleMedium, color = if (isSuggested) colors.onPrimaryContainer else colors.onSurface)
+                            Text(
+                                (if (isSuggested) tr("Suggested · longest since last time · ", "Forslag · lengst siden sist · ") else "") +
+                                    tr("about ${estimateMinutes(day)} min", "ca. ${estimateMinutes(day)} min"),
+                                style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant,
+                            )
+                        }
+                        Icon(RiggIcons.Play, contentDescription = null, tint = colors.primary, modifier = Modifier.size(18.dp))
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text(tr("Cancel", "Avbryt")) } },
+    )
+}
+
 /** Kortet med neste økt: navn, omfang, figurene og én stor startknapp. */
 @Composable
 private fun NextWorkoutCard(vm: AppViewModel, day: WorkoutDay, onStart: () -> Unit) {
     val active = vm.sessionTimer?.dayTitle == day.title
     val minutes = remember(day) { estimateMinutes(day) }
-    val warmupMin = remember(day, vm.profile.equipment) { (warmupFor(day, vm.profile.equipment).sumOf { it.seconds } + 30) / 60 }
+    val warmupMin = remember(day, vm.profile.equipment, vm.logs.size) { (vm.warmupItems(day).sumOf { it.seconds } + 30) / 60 }
     val exercises = day.exercises.mapNotNull { ExerciseLibrary.get(it.exerciseId) }
+    var infoFor by remember { mutableStateOf<Exercise?>(null) }
+    infoFor?.let { ExerciseInfoDialog(it, onDismiss = { infoFor = null }) }
     Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             SectionLabel(if (active) tr("In progress", "Pågår") else tr("Next workout", "Neste økt"), color = MaterialTheme.colorScheme.tertiary)
@@ -842,7 +1027,7 @@ private fun NextWorkoutCard(vm: AppViewModel, day: WorkoutDay, onStart: () -> Un
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 val shown = if (exercises.size > 6) exercises.take(5) else exercises
-                shown.forEach { ExerciseTile(it, size = 48.dp) }
+                shown.forEach { ex -> Box(Modifier.clip(RoundedCornerShape(14.dp)).clickable { infoFor = ex }) { ExerciseTile(ex, size = 48.dp) } }
                 if (exercises.size > shown.size) {
                     Box(
                         Modifier.size(48.dp).clip(RoundedCornerShape(14.dp)).background(MaterialTheme.colorScheme.surfaceVariant),
@@ -876,48 +1061,6 @@ private fun NudgeCard(nudge: Nudge) {
     }
 }
 
-@Composable
-private fun HistoryDialog(logs: List<SessionLog>, onDismiss: () -> Unit, onDelete: (SessionLog) -> Unit) {
-    Dialog(onDismissRequest = onDismiss) {
-        Card(Modifier.fillMaxWidth().heightIn(max = 560.dp)) {
-            Column(Modifier.padding(16.dp)) {
-                Text(tr("All workouts", "Alle økter"), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(8.dp))
-                if (logs.isEmpty()) {
-                    Text(tr("No logged workouts yet.", "Ingen loggførte økter ennå."), style = MaterialTheme.typography.bodyMedium)
-                } else {
-                    Column(Modifier.verticalScroll(rememberScrollState()).weight(1f, fill = false)) {
-                        logs.asReversed().forEach { log ->
-                            Card(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                                Column(Modifier.padding(10.dp)) {
-                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                        val suffix = if (log.durationMin > 0) " · ${log.durationMin} min" else ""
-                                        Text("${log.date} · ${log.dayTitle}$suffix", fontWeight = FontWeight.Medium)
-                                        TextButton(onClick = { onDelete(log) }) { Text(tr("Delete", "Slett")) }
-                                    }
-                                    log.results.forEach { res ->
-                                        val name = ExerciseLibrary.get(res.exerciseId)?.name ?: res.exerciseId
-                                        val setsText = res.sets.joinToString(", ") { s ->
-                                            if (s.weightKg != null) "${formatWeight(s.weightKg)}kg×${s.reps}" else "${s.reps}"
-                                        }
-                                        Text(
-                                            "$name: $setsText",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                Spacer(Modifier.height(12.dp))
-                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text(tr("Close", "Lukk")) }
-            }
-        }
-    }
-}
-
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun DayCard(vm: AppViewModel, day: WorkoutDay, requestNotificationPermission: () -> Unit) {
@@ -941,7 +1084,7 @@ private fun DayCard(vm: AppViewModel, day: WorkoutDay, requestNotificationPermis
                 if (doneThisWeek) CheckDot(24.dp)
             }
             if (expanded) {
-                val warmup = warmupFor(day, vm.profile.equipment)
+                val warmup = vm.warmupItems(day)
                 Text(
                     tr("Warm-up (~${(warmup.sumOf { it.seconds } + 30) / 60} min): ", "Oppvarming (~${(warmup.sumOf { it.seconds } + 30) / 60} min): ") +
                         warmup.joinToString(" · ") { it.name },
@@ -965,7 +1108,7 @@ private fun DayCard(vm: AppViewModel, day: WorkoutDay, requestNotificationPermis
                             Text(ex?.name ?: pe.exerciseId, style = MaterialTheme.typography.titleSmall)
                         }
                         Text(
-                            "${pe.sets} × ${pe.reps}",
+                            "${pe.sets} × ${pe.reps}" + (ex?.perSideSuffix ?: ""),
                             Modifier.clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.surfaceVariant).padding(horizontal = 10.dp, vertical = 5.dp),
                             style = MaterialTheme.typography.labelLarge,
                         )
@@ -1016,7 +1159,11 @@ private fun DayCard(vm: AppViewModel, day: WorkoutDay, requestNotificationPermis
                         Spacer(Modifier.height(12.dp))
                         Text(ex.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.height(4.dp))
-                        Text(tr("${pe.sets} ${if (pe.sets == 1) "set" else "sets"} × ${pe.reps} · rest ${pe.restSec} s", "${pe.sets} sett × ${pe.reps} · pause ${pe.restSec} sek"), style = MaterialTheme.typography.bodyMedium)
+                        Text(tr("${pe.sets} ${if (pe.sets == 1) "set" else "sets"} × ${pe.reps}${ex.perSideSuffix} · rest ${pe.restSec} s", "${pe.sets} sett × ${pe.reps}${ex.perSideSuffix} · pause ${pe.restSec} sek"), style = MaterialTheme.typography.bodyMedium)
+                        ex.perSideHint?.let {
+                            Spacer(Modifier.height(6.dp))
+                            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.tertiary, textAlign = TextAlign.Center)
+                        }
                         if (pe.tip.isNotBlank()) {
                             Spacer(Modifier.height(8.dp))
                             Text(pe.tip, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
@@ -1195,45 +1342,73 @@ private fun LogSessionDialog(
     }
     var showConfirm by remember { mutableStateOf(false) }
 
+    val colors = MaterialTheme.colorScheme
     Dialog(onDismissRequest = onDismiss) {
-        Card(Modifier.fillMaxWidth()) {
+        Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = colors.surface)) {
             Column(
                 Modifier
                     .padding(16.dp)
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text(tr("Log ${day.title}", "Logg ${day.title}"), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Column {
+                    SectionLabel(tr("Log workout", "Logg økt"))
+                    Text(day.title, style = MaterialTheme.typography.headlineSmall)
+                }
                 day.exercises.forEach { pe ->
                     val ex = ExerciseLibrary.get(pe.exerciseId)
                     val (weighted, setsState) = state.getValue(pe.exerciseId)
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(ex?.name ?: pe.exerciseId, fontWeight = FontWeight.Medium)
+                    Column(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(colors.surfaceContainer).padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            if (ex != null) {
+                                var showInfo by remember { mutableStateOf(false) }
+                                if (showInfo) ExerciseInfoDialog(ex, onDismiss = { showInfo = false })
+                                Box(Modifier.clip(RoundedCornerShape(15.dp)).clickable { showInfo = true }) { ExerciseTile(ex, size = 52.dp) }
+                            }
+                            Column(Modifier.weight(1f)) {
+                                if (pe.group.isNotEmpty()) {
+                                    Text(tr("Superset ${pe.group}", "Supersett ${pe.group}"), style = MaterialTheme.typography.labelMedium, color = colors.tertiary)
+                                }
+                                Text(ex?.name ?: pe.exerciseId, style = MaterialTheme.typography.titleMedium)
+                                Text(
+                                    tr("Target ${pe.sets} × ${pe.reps}", "Mål ${pe.sets} × ${pe.reps}") + (ex?.perSideSuffix ?: ""),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colors.onSurfaceVariant,
+                                )
+                            }
+                        }
                         setsState.forEachIndexed { i, (repsState, weightState) ->
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(tr("Set ${i + 1}", "Sett ${i + 1}"), modifier = Modifier.width(56.dp), style = MaterialTheme.typography.bodySmall)
+                                Box(Modifier.size(30.dp).clip(CircleShape).background(colors.surfaceVariant), contentAlignment = Alignment.Center) {
+                                    Text("${i + 1}", style = MaterialTheme.typography.labelLarge, color = colors.onSurfaceVariant)
+                                }
                                 OutlinedTextField(
                                     value = repsState.value,
                                     onValueChange = { repsState.value = it },
-                                    label = { Text(if (ex?.timed == true) tr("sec", "sek") else "reps") },
+                                    suffix = { Text(if (ex?.timed == true) tr("sec", "sek") else "reps", color = colors.onSurfaceVariant) },
                                     singleLine = true,
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                    modifier = Modifier.width(90.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.weight(1f),
                                 )
                                 if (weighted) {
+                                    Text("×", style = MaterialTheme.typography.titleMedium, color = colors.onSurfaceVariant)
                                     OutlinedTextField(
                                         value = weightState.value,
                                         onValueChange = { weightState.value = it },
-                                        label = { Text("kg") },
+                                        suffix = { Text("kg", color = colors.onSurfaceVariant) },
                                         singleLine = true,
                                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                        modifier = Modifier.width(90.dp),
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.weight(1f),
                                     )
                                 }
                             }
                         }
                     }
-                    HorizontalDivider()
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     // "Lukk", ikke "Avbryt": økta og klokka fortsetter, bare skjemaet lukkes.
@@ -1298,6 +1473,10 @@ private fun SettingsScreen(
 
             HorizontalDivider()
         }
+
+        StravaSection(vm)
+
+        HorizontalDivider()
 
         AiSection(vm)
     }
@@ -1436,6 +1615,98 @@ private fun AiSection(vm: AppViewModel) {
     }
 }
 
+/** Valgfri opplasting til Strava, med riktige øvelser så muskelkartet stemmer. */
+@Composable
+private fun StravaSection(vm: AppViewModel) {
+    val context = LocalContext.current
+    val st = vm.strava
+    val colors = MaterialTheme.colorScheme
+    var clientId by remember(st.clientId) { mutableStateOf(st.clientId) }
+    var clientSecret by remember(st.clientSecret) { mutableStateOf(st.clientSecret) }
+    fun openUrl(url: String) = runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Strava", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text(
+            tr(
+                "Upload workouts to Strava with the right exercises, sets and weights, so the muscle map in Strava matches what you trained.",
+                "Last opp økter til Strava med riktige øvelser, sett og vekter, så muskelkartet i Strava stemmer med det du trente.",
+            ),
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(tr("Use Strava upload", "Bruk opplasting til Strava"), Modifier.weight(1f))
+            Switch(checked = st.enabled, onCheckedChange = { vm.updateStrava(st.copy(enabled = it)) })
+        }
+        if (!st.enabled) return@Column
+
+        if (!st.connected) {
+            Text(
+                tr(
+                    "One-time setup:\n1. Create an API application at strava.com/settings/api. Enter localhost as \"Authorization Callback Domain\".\n2. Paste the Client ID and Client Secret here.\n3. Tap Connect and approve in Strava.",
+                    "Engangsoppsett:\n1. Lag en API-app på strava.com/settings/api. Skriv localhost under «Authorization Callback Domain».\n2. Lim inn Client ID og Client Secret her.\n3. Trykk Koble til og godkjenn i Strava.",
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.onSurfaceVariant,
+            )
+            TextButton(onClick = { openUrl("https://www.strava.com/settings/api") }) {
+                Text(tr("Open strava.com/settings/api", "Åpne strava.com/settings/api"))
+            }
+            OutlinedTextField(
+                value = clientId,
+                onValueChange = { clientId = it.trim() },
+                label = { Text("Client ID") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = clientSecret,
+                onValueChange = { clientSecret = it.trim() },
+                label = { Text("Client Secret") },
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Button(
+                onClick = {
+                    vm.updateStrava(st.copy(clientId = clientId, clientSecret = clientSecret))
+                    openUrl(StravaClient.authorizeUri(clientId).toString())
+                },
+                enabled = clientId.isNotBlank() && clientSecret.isNotBlank(),
+            ) { Text(tr("Connect to Strava", "Koble til Strava")) }
+        } else {
+            Text(
+                tr("Connected", "Koblet til") + (st.athleteName.takeIf { it.isNotBlank() }?.let { tr(" as $it", " som $it") } ?: ""),
+                style = MaterialTheme.typography.titleSmall,
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(tr("Upload automatically", "Last opp automatisk"))
+                    Text(
+                        tr(
+                            "When a workout is saved. Off: use the Strava button on the workout image.",
+                            "Når en økt lagres. Av: bruk Strava-knappen på øktbildet.",
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.onSurfaceVariant,
+                    )
+                }
+                Switch(checked = st.autoUpload, onCheckedChange = { vm.updateStrava(st.copy(autoUpload = it)) })
+            }
+            TextButton(onClick = { vm.disconnectStrava() }) { Text(tr("Disconnect", "Koble fra")) }
+        }
+        Text(
+            tr(
+                "Your watch probably uploads the same workout too. Delete that copy in Strava (or don't record strength workouts on the watch), so it isn't counted twice.",
+                "Klokka laster sannsynligvis opp den samme økta også. Slett den kopien i Strava (eller ikke ta opp styrkeøkter på klokka), så den ikke telles dobbelt.",
+            ),
+            style = MaterialTheme.typography.bodySmall,
+            color = colors.onSurfaceVariant,
+        )
+    }
+}
+
 @Composable
 private fun HealthConnectSection(vm: AppViewModel) {
     val context = LocalContext.current
@@ -1451,9 +1722,20 @@ private fun HealthConnectSection(vm: AppViewModel) {
             note = tr("Permission wasn't granted.", "Tillatelsen ble ikke gitt.")
         }
     }
+    val hrLauncher = rememberLauncherForActivityResult(PermissionController.createRequestPermissionResultContract()) { granted ->
+        if (granted.containsAll(HealthConnectSync.heartRatePermissions)) {
+            note = null
+            vm.updateProfile(vm.profile.copy(heartRate = true))
+        } else {
+            note = tr("Permission wasn't granted.", "Tillatelsen ble ikke gitt.")
+        }
+    }
     // Er tillatelsen fjernet i Health Connect, slås bryteren av her også.
     LaunchedEffect(p.healthConnect) {
         if (p.healthConnect && !HealthConnectSync.hasPermission(context)) vm.updateProfile(vm.profile.copy(healthConnect = false))
+    }
+    LaunchedEffect(p.heartRate) {
+        if (p.heartRate && !HealthConnectSync.hasHeartRatePermission(context)) vm.updateProfile(vm.profile.copy(heartRate = false))
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1502,6 +1784,35 @@ private fun HealthConnectSection(vm: AppViewModel) {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(tr("Heart rate in workouts", "Puls i øktene"))
+                Text(
+                    tr(
+                        "Reads heart rate from Health Connect (e.g. from a Garmin watch via Garmin Connect) for the time the workout lasted. Shown on the workout image and included in Strava uploads.",
+                        "Leser puls fra Health Connect (f.eks. fra Garmin-klokka via Garmin Connect) for tiden økta varte. Vises på øktbildet og blir med i opplastingen til Strava.",
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Switch(
+                checked = p.heartRate,
+                onCheckedChange = { on ->
+                    when {
+                        !on -> vm.updateProfile(p.copy(heartRate = false))
+                        status == HealthConnectClient.SDK_AVAILABLE -> scope.launch {
+                            if (HealthConnectSync.hasHeartRatePermission(context)) {
+                                vm.updateProfile(vm.profile.copy(heartRate = true))
+                            } else {
+                                hrLauncher.launch(HealthConnectSync.heartRatePermissions + HealthConnectSync.workoutReadPermissions)
+                            }
+                        }
+                        else -> HealthConnectSync.openInstall(context)
+                    }
+                },
+            )
+        }
         note?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
     }
 }
