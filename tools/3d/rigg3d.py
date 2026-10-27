@@ -355,13 +355,13 @@ def leg(side, ankle, hint=Vector((0, -1, 0)), foot_dir=None):
     rotate_world(ft, (D @ B.transposed()).to_quaternion(), ft.head.copy())
 
 
-def toes_flat(side):
-    """Tærne bøyes opp så de ligger flatt mot gulvet (når hælen er løftet)."""
+def toes_flat(side, k=1.0):
+    """Tærne bøyes opp så de ligger flatt mot gulvet (når hælen er løftet). [k] < 1 bøyer dem bare delvis."""
     for pb in PB:
         if pb.name.startswith("toe") and pb.name.endswith("-1." + side):
             L = (REST[pb.name][1] - REST[pb.name][0]).length
             d = Vector((0, -1, 0))
-            aim(pb, pb.tail.copy(), pb.head + d * L)
+            aim(pb, pb.tail.copy(), pb.tail.lerp(pb.head + d * L, k))
 
 
 # ======================================================================== HENDER OG GREP
@@ -598,12 +598,14 @@ def ex_db_curl(s):
     for (side, sx), db in zip(SIDES, DB):
         l1, l2, hand = arm_lengths(side)
         sh = PB[f"upperarm01.{side}"].head.copy()
-        elbow = sh + Vector((0.09 * sx, 0.0, -l1 * 0.98))
+        # Albuen står stille inntil siden av kroppen, akkurat en overarmslengde fra skulderen (ellers velger
+        # leddberegningen et annet punkt, og albuen skyter ut til siden når vekten er oppe).
+        elbow = sh + Vector((0.28 * sx, 0.0, -1.0)).normalized() * l1
         th = math.radians(8 + 132 * e)            # underarmen fra nesten rett ned til opp mot skulderen
         d = Vector((0.03 * sx, -math.sin(th), -math.cos(th))).normalized()
         n = Vector((0, -math.cos(th), math.sin(th)))   # håndflata fram nede, opp mot ansiktet øverst
         c = elbow + d * (l2 + hand * 0.55) + n * (HANDLE_R + 0.016)
-        at = grip(side, sx, c, HANDLE_R, n, d, Vector((0, 1, -0.2)))
+        at = grip(side, sx, c, HANDLE_R, n, d, elbow - sh)
         db.place(at, X)
         used.append(db)
     return used
@@ -629,18 +631,24 @@ def ex_rdl_db(s):
 
 
 def ex_db_lunge(s):
-    e = s * s * (3 - 2 * s)
-    # Utfall bakover: venstre fot står, høyre går et langt steg bak og kneet nesten ned i gulvet.
-    move_root(Vector((0, 0.2 * e, -0.36 * e)))
-    lean(6 * e)
-    leg("L", ankle_rest("L") + Vector((0, -0.04 * e, 0)), Vector((0, -1, 0)))
+    # Utfall bakover: venstre fot står, høyre tar et langt steg bak (løftes og settes ned på fotballen), og så
+    # senkes kneet nesten ned i gulvet (frambeinet bøyes alt mens foten går bakover). Animasjonen går fram og
+    # tilbake, så retur er motsatt.
+    step = ramp(s, 0.0, 0.45)
+    step = step * step * (3 - 2 * step)
+    down = ramp(s, 0.05, 0.8)   # starter mens foten går bakover, ellers rekker ikke bakbeinet ned
+    down = down * down * (3 - 2 * down)
+    move_root(Vector((0, 0.06 * step + 0.14 * down, -0.36 * down)))
+    lean(6 * down)
+    leg("L", ankle_rest("L") + Vector((0, -0.04 * down, 0)), Vector((0, -1, 0)))
     ar = ankle_rest("R")
-    # Bakfoten: hælen løftes, foten peker bratt ned med fotballen i gulvet og tærne flatt.
-    back_ankle = ar + Vector((0, 0.72 * e, 0.05 * e))
+    # Bakfoten løftes i en bue mens den går bakover, og lander med hælen oppe.
+    lift = 0.08 * math.sin(math.pi * step)
+    back_ankle = ar + Vector((0, 0.72 * step, 0.05 * step + lift))
     rest_dir = (REST["foot.R"][1] - REST["foot.R"][0]).normalized()
     steep = Vector((0, -0.42, -0.9)).normalized()
-    leg("R", back_ankle, Vector((0, -1, -0.3)), foot_dir=rest_dir.lerp(steep, e))
-    toes_flat("R")
+    leg("R", back_ankle, Vector((0, -1, -0.3)), foot_dir=rest_dir.lerp(steep, step))
+    toes_flat("R", step)
     used = []
     for (side, sx), db in zip(SIDES, DB):
         l1, l2, hand = arm_lengths(side)
@@ -841,16 +849,19 @@ def check_arms():
 
 
 if os.environ.get("LEDD"):
-    for s in (0.0, 0.5, 1.0):
+    names = os.environ.get("LEDD_BEIN") and ("upperleg01.R", "lowerleg01.R", "foot.R", "toe1-1.R") or \
+        ("clavicle.L", "shoulder01.L", "upperarm01.L", "lowerarm01.L", "wrist.L")
+    for s in [float(x) for x in os.environ.get("LEDD_S", "0,0.5,1").split(",")]:
         pose(s)
-        print("LEDD", s, {n: tuple(round(x, 3) for x in PB[n].head) for n in ("clavicle.L", "shoulder01.L", "upperarm01.L", "lowerarm01.L", "wrist.L")})
+        print("LEDD", s, {n: tuple(round(x, 3) for x in PB[n].head) for n in names})
 elif os.environ.get("SJEKK"):
     check_arms()
 elif not os.environ.get("BARE_OPPSETT"):
     if NFRAMES:
         # ANIM_STEG="1:2" rendrer bare hver andre ramme fra nr. 1 (f.eks. mellomrammene når antallet dobles).
         start, step = (int(x) for x in os.environ.get("ANIM_STEG", "0:1").split(":"))
-        for k in range(start, NFRAMES, step):
+        only = os.environ.get("RAMMER")   # f.eks. "10,16,48": bare disse rammene
+        for k in ([int(x) for x in only.split(",")] if only else range(start, NFRAMES, step)):
             # FORTSETT=1: hopp over rammer som allerede er rendret (f.eks. etter et avbrudd).
             if os.environ.get("FORTSETT") and os.path.exists(os.path.join(OUT, f"anim_{k:02d}.png")):
                 continue
